@@ -71,8 +71,41 @@ def _tools():
     return dump, restore
 
 
+def _pg_cli(dsn):
+    """Connection args + env for pg_dump/psql derived from the same DSN the app
+    uses. FASE 15 CI: the test server requires a password (SCRAM), so the DSN
+    password must be forwarded via PGPASSWORD — hardcoding host/port/user/db and
+    omitting the password fails against a password-protected server."""
+    import psycopg.conninfo
+
+    info = psycopg.conninfo.conninfo_to_dict(dsn)
+    args = []
+    if info.get("host"):
+        args += ["-h", info["host"]]
+    if info.get("port"):
+        args += ["-p", str(info["port"])]
+    args += ["-U", info.get("user") or "postgres"]
+    args += ["-d", info.get("dbname") or "postgres"]
+    env = __import__("os").environ.copy()
+    if info.get("password"):
+        env["PGPASSWORD"] = info["password"]
+    return args, env
+
+
+def _run(cmd, **kwargs):
+    # Fail loudly and surface the tool's real stderr for diagnosability.
+    result = subprocess.run(cmd, capture_output=True, text=True, **kwargs)
+    if result.returncode != 0:
+        raise AssertionError(
+            f"{cmd[0]} failed (rc={result.returncode})\n"
+            f"stdout: {result.stdout.strip()}\nstderr: {result.stderr.strip()}"
+        )
+    return result
+
+
 def test_pg_dump_restore_round_trip(pg_dsn, pg_db):
     dump_bin, psql_bin = _tools()
+    cli_args, cli_env = _pg_cli(pg_dsn)
 
     pg_db.migrate()
     from feb_score.infrastructure.persistence.postgres.repositories import PgMatchRepository
@@ -82,11 +115,8 @@ def test_pg_dump_restore_round_trip(pg_dsn, pg_db):
     schema = pg_db.schema
     dump_path = f"/tmp/feb_pg_dump_{uuid4().hex}.sql"
     # Plain-format, schema-scoped dump: SQL text that recreates schema + data.
-    subprocess.run(
-        [dump_bin, "-h", "127.0.0.1", "-p", "5433", "-U", "postgres",
-         "-d", "feb_test", "--schema", schema, "--format=plain", "-f", dump_path],
-        check=True, capture_output=True,
-    )
+    _run([dump_bin, *cli_args, "--schema", schema, "--format=plain", "-f", dump_path],
+         env=cli_env)
     assert b"CREATE SCHEMA" in open(dump_path, "rb").read()
 
     # Destroy the schema, then restore from the dump (the dump recreates it).
@@ -94,10 +124,7 @@ def test_pg_dump_restore_round_trip(pg_dsn, pg_db):
     conn.execute(f'DROP SCHEMA "{schema}" CASCADE')
     conn.close()
     with open(dump_path) as fh:
-        subprocess.run(
-            [psql_bin, "-h", "127.0.0.1", "-p", "5433", "-U", "postgres", "-d", "feb_test"],
-            stdin=fh, check=True, capture_output=True,
-        )
+        _run([psql_bin, *cli_args], stdin=fh, env=cli_env)
 
     from feb_score.infrastructure.persistence.postgres.connection import PgDatabase
 
