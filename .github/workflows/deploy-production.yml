@@ -1,0 +1,119 @@
+# FASE 20 — Production CD (Railway).
+#
+# Trigger: MANUAL ONLY (workflow_dispatch). Production is NEVER deployed from any
+# push. A human must start it and, because the job targets the GitHub "production"
+# Environment (required reviewer = repo owner), it requires an explicit
+# environment approval before the deploy steps run.
+#
+# Secrets required in the GitHub repository (NOT in this file):
+#   RAILWAY_TOKEN            Railway token scoped to the production project env
+#   RAILWAY_SERVICE_NAME     API service in production (feb-score-api)
+#   RAILWAY_PROD_DOMAIN      production HTTPS domain (feb-score-api-production.up.railway.app)
+#   FEB_SCORE_PROD_SMOKE_KEY API key valid in production (matches FEB_SCORE_API_KEYS)
+#
+# Flow: tests -> Railway builds the image from Dockerfile -> railway up
+# -> wait for /ready -> authenticated smoke (health, ready, POST
+# create_or_update_match, event match_upserted, GET match) -> 401 check.
+# The commit SHA is echoed for traceability (immutable image reference per deploy).
+
+name: deploy-production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "deploy production" to confirm (manual gate)'
+        required: true
+        default: ''
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_REF: ${{ github.sha }}  # immutable traceability reference
+
+jobs:
+  test:
+    name: tests (Python 3.11)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Dependency audit
+        run: python -m pip check
+      - name: Tests
+        run: python -m pytest -q
+
+  deploy:
+    name: deploy to Railway (production)
+    needs: test
+    environment:
+      name: production  # requires explicit environment approval (required reviewers)
+    runs-on: ubuntu-latest
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_SERVICE_NAME: ${{ secrets.RAILWAY_SERVICE_NAME }}
+      RAILWAY_PROD_DOMAIN: ${{ secrets.RAILWAY_PROD_DOMAIN }}
+      FEB_SCORE_PROD_SMOKE_KEY: ${{ secrets.FEB_SCORE_PROD_SMOKE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Guard: manual confirmation
+        run: |
+          [ "$CONFIRM" = "deploy production" ] || { echo "::error::Manual confirmation required: type 'deploy production' in the workflow_dispatch input 'confirm'."; exit 1; }
+
+      - name: Install Railway CLI
+        run: |
+          [ -n "$RAILWAY_TOKEN" ] || { echo "::error::RAILWAY_TOKEN secret not configured"; exit 1; }
+          curl -fsSL https://railway.app/install.sh | sh
+
+      - name: Show traceability (immutable ref)
+        run: |
+          echo "commit_sha=${{ github.sha }}"
+          echo "ref=${GITHUB_REF}"
+          echo "actor=${GITHUB_ACTOR}"
+          echo "image_ref=${IMAGE_REF}"
+
+      - name: Deploy (Railway builds from Dockerfile)
+        run: |
+          # Link to the dedicated production project (non-interactive) and deploy.
+          railway link --project feb-score-production -y
+          railway up --service "$RAILWAY_SERVICE_NAME"
+          echo "deployment_id=$(railway service status --service "$RAILWAY_SERVICE_NAME" | grep -oE 'Deployment: [0-9a-f-]+' | awk '{print $2}')"
+
+      - name: Wait for readiness
+        run: |
+          url="https://$RAILWAY_PROD_DOMAIN/ready"
+          for i in $(seq 1 60); do
+            if curl -fsS "$url" | grep -q '"status": *"ready"'; then
+              echo "READY after $((i * 5))s"
+              curl -fsS "$url"
+              curl -fsS "https://$RAILWAY_PROD_DOMAIN/health"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::production /ready never became ready" >&2
+          exit 1
+
+      - name: Smoke test (authenticated)
+        run: |
+          bash scripts/staging_smoke.sh "https://$RAILWAY_PROD_DOMAIN" "$FEB_SCORE_PROD_SMOKE_KEY"
+
+      - name: Security check (unauthenticated -> 401)
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "https://$RAILWAY_PROD_DOMAIN/v1/commands/create_or_update_match" \
+            -H 'Content-Type: application/json' \
+            -d '{"payload":{"external_id":"g","competition_id":"c","season_code":"2025","round_number":1,"scheduled_at":"2026-03-15T20:00:00Z","home_team":{"external_id":"h","name":"H"},"away_team":{"external_id":"a","name":"A"},"source":{"id":"s","fetched_at":"2026-03-15T19:00:00Z","s3_path":"s3://x"}}}')
+          [ "$code" = "401" ] || { echo "::error::expected 401 without API key, got $code"; exit 1; }
+          echo "auth_401_check=PASS"
+
+      - name: Evidence summary
+        run: |
+          echo "PRODUCTION_DEPLOY=PASS"
+          echo "domain=$RAILWAY_PROD_DOMAIN"
+          echo "image_ref=${IMAGE_REF}"

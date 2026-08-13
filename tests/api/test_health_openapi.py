@@ -55,6 +55,30 @@ def test_docs_page_available(client):
     assert client.get("/docs").status_code == 200
 
 
+def test_docs_and_openapi_disabled_when_env_true(db_path):
+    import os
+
+    from api_helpers import make_client
+
+    os.environ["FEB_SCORE_DISABLE_DOCS"] = "true"
+    try:
+        app = make_client(db_path).app
+        authed = TestClient(app)
+        assert authed.get("/docs").status_code == 404
+        assert authed.get("/openapi.json").status_code == 404
+    finally:
+        del os.environ["FEB_SCORE_DISABLE_DOCS"]
+
+
+def test_docs_remain_enabled_by_default(db_path):
+    import api_helpers
+
+    app = api_helpers.make_client(db_path).app
+    authed = TestClient(app)
+    assert authed.get("/docs").status_code == 200
+    assert authed.get("/openapi.json").status_code == 200
+
+
 def test_contract_endpoint_serves_the_versioned_schema(client):
     resp = client.get("/v1/contracts/create_or_update_match")
     assert resp.status_code == 200

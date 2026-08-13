@@ -15,6 +15,7 @@ forged in the request body or command payload.
 
 from __future__ import annotations
 
+import os
 import uuid
 from contextlib import asynccontextmanager
 from typing import Any, Dict, Optional
@@ -104,8 +105,13 @@ def create_app(
         title="feb_score API",
         version=APP_VERSION,
         description=API_DESCRIPTION,
-        docs_url="/docs",
+        docs_url="/docs"
+        if os.environ.get("FEB_SCORE_DISABLE_DOCS", "").lower() not in {"1", "true", "yes"}
+        else None,
         redoc_url=None,
+        openapi_url=None
+        if os.environ.get("FEB_SCORE_DISABLE_DOCS", "").lower() in {"1", "true", "yes"}
+        else "/openapi.json",
         lifespan=_lifespan,
     )
     app.state.gateway = gateway
