@@ -1,0 +1,82 @@
+# FASE 18.1 — Staging deployment to Railway.
+#
+# Trigger: manual (workflow_dispatch) or push to the `staging` branch.
+# The deploy job ONLY runs when the RAILWAY_TOKEN secret exists; until then it
+# is skipped, so this workflow can never deploy against non-existent
+# infrastructure or fail on missing credentials.
+#
+# Secrets required (set in the GitHub repository, NOT in this file):
+#   RAILWAY_TOKEN            Railway project token (scoped to the staging env)
+#   RAILWAY_SERVICE_NAME     name of the API service in Railway
+#   RAILWAY_STAGING_DOMAIN   the service's HTTPS domain (e.g. feb-score.up.railway.app
+#                            or a custom domain)
+#   FEB_SCORE_SMOKE_KEY      an API key valid in staging (same value must be
+#                            referenced by FEB_SCORE_API_KEYS in Railway)
+#
+# Flow: tests -> Railway builds the image from Dockerfile -> railway up ->
+# wait for /ready -> smoke test (health, ready, POST create_or_update_match,
+# event match_upserted, GET match).
+#
+# Migrations: run by the application at boot (server.py) against the staging
+# Postgres; railway.toml sets overlapSeconds=0 so only one instance boots at a
+# time (single-replica staging).
+
+name: deploy-staging
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - staging
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: tests (Python 3.11)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Dependency audit
+        run: python -m pip check
+      - name: Tests
+        run: python -m pytest -q
+
+  deploy:
+    name: deploy to Railway (staging)
+    needs: test
+    if: ${{ secrets.RAILWAY_TOKEN != '' }}
+    runs-on: ubuntu-latest
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: curl -fsSL https://railway.app/install.sh | sh
+
+      - name: Deploy (Railway builds from Dockerfile)
+        run: railway up --service "${{ secrets.RAILWAY_SERVICE_NAME }}"
+
+      - name: Wait for readiness
+        run: |
+          url="https://${{ secrets.RAILWAY_STAGING_DOMAIN }}/ready"
+          for i in $(seq 1 60); do
+            if curl -fsS "$url" | grep -q '"status": *"ready"'; then
+              echo "READY after $((i * 5))s"
+              curl -fsS "$url"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "staging /ready never became ready" >&2
+          exit 1
+
+      - name: Smoke test
+        run: bash scripts/staging_smoke.sh "https://${{ secrets.RAILWAY_STAGING_DOMAIN }}" "${{ secrets.FEB_SCORE_SMOKE_KEY }}"
