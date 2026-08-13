@@ -1,20 +1,5 @@
 # FASE 20 — Production CD (Railway).
-#
-# Trigger: MANUAL ONLY (workflow_dispatch). Production is NEVER deployed from any
-# push. A human must start it and, because the job targets the GitHub "production"
-# Environment (required reviewer = repo owner), it requires an explicit
-# environment approval before the deploy steps run.
-#
-# Secrets required in the GitHub repository (NOT in this file):
-#   RAILWAY_TOKEN            Railway token scoped to the production project env
-#   RAILWAY_SERVICE_NAME     API service in production (feb-score-api)
-#   RAILWAY_PROD_DOMAIN      production HTTPS domain (feb-score-api-production.up.railway.app)
-#   FEB_SCORE_PROD_SMOKE_KEY API key valid in production (matches FEB_SCORE_API_KEYS)
-#
-# Flow: tests -> Railway builds the image from Dockerfile -> railway up
-# -> wait for /ready -> authenticated smoke (health, ready, POST
-# create_or_update_match, event match_upserted, GET match) -> 401 check.
-# The commit SHA is echoed for traceability (immutable image reference per deploy).
+# Manual-only production deploy. CI authenticates with a Railway project token.
 
 name: deploy-production
 
@@ -30,7 +15,11 @@ permissions:
   contents: read
 
 env:
-  IMAGE_REF: ${{ github.sha }}  # immutable traceability reference
+  IMAGE_REF: ${{ github.sha }}
+  RAILWAY_PROJECT: feb-score-production
+  RAILWAY_ENVIRONMENT: production
+  RAILWAY_SERVICE_NAME: feb-score-api
+  RAILWAY_PROD_DOMAIN: feb-score-api-production.up.railway.app
 
 jobs:
   test:
@@ -52,7 +41,7 @@ jobs:
     name: deploy to Railway (production)
     needs: test
     environment:
-      name: production  # requires explicit environment approval (required reviewers)
+      name: production
     runs-on: ubuntu-latest
     env:
       CONFIRM: ${{ inputs.confirm }}
@@ -65,15 +54,24 @@ jobs:
         run: |
           [ "$CONFIRM" = "deploy production" ] || { echo "::error::Manual confirmation required: type 'deploy production' in the workflow_dispatch input 'confirm'."; exit 1; }
 
-      - name: "Guard + resolve secrets/identifiers"
+      - name: "Guard: required secrets"
+        shell: bash
         run: |
           [ -n "$RAILWAY_TOKEN" ] || { echo "::error::RAILWAY_TOKEN secret not configured"; exit 1; }
-          # Public, non-secret production identifiers (override via environment if needed).
-          echo "RAILWAY_SERVICE_NAME=${RAILWAY_SERVICE_NAME:-feb-score-api}" >> "$GITHUB_ENV"
-          echo "RAILWAY_PROD_DOMAIN=${RAILWAY_PROD_DOMAIN:-feb-score-api-production.up.railway.app}" >> "$GITHUB_ENV"
           [ -n "$FEB_SCORE_PROD_SMOKE_KEY" ] || { echo "::error::FEB_SCORE_PROD_SMOKE_KEY secret not configured"; exit 1; }
-          echo "service=$RAILWAY_SERVICE_NAME"
-          echo "domain=$RAILWAY_PROD_DOMAIN"
+
+          # '=' is valid inside a secret value. The value must not include the
+          # variable assignment prefix itself (e.g. RAILWAY_TOKEN=...).
+          case "$RAILWAY_TOKEN" in
+            RAILWAY_TOKEN=*)
+              echo "::error::RAILWAY_TOKEN contains an assignment prefix; store only the token value."; exit 1 ;;
+          esac
+          case "$FEB_SCORE_PROD_SMOKE_KEY" in
+            FEB_SCORE_PROD_SMOKE_KEY=*)
+              echo "::error::FEB_SCORE_PROD_SMOKE_KEY contains an assignment prefix; store only the API key value."; exit 1 ;;
+          esac
+
+          printf 'service=%s\ndomain=%s\n' "$RAILWAY_SERVICE_NAME" "$RAILWAY_PROD_DOMAIN"
 
       - name: Install Railway CLI
         run: |
@@ -90,10 +88,13 @@ jobs:
 
       - name: Deploy (Railway builds from Dockerfile)
         run: |
-          # Link to the dedicated production project (non-interactive) and deploy.
-          railway link --project feb-score-production --environment production --service feb-score-api
-          railway up --service "$RAILWAY_SERVICE_NAME"
-          echo "deployment_id=$(railway service status --service "$RAILWAY_SERVICE_NAME" | grep -oE 'Deployment: [0-9a-f-]+' | awk '{print $2}')"
+          # RAILWAY_TOKEN is a project-scoped CI token. Do not call railway
+          # login or railway link: both can depend on persisted interactive state.
+          railway up \
+            --project "$RAILWAY_PROJECT" \
+            --environment "$RAILWAY_ENVIRONMENT" \
+            --service "$RAILWAY_SERVICE_NAME" \
+            --ci
 
       - name: Wait for readiness
         run: |
