@@ -91,7 +91,7 @@ jobs:
       - name: Deploy (Railway builds from Dockerfile)
         run: |
           # Link to the dedicated production project (non-interactive) and deploy.
-          railway link --project feb-score-production -y
+          railway link --project feb-score-production --environment production --service feb-score-api
           railway up --service "$RAILWAY_SERVICE_NAME"
           echo "deployment_id=$(railway service status --service "$RAILWAY_SERVICE_NAME" | grep -oE 'Deployment: [0-9a-f-]+' | awk '{print $2}')"
 
