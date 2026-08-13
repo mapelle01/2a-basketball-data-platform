@@ -68,7 +68,7 @@ jobs:
       - name: "Guard + resolve secrets/identifiers"
         run: |
           [ -n "$RAILWAY_TOKEN" ] || { echo "::error::RAILWAY_TOKEN secret not configured"; exit 1; }
-          # Public, non-secret production identifiers (override via secrets if needed).
+          # Public, non-secret production identifiers (override via environment if needed).
           echo "RAILWAY_SERVICE_NAME=${RAILWAY_SERVICE_NAME:-feb-score-api}" >> "$GITHUB_ENV"
           echo "RAILWAY_PROD_DOMAIN=${RAILWAY_PROD_DOMAIN:-feb-score-api-production.up.railway.app}" >> "$GITHUB_ENV"
           [ -n "$FEB_SCORE_PROD_SMOKE_KEY" ] || { echo "::error::FEB_SCORE_PROD_SMOKE_KEY secret not configured"; exit 1; }
@@ -78,6 +78,8 @@ jobs:
       - name: Install Railway CLI
         run: |
           curl -fsSL https://railway.app/install.sh | sh
+          echo "$HOME/.railway/bin" >> "$GITHUB_PATH"
+          "$HOME/.railway/bin/railway" --version
 
       - name: Show traceability (immutable ref)
         run: |
@@ -97,7 +99,7 @@ jobs:
         run: |
           url="https://$RAILWAY_PROD_DOMAIN/ready"
           for i in $(seq 1 60); do
-            if curl -fsS "$url" | grep -q '"status": *"ready"'; then
+            if curl -fsS "$url" | grep -q '\"status\": *\"ready\"'; then
               echo "READY after $((i * 5))s"
               curl -fsS "$url"
               curl -fsS "https://$RAILWAY_PROD_DOMAIN/health"
