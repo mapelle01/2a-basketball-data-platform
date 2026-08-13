@@ -92,7 +92,7 @@ jobs:
             -H 'Content-Type: application/json' \
             -d '{"payload":{"external_id":"ci-1","competition_id":"c","season_code":"2025-2026","round_number":1,"scheduled_at":"2026-02-01T18:30:00Z","home_team":{"external_id":"h","name":"H"},"away_team":{"external_id":"a","name":"A"},"source":{"id":"ci","fetched_at":"2026-02-01T18:00:00Z","s3_path":"s3://x"}}}' \
             | tee /tmp/feb_ci_post.txt
-          grep -q '"status": "accepted"' /tmp/feb_ci_post.txt
+          grep -q '"status": *"accepted"' /tmp/feb_ci_post.txt
           docker compose ps
       - name: Container diagnostics (FASE 15)
         if: always()
