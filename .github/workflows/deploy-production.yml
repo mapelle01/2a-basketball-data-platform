@@ -9,7 +9,7 @@
 #   RAILWAY_TOKEN            Railway project token scoped to the production environment
 #   FEB_SCORE_PROD_SMOKE_KEY API key valid in production (matches FEB_SCORE_API_KEYS)
 #
-# Flow: tests -> auth preflight -> Railway builds the image from Dockerfile -> railway up
+# Flow: tests -> secret guards -> Railway builds the image from Dockerfile -> railway up
 # -> wait for /ready -> authenticated smoke -> 401 check.
 #
 # IMPORTANT: RAILWAY_TOKEN must contain ONLY the token value. Do not paste
@@ -91,23 +91,6 @@ jobs:
           curl -fsSL https://railway.app/install.sh | sh
           echo "$HOME/.railway/bin" >> "$GITHUB_PATH"
           "$HOME/.railway/bin/railway" --version
-
-      - name: "Verify Railway authentication"
-        run: |
-          echo "Checking Railway project-token authentication (token value is never printed)..."
-          railway whoami >/dev/null || {
-            echo "::error::Railway authentication failed. RAILWAY_TOKEN must be a valid Project Token for the production environment.";
-            echo "::error::If you created an Account/Workspace token, use RAILWAY_API_TOKEN instead; for this workflow create a Project Token in the production project's Settings > Tokens.";
-            exit 1;
-          }
-          echo "Railway authentication=PASS"
-
-      - name: Show traceability (immutable ref)
-        run: |
-          echo "commit_sha=${{ github.sha }}"
-          echo "ref=${GITHUB_REF}"
-          echo "actor=${GITHUB_ACTOR}"
-          echo "image_ref=${IMAGE_REF}"
 
       - name: Deploy (Railway builds from Dockerfile)
         run: |
