@@ -93,6 +93,40 @@ def test_module_import_survives_malformed_integer_env():
     assert "FEB_SCORE_PORT" in txt, txt
 
 
+def test_port_reads_feb_score_port(monkeypatch):
+    from feb_score.server import _port
+
+    monkeypatch.setenv("FEB_SCORE_PORT", "9001")
+    monkeypatch.delenv("PORT", raising=False)
+    assert _port() == 9001
+
+
+def test_port_falls_back_to_standard_PORT_env(monkeypatch):
+    """FASE 18.1 — Railway injects PORT; FEB_SCORE_PORT wins when both are set."""
+    from feb_score.server import _port
+
+    monkeypatch.delenv("FEB_SCORE_PORT", raising=False)
+    monkeypatch.setenv("PORT", "8080")
+    assert _port() == 8080
+
+
+def test_port_defaults_to_8000(monkeypatch):
+    from feb_score.server import _port
+
+    monkeypatch.delenv("FEB_SCORE_PORT", raising=False)
+    monkeypatch.delenv("PORT", raising=False)
+    assert _port() == 8000
+
+
+def test_malformed_PORT_env_fails_fast(monkeypatch):
+    from feb_score.server import _port
+
+    monkeypatch.delenv("FEB_SCORE_PORT", raising=False)
+    monkeypatch.setenv("PORT", "not-a-port")
+    with pytest.raises(ConfigurationError, match="PORT"):
+        _port()
+
+
 def test_production_requires_database_url():
     with pytest.raises(ConfigurationError, match="FEB_SCORE_DATABASE_URL"):
         Settings(env="production", api_keys="k=id:admin").validate()

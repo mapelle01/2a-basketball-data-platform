@@ -37,12 +37,18 @@ HOST = os.environ.get("FEB_SCORE_HOST", "0.0.0.0")
 
 def _port() -> int:
     """FASE 15 §4: parse FEB_SCORE_PORT lazily so a malformed value surfaces
-    as ConfigurationError at boot, never a bare ValueError at import time."""
-    raw = os.environ.get("FEB_SCORE_PORT", "8000")
+    as ConfigurationError at boot, never a bare ValueError at import time.
+
+    FASE 18.1: fall back to the standard ``PORT`` variable (injected by
+    container platforms such as Railway) when FEB_SCORE_PORT is unset. The
+    explicit FEB_SCORE_PORT always wins; the error message names both."""
+    raw = os.environ.get("FEB_SCORE_PORT") or os.environ.get("PORT") or "8000"
     try:
         return int(raw)
     except (TypeError, ValueError):
-        raise ConfigurationError(f"FEB_SCORE_PORT must be an integer, got {raw!r}") from None
+        raise ConfigurationError(
+            f"FEB_SCORE_PORT/PORT must be an integer, got {raw!r}"
+        ) from None
 
 
 def _build_db(settings: Settings):
