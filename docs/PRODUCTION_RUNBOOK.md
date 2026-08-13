@@ -107,3 +107,24 @@ Objetivo production (provisional): RPO ≤ 5 min (PITR), RTO ≤ 30 min.
 - Railway: project `feb-score-production`, workspace `espanadeantes's Projects`, región ams.
 - TLS: edge Railway (Let's Encrypt, `*.up.railway.app`); HSTS: NO configurable en el edge (CDN/proxy delante si se exige).
 - Dominio: `https://feb-score-api-production.up.railway.app` (default Railway; usar custom domain + DNS si se exige dominio propio).
+
+## 12. Automated CD (FASE 20)
+
+- Workflow: `.github/workflows/deploy-production.yml`.
+- Trigger: **`workflow_dispatch` manual + input `confirm`="deploy production"** (NO `push` auto-deploy a production).
+- GitHub Environment `production` (creado). **required-reviewers protection BLOCKED por plan Free** ("billing plan supports required reviewers protection") → el gate manual se implementa via el input `confirm` + el step `Guard: manual confirmation`. Para approval true-style elevar el plan GitHub.
+- Secrets (GitHub repo secrets, nunca en repo): `RAILWAY_TOKEN` (production PAT), `RAILWAY_SERVICE_NAME=feb-score-api`, `RAILWAY_PROD_DOMAIN=feb-score-api-production.up.railway.app`, `FEB_SCORE_PROD_SMOKE_KEY`.
+- Flow CI: tests(479) → `railway up --service feb-score-api` → esperar `SUCCESS` → `/ready` 200 (schema_version=1) → smoke autenticado → POST sin key 401. Fail-fast (`exit 1`) si readiness/smoke/token fallan. `image_ref=${GITHUB_SHA}` (commit SHA como ref inmutable).
+- **Production PAT**: debe crearse en Railway Dashboard → Settings → API Tokens (scoped a feb-score-production) y agregarse como GitHub secret `RAILWAY_TOKEN`. El CLI no puede mintarlo. Sin él, el workflow falla abierto (seguridad por default). El deploy real se ejecutó vía `railway up` (equivalente al workflow) → deployment actual `d0bc5e25` SUCCESS.
+
+## 13. Security hardening (FASE 20)
+
+- `/docs` y `/openapi.json` restringidos en production vía env `FEB_SCORE_DISABLE_DOCS=true` (default OFF → staging-safe). `docs_url`/`openapi_url` = None cuando el flag está activo.
+- Auth: 401 sin key; 401 key inválida; 200 key válida. Key rotada (old 401).
+- PG privado (SSH tunnel, sin TCP proxy público). Rate limit 120/min. Non-root (`USER feb`).
+
+## 14. Plan/billing notes (FASE 20)
+
+- Railway plan Hobby **limita a 3 buckets/project** → el dump lógico prod reutiliza el bucket `Postgres-PITR` con prefijo `prod-dumps/` (no se creó bucket dedicado; no se auto-upgradeó).
+- External S3 (true DR) NO disponible → offsite real = bucket Railway S3-compatible (off-app). Bloqueado a external S3 hasta credentials reales.
+- Alerting (email/Slack) NO expuesto vía CLI → Dashboard.
