@@ -55,9 +55,8 @@ jobs:
       name: production  # requires explicit environment approval (required reviewers)
     runs-on: ubuntu-latest
     env:
+      CONFIRM: ${{ inputs.confirm }}
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-      RAILWAY_SERVICE_NAME: ${{ secrets.RAILWAY_SERVICE_NAME }}
-      RAILWAY_PROD_DOMAIN: ${{ secrets.RAILWAY_PROD_DOMAIN }}
       FEB_SCORE_PROD_SMOKE_KEY: ${{ secrets.FEB_SCORE_PROD_SMOKE_KEY }}
     steps:
       - uses: actions/checkout@v4
@@ -66,9 +65,18 @@ jobs:
         run: |
           [ "$CONFIRM" = "deploy production" ] || { echo "::error::Manual confirmation required: type 'deploy production' in the workflow_dispatch input 'confirm'."; exit 1; }
 
-      - name: Install Railway CLI
+      - name: "Guard + resolve secrets/identifiers"
         run: |
           [ -n "$RAILWAY_TOKEN" ] || { echo "::error::RAILWAY_TOKEN secret not configured"; exit 1; }
+          # Public, non-secret production identifiers (override via secrets if needed).
+          echo "RAILWAY_SERVICE_NAME=${RAILWAY_SERVICE_NAME:-feb-score-api}" >> "$GITHUB_ENV"
+          echo "RAILWAY_PROD_DOMAIN=${RAILWAY_PROD_DOMAIN:-feb-score-api-production.up.railway.app}" >> "$GITHUB_ENV"
+          [ -n "$FEB_SCORE_PROD_SMOKE_KEY" ] || { echo "::error::FEB_SCORE_PROD_SMOKE_KEY secret not configured"; exit 1; }
+          echo "service=$RAILWAY_SERVICE_NAME"
+          echo "domain=$RAILWAY_PROD_DOMAIN"
+
+      - name: Install Railway CLI
+        run: |
           curl -fsSL https://railway.app/install.sh | sh
 
       - name: Show traceability (immutable ref)
