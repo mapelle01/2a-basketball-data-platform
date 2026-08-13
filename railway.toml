@@ -1,0 +1,31 @@
+# FASE 18.1 — Railway config-as-code (STAGING).
+#
+# Build strategy (decision): Railway builds from the existing production
+# Dockerfile (multi-stage, non-root, contracts shipped). No registry push /
+# GHCR is required for staging: the Dockerfile already is the reproducible
+# artifact and Railway keeps per-deploy history for rollback.
+#
+# Deploy strategy for STAGING (1 replica, no Redis/Kafka/K8s):
+#   * healthcheckPath = "/ready": Railway activates a deployment only after
+#     /ready returns HTTP 200 (PostgreSQL reachable + schema_version
+#     up_to_date). /health remains the Docker liveness probe.
+#   * overlapSeconds = "0": the new deployment replaces the previous one with
+#     NO overlap, so migrations run at boot (server.py: db.migrate()) from a
+#     single instance — same rationale as a 1-replica deployment. When
+#     scaling to N replicas, move migrations to an explicit single-run step.
+#   * restartPolicyType = "ALWAYS": a crashed container restarts (restart
+#     detection for the staging checklist).
+#   * No secrets in this file: FEB_SCORE_DATABASE_URL / FEB_SCORE_API_KEYS /
+#     FEB_SCORE_ENV are set as Railway service variables (or references to the
+#     Postgres service). Railway injects PORT, which the app reads (server.py).
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "python -m feb_score.server"
+healthcheckPath = "/ready"
+healthcheckTimeout = 300
+restartPolicyType = "ALWAYS"
+overlapSeconds = "0"
