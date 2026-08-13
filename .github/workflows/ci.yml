@@ -79,8 +79,8 @@ jobs:
         run: |
           docker compose up -d --build
           for i in $(seq 1 60); do
-if curl -fsS http://127.0.0.1:8000/health >/dev/null 2>&1 && \
-             curl -fsS http://127.0.0.1:8000/ready | grep -q '"status": *"ready"'; then
+            if curl -fsS http://127.0.0.1:8000/health >/dev/null 2>&1 && \
+               curl -fsS http://127.0.0.1:8000/ready | grep -q '"status": *"ready"'; then
               break
             fi
             sleep 2
