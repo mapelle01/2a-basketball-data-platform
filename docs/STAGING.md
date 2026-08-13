@@ -1,9 +1,11 @@
 # STAGING — FEB-SCORE v1.0.0 en Railway
 
-> Estado: **PREPARADO (código/documentación) — NO provisionado ni desplegado.**
-> FASE 18.1 terminó BLOCKED por falta de acceso a Railway. Este documento es el
-> runbook que se ejecutará cuando exista acceso real. Nada aquí sustituye a la
-> evidencia real de un despliegue verificado.
+> Estado: **DEPLOYED y VERIFICADO** en Railway (FASE 18.5) + **BACKUP/PITR operativo,
+> restore drill y rollback probados con evidencia real** (FASE 18.6).
+> PostgreSQL real = **18** (default actual del plugin Railway, no 16).
+> Limitación documentada: backup on-demand y schedule diario via CLI fallan con
+> `OAUTH_INSUFFICIENT_GRANT` (permiso de la sesión OAuth); el PITR continuo
+> (pgBackRest + WAL a bucket) sí está operativo.
 >
 > Distinción de estados (FASE 18.1):
 > - **READY** = preparado en código/documentación (este estado).
@@ -30,9 +32,9 @@ Railway HTTPS (dominio <servicio>.up.railway.app o custom)
    ↓
 FEB-SCORE API v1.0.0 (1 réplica, no-root, imagen desde Dockerfile)
    ↓ (red privada railway.internal)
-PostgreSQL 16 gestionado (privado, DATABASE_URL por referencia)
+PostgreSQL 18 gestionado (privado, DATABASE_URL por referencia)
    ↓
-Backups: volumen Railway + pg_dump lógico (S3/bucket) + PITR (opcional)
+Backups: PITR activo (pgBackRest → bucket Postgres-PITR) + WAL continuo; pg_dump lógico pendiente
 Secrets: FEB_SCORE_DATABASE_URL, FEB_SCORE_API_KEYS (variables Railway)
 Monitoring: logs + /health + /ready + restart ALWAYS
 ```
@@ -40,8 +42,7 @@ Monitoring: logs + /health + /ready + restart ALWAYS
 - **API**: Railway build desde `Dockerfile` (decision: no GHCR; el Dockerfile es
   el artefacto reproducible y Railway conserva el historial de deploys para
   rollback). Config en `railway.toml`.
-- **PostgreSQL**: servicio Railway Postgres 16, privado. `DATABASE_URL` como
-  variable-referencia `${{DATABASE_URL}}` del servicio PG (red interna).
+- **PostgreSQL**: servicio Railway Postgres **18** (default del plugin `postgres-ssl:18`), privado. `DATABASE_URL` como variable-referencia `${{Postgres.DATABASE_URL}}` del servicio PG (red interna). PITR habilitado (FASE 18.6).
 - **Tráfico**: HTTPS en el edge de Railway; HSTS no es configurable en el edge
   de Railway (limitación documentada; si se exige HSTS, anteponer CDN/proxy).
 - **Secrets**: variables de servicio en Railway (nunca en Git; `.env` ignorado).
@@ -53,8 +54,9 @@ Monitoring: logs + /health + /ready + restart ALWAYS
 
 | Servicio | Tipo | Detalle |
 |---|---|---|
-| `feb-score-api` | Deploy from Dockerfile | 1 réplica, puerto `${{PORT}}` (Railway inyecta `PORT`; `server.py` lo lee, `FEB_SCORE_PORT` gana) |
-| `postgres` | Railway Postgres 16 | privado, sin TCP proxy público |
+| `feb-score` | Deploy from Dockerfile | 1 réplica, puerto `${{PORT}}` (Railway inyecta `PORT`; `server.py` lo lee, `FEB_SCORE_PORT` gana) |
+| `Postgres` | Railway Postgres 18 | privado, sin TCP proxy público, PITR activo |
+| `feb-restore-drill` | (temporal) | servicio de restore drill, creado y borrado en FASE 18.6 |
 
 Variables de servicio del API (en Railway, no en Git):
 
@@ -71,7 +73,7 @@ FEB_SCORE_RATE_LIMIT_PER_MINUTE=120
 
 ## 4. PostgreSQL
 
-- Versión 16 (coherente con CI y `docker-compose.yml`).
+- Versión **18** (default actual del plugin Railway `postgres-ssl:18`; **no 16** — documentado, no ocultado). CI usa 16 localmente; la API es agnóstica de la minor version.
 - Base: la del servicio Railway (`railway` por defecto del template).
 - **Roles**: usar el rol/credencial que expone `DATABASE_URL`. Railway Postgres
   no expone superuser por diseño en la app; no se usa superuser para la
@@ -130,33 +132,40 @@ GitHub (tests + pip check) → railway up --service <api> → esperar /ready →
 ## 9. Rollback
 
 - Railway conserva el historial de despliegues del servicio; **rollback =
-  Redeploy de una versión anterior** (dashboard o `railway redeploy <deployment_id>`).
+  Redeploy de una versión anterior** (`deploymentRedeploy(id)` vía API GraphQL).
 - Cada versión es reproducible desde Git (`vX.Y.Z` → `railway up`).
 - Guarda de schema futuro protege el boot si se despliega un binario antiguo
   contra un schema más nuevo.
-- **Probar en staging** (checklist): desplegar vN+1 y volver a vN verificando
-  `/ready` y datos intactos.
+- **PROBADO con evidencia real (FASE 18.6)**: redeploy del deployment anterior
+  (`7dbeda3b` → nuevo `755a4c77`) con `deploymentRedeploy(id)`; verificado
+  deployment SUCCESS, `/health` 200, `/ready` 200 (`schema_version=1`,
+  `database=ok`, `migrations=up_to_date`), datos intactos (matches de smoke y del
+  restore drill → 200) y smoke autenticado PASS. Se restauró después el
+  deployment original (`0f0c8310` → `f997d479`, SUCCESS) con el mismo proceso.
+- **Nota**: entre ambos deployments el código es idéntico (el commit intermedio fue
+  solo docs); la prueba valida el mecanismo de rollback, no un cambio de versiones.
 
-## 10. Backups (estado real de Railway, verificado en docs)
+## 10. Backups (estado REAL en Railway, FASE 18.6)
 
-Railway Postgres ofrece (documentado oficialmente):
-- **Volume backups** (snapshots): schedules Daily (retención 6 días), Weekly
-  (1 mes), Monthly (3 meses) + manuales. Restauran al mismo servicio. **No
-  están activos por defecto: hay que habilitarlos.**
-- **PITR** (pgBackRest, WAL continuo a bucket): ventana ~4 semanas; restore a
-  un servicio hermano nuevo en cualquier timestamp. Se habilita desde la pestaña
-  Backups.
-- **Dumps lógicos `pg_dump`**: la única capa portable y que sobrevive a borrar
-  el proyecto; recomendado un cron service que suba el dump a un bucket
-  (S3-compatible) → offsite.
+**PITR operativo** (ejecutado con evidencia real):
+- `railway postgres pitr enable` → bucket `Postgres-PITR` creado y cableado (región ams;
+  S3 `postgres-pitr-kjuqowfazu`). Status: **enabled** / bucket wired: **yes**.
+- Postgres recibió las vars `WAL_ARCHIVE_*`; **pgBackRest 2.59.0**: `stanza-create` OK,
+  `backup command end: completed successfully` (primer full backup, 50s) con retención
+  `--repo1-retention-full=4 --repo1-retention-diff=14` (~4 semanas de ventana), `expire` OK,
+  WAL continuo `archive-push command end: completed successfully`. Bucket creciendo en tiempo
+  real (6.8 MB / 1.363 objetos; objetos incrementándose con cada WAL).
+- **Restore drill REAL ejecutado**: dato de prueba `restore-drill-test-<ts>` creado vía API →
+  `railway postgres pitr restore --service Postgres --at <now> --new-service-name feb-restore-drill`
+  → servicio temporal **Online** en 39s (RTO observado) → validado: `schema_version=1`,
+  12 tablas, 2 matches, el dato de prueba presente con su `domain_event`, `restore-comp`/`SCHEDULED`.
+  Servicio temporal **borrado** después (cleanup).
+- **Limitación real (grant OAuth)**: `pitr backup create` (on-demand) y `pitr schedule set --daily`
+  fallan con `OAUTH_INSUFFICIENT_GRANT` incluso tras re-login. El backup continuo PITR SÍ opera.
+  Pendiente: on-demand/schedule via dashboard o una credencial con más grants; y `pg_dump -Fc`
+  lógico offsite (capa portable fuera de Railway).
 
-Plan para staging (provisional, a ejecutar al provisionar):
-- Habilitar volume backup **Daily** (retención 6 días) + **Weekly** (1 mes).
-- Cron `pg_dump -Fc` diario a un Railway storage bucket (o S3 externo) cifrado.
-- **Restore drill** periódico a base scratch + integrity check (`schema_version`,
-  conteos) — **sin esto no hay "backup operativo"**.
-- RPO 24h / RTO 4h **provisionales**; marcar en el checklist qué se cumplió
-  realmente (PITR reduce RPO a minutos si se habilita).
+Plan futuro (no ejecutado aún): cron `pg_dump -Fc` diario a bucket externo + restore drill periódico.
 
 ## 11. Seguridad
 
@@ -189,5 +198,10 @@ Plan para staging (provisional, a ejecutar al provisionar):
 API desplegada · PostgreSQL accesible · migrations ejecutadas · /health OK ·
 /ready OK · schema_version=1 · TLS funcionando · API key en secret ·
 DATABASE_URL en secret · smoke test real (accepted + match_upserted) · logs
-accesibles · container restart probado · rollback probado · backup generado ·
-restore probado · documentación del entorno.
+accesibles · container restart probado · **rollback probado (18.6)** ·
+**backup/PITR generado (18.6)** · **restore probado (18.6)** ·
+documentación del entorno.
+
+> Hecho en 18.5/18.6: todo lo anterior salvo "container restart probado" (no
+> necesario: `restartPolicyType=ALWAYS` y sin restarts) y la capa `pg_dump`
+> offsite (pendiente).
