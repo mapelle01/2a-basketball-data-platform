@@ -77,7 +77,7 @@ Revisión estática del `Dockerfile` y `docker-compose.yml` (correctos sobre pap
 - Multi-stage (builder instala deps; runtime solo app + deps), usuario no-root (`uid 1000`), `HEALTHCHECK` sobre `/health`, `PYTHONPATH=/app/src`, `ENTRYPOINT python -m feb_score.server`.
 - Compose: `postgres:16-alpine` + API con healthcheck de dependencia; `FEB_SCORE_ENV=production`; `FEB_SCORE_API_KEYS` obligatoria (`:?`); single worker por diseño (dispatcher inline, rate limiter en memoria) con escala por réplicas.
 - **Contrato de entorno verificado estáticamente**: todas las variables que usa `docker-compose.yml` (`FEB_SCORE_DATABASE_URL`, `FEB_SCORE_API_KEYS`, `FEB_SCORE_LOG_LEVEL`, `FEB_SCORE_RATE_LIMIT`, `FEB_SCORE_RATE_LIMIT_PER_MINUTE`) existen y son leídas en `infrastructure/config.py` y consumidas por `server.py` (`build_production_app`), que aplica `migrate()` en el arranque.
-- **Acción pendiente (no bloqueante)**: añadir un job de CI que ejecute `docker build` + `docker compose config` (+ up/smoke) para cubrir F-05 de forma automatizada.
+- **Acción pendiente (no bloqueante)**: añadir un job de CI que ejecute `docker build` + `docker compose config` (+ up/smoke) para cubrir F-05 de forma automatizada. **RESUELTO en FASE 15**: `.github/workflows/ci.yml` (job `docker`) ejecutado **VERDE** en GitHub Actions — ver `FASE_15_REPORT.md` §12.
 
 ## 4. Auditoría de base de datos — concurrencia — PASS
 

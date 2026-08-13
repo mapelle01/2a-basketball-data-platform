@@ -2,8 +2,8 @@
 
 ## Plataforma de datos deportivos para competiciones FEB
 
-**Estado del proyecto:** Fase de construcción del Core Domain
-**Fecha de actualización:** 2026-08-07
+**Estado del proyecto:** READY — PRODUCTION CANDIDATE (FASE 16 — cierre definitivo)
+**Fecha de actualización:** 2026-08-13
 **Objetivo:** construir una plataforma de datos deportivos especializada inicialmente en competiciones de la Federación Española de Baloncesto (FEB), inspirada funcionalmente en productos como SofaScore, FotMob o Flashscore.
 
 ---

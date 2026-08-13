@@ -263,7 +263,10 @@ invocar la lógica desde fuera (CLI/API/worker):
 
 ## 11. Plan de evolución
 
-**Completado:** PostgreSQL (FASE 12) y AuthN/AuthZ + producción (FASE 13).
+**Completado:** PostgreSQL (FASE 12), AuthN/AuthZ + producción (FASE 13), roles
+y observabilidad con cierre de auditoría (FASE 14), readiness operacional +
+pipeline CI verificado en GitHub Actions (FASE 15). Estado: **READY —
+PRODUCTION CANDIDATE** (FASE 16).
 
 Pendiente (fuera de FASE 13):
 
@@ -280,8 +283,8 @@ Pendiente (fuera de FASE 13):
 ## 12. Ejecución de tests
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m pytest -q          # suite completa (447 tests)
+PYTHONPATH=src .venv/bin/python -m pytest -q          # suite completa (473 tests)
 PYTHONPATH=src python3 -m pytest -q \
     --ignore=tests/api --ignore=tests/postgres --ignore=tests/production \
-    # suite sin HTTP/PostgreSQL (python del sistema) — 285 tests
+    # suite sin HTTP/PostgreSQL (python del sistema) — 287 tests
 ```
