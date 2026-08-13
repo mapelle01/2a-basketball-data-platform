@@ -111,9 +111,12 @@ jobs:
 
       - name: Deploy (Railway builds from Dockerfile)
         run: |
-          railway link --project feb-score-production --environment production --service feb-score-api
-          railway up --service "$RAILWAY_SERVICE_NAME"
-          echo "deployment_id=$(railway service status --service "$RAILWAY_SERVICE_NAME" | grep -oE 'Deployment: [0-9a-f-]+' | awk '{print $2}')"
+          railway up \
+            --project "feb-score-production" \
+            --environment "production" \
+            --service "$RAILWAY_SERVICE_NAME" \
+            --ci
+          echo "deployment target=production/$RAILWAY_SERVICE_NAME"
 
       - name: Wait for readiness
         run: |
