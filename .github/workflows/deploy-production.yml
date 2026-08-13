@@ -95,7 +95,7 @@ jobs:
       - name: Deploy (Railway builds from Dockerfile)
         run: |
           railway up \
-            --project "feb-score-production" \
+            --project "7878b33c-c516-4ba7-a946-94564b2c62de" \
             --environment "production" \
             --service "$RAILWAY_SERVICE_NAME" \
             --ci
