@@ -1,9 +1,11 @@
 # FASE 18.1 — Staging deployment to Railway.
 #
 # Trigger: manual (workflow_dispatch) or push to the `staging` branch.
-# The deploy job ONLY runs when the RAILWAY_TOKEN secret exists; until then it
-# is skipped, so this workflow can never deploy against non-existent
-# infrastructure or fail on missing credentials.
+# The deploy STEPS only run when the RAILWAY_TOKEN secret exists; until then
+# the job prints a warning and skips, so this workflow can never deploy
+# against non-existent infrastructure or fail on missing credentials.
+# (Note: `secrets` is not accepted in a job-level `if`; gating is done at the
+# step level, where it is valid.)
 #
 # Secrets required (set in the GitHub repository, NOT in this file):
 #   RAILWAY_TOKEN            Railway project token (scoped to the staging env)
@@ -51,20 +53,26 @@ jobs:
   deploy:
     name: deploy to Railway (staging)
     needs: test
-    if: ${{ secrets.RAILWAY_TOKEN != '' }}
     runs-on: ubuntu-latest
     env:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
     steps:
+      - name: Gate — Railway access required
+        if: ${{ secrets.RAILWAY_TOKEN == '' }}
+        run: echo "::warning::RAILWAY_TOKEN secret not configured; staging deploy skipped (no Railway access)"
+
       - uses: actions/checkout@v4
 
       - name: Install Railway CLI
+        if: ${{ secrets.RAILWAY_TOKEN != '' }}
         run: curl -fsSL https://railway.app/install.sh | sh
 
       - name: Deploy (Railway builds from Dockerfile)
+        if: ${{ secrets.RAILWAY_TOKEN != '' }}
         run: railway up --service "${{ secrets.RAILWAY_SERVICE_NAME }}"
 
       - name: Wait for readiness
+        if: ${{ secrets.RAILWAY_TOKEN != '' }}
         run: |
           url="https://${{ secrets.RAILWAY_STAGING_DOMAIN }}/ready"
           for i in $(seq 1 60); do
@@ -79,4 +87,5 @@ jobs:
           exit 1
 
       - name: Smoke test
+        if: ${{ secrets.RAILWAY_TOKEN != '' }}
         run: bash scripts/staging_smoke.sh "https://${{ secrets.RAILWAY_STAGING_DOMAIN }}" "${{ secrets.FEB_SCORE_SMOKE_KEY }}"
