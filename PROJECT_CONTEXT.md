@@ -2,7 +2,7 @@
 
 ## Plataforma de datos deportivos para competiciones FEB
 
-**Estado del proyecto:** READY — PRODUCTION CANDIDATE (FASE 16 — cierre definitivo)
+**Estado del proyecto:** READY — PRODUCTION CANDIDATE · STAGING (Railway) preparado en código y documentación, BLOCKED por falta de acceso a Railway (FASE 18.1)
 **Fecha de actualización:** 2026-08-13
 **Objetivo:** construir una plataforma de datos deportivos especializada inicialmente en competiciones de la Federación Española de Baloncesto (FEB), inspirada funcionalmente en productos como SofaScore, FotMob o Flashscore.
 
