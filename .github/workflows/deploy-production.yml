@@ -62,7 +62,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Guard: manual confirmation
+      - name: "Guard: manual confirmation"
         run: |
           [ "$CONFIRM" = "deploy production" ] || { echo "::error::Manual confirmation required: type 'deploy production' in the workflow_dispatch input 'confirm'."; exit 1; }
 
