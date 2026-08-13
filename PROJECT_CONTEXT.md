@@ -2,7 +2,7 @@
 
 ## Plataforma de datos deportivos para competiciones FEB
 
-**Estado del proyecto:** READY — PRODUCTION CANDIDATE · STAGING (Railway) DEPLOYED y verificado con BACKUP/PITR OPERATIVO + restore drill y rollback PROBADOS con evidencia real (FASE 18.6) · PostgreSQL 18 (default del plugin Railway, no 16) · Pendientes: backup on-demand y schedule diario via CLI bloqueados por `OAUTH_INSUFFICIENT_GRANT` (el PITR continuo pgBackRest SÍ está operativo; el volumen de datos en el bucket crece en tiempo real)
+**Estado del proyecto:** READY — PRODUCTION CANDIDATE · STAGING (Railway) DEPLOYED + VERIFIED con BACKUP/PITR OPERATIVO + backup lógico offsite REAL + restore drill (PITR 39s + lógico 6s) y rollback PROBADOS con evidencia real + API key ROTADA (FASE 18.6/18.7) · PostgreSQL 18 (default del plugin Railway, no 16) · Pendientes: backup on-demand y schedule diario vía CLI bloqueados por `OAUTH_INSUFFICIENT_GRANT` (el PITR continuo pgBackRest SÍ está operativo; el bucket crece en tiempo real; el pg_dump -Fc offsite a bucket Railway también opera). No se declara PRODUCTION DEPLOYED.
 **Fecha de actualización:** 2026-08-13
 **Objetivo:** construir una plataforma de datos deportivos especializada inicialmente en competiciones de la Federación Española de Baloncesto (FEB), inspirada funcionalmente en productos como SofaScore, FotMob o Flashscore.
 
