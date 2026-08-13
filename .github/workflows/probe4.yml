@@ -1,0 +1,22 @@
+name: probe4
+on:
+  workflow_dispatch:
+  push:
+    branches: [wf-probe2]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hi
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: gate
+        if: ${{ secrets.RAILWAY_TOKEN == '' }}
+        run: echo skipped
+      - name: do
+        if: ${{ secrets.RAILWAY_TOKEN != '' }}
+        run: echo deploy

@@ -1,0 +1,19 @@
+name: probe5
+on:
+  workflow_dispatch:
+  push:
+    branches: [wf-probe2]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hi
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+    steps:
+      - run: echo deploy
