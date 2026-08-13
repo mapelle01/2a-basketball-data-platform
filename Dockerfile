@@ -20,6 +20,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 COPY --from=builder /install /usr/local
 WORKDIR /app
 COPY src ./src
+# JSON-Schema command contracts: the app resolves them as /app/contracts
+# (CONTRACTS_ROOT = parents[3] / "contracts" from validation.py), so they must be
+# shipped in the image, not just present in the build context.
+COPY contracts ./contracts
 
 # Non-root: the container runs as an unprivileged user.
 RUN useradd --create-home --uid 1000 feb

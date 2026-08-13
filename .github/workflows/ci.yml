@@ -79,19 +79,20 @@ jobs:
         run: |
           docker compose up -d --build
           for i in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:8000/health >/dev/null 2>&1 && \
-               curl -fsS http://127.0.0.1:8000/ready | grep -q '"status": "ready"'; then
+if curl -fsS http://127.0.0.1:8000/health >/dev/null 2>&1 && \
+             curl -fsS http://127.0.0.1:8000/ready | grep -q '"status": *"ready"'; then
               break
             fi
             sleep 2
           done
           curl -fsS http://127.0.0.1:8000/ready
           KEY=$(grep '^FEB_SCORE_API_KEYS=' .env | cut -d= -f2 | cut -d= -f1)
-          curl -fsS -X POST http://127.0.0.1:8000/v1/commands/create_or_update_match \
+          curl -sS -w '\nHTTP %{http_code}\n' -X POST http://127.0.0.1:8000/v1/commands/create_or_update_match \
             -H "Authorization: Bearer $KEY" \
             -H 'Content-Type: application/json' \
             -d '{"payload":{"external_id":"ci-1","competition_id":"c","season_code":"2025-2026","round_number":1,"scheduled_at":"2026-02-01T18:30:00Z","home_team":{"external_id":"h","name":"H"},"away_team":{"external_id":"a","name":"A"},"source":{"id":"ci","fetched_at":"2026-02-01T18:00:00Z","s3_path":"s3://x"}}}' \
-            | grep '"status": "accepted"'
+            | tee /tmp/feb_ci_post.txt
+          grep -q '"status": "accepted"' /tmp/feb_ci_post.txt
           docker compose ps
       - name: Container diagnostics (FASE 15)
         if: always()
