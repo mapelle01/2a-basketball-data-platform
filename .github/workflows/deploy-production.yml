@@ -6,15 +6,15 @@
 # environment approval before the deploy steps run.
 #
 # Secrets required in the GitHub repository (NOT in this file):
-#   RAILWAY_TOKEN            Railway token scoped to the production project env
-#   RAILWAY_SERVICE_NAME     API service in production (feb-score-api)
-#   RAILWAY_PROD_DOMAIN      production HTTPS domain (feb-score-api-production.up.railway.app)
+#   RAILWAY_TOKEN            Railway project token scoped to the production environment
 #   FEB_SCORE_PROD_SMOKE_KEY API key valid in production (matches FEB_SCORE_API_KEYS)
 #
-# Flow: tests -> Railway builds the image from Dockerfile -> railway up
-# -> wait for /ready -> authenticated smoke (health, ready, POST
-# create_or_update_match, event match_upserted, GET match) -> 401 check.
-# The commit SHA is echoed for traceability (immutable image reference per deploy).
+# Flow: tests -> auth preflight -> Railway builds the image from Dockerfile -> railway up
+# -> wait for /ready -> authenticated smoke -> 401 check.
+#
+# IMPORTANT: RAILWAY_TOKEN must contain ONLY the token value. Do not paste
+# "RAILWAY_TOKEN=...", "Bearer ...", quotes, or surrounding whitespace into the secret.
+# If the token itself contains '=' characters, those are part of the value and are valid.
 
 name: deploy-production
 
@@ -52,7 +52,7 @@ jobs:
     name: deploy to Railway (production)
     needs: test
     environment:
-      name: production  # requires explicit environment approval (required reviewers)
+      name: production
     runs-on: ubuntu-latest
     env:
       CONFIRM: ${{ inputs.confirm }}
@@ -68,10 +68,21 @@ jobs:
       - name: "Guard + resolve secrets/identifiers"
         run: |
           [ -n "$RAILWAY_TOKEN" ] || { echo "::error::RAILWAY_TOKEN secret not configured"; exit 1; }
-          # Public, non-secret production identifiers (override via environment if needed).
           echo "RAILWAY_SERVICE_NAME=${RAILWAY_SERVICE_NAME:-feb-score-api}" >> "$GITHUB_ENV"
           echo "RAILWAY_PROD_DOMAIN=${RAILWAY_PROD_DOMAIN:-feb-score-api-production.up.railway.app}" >> "$GITHUB_ENV"
           [ -n "$FEB_SCORE_PROD_SMOKE_KEY" ] || { echo "::error::FEB_SCORE_PROD_SMOKE_KEY secret not configured"; exit 1; }
+
+          # Catch common GitHub-secret paste mistakes without ever printing the token.
+          case "$RAILWAY_TOKEN" in
+            RAILWAY_TOKEN=*)
+              echo "::error::RAILWAY_TOKEN contains 'RAILWAY_TOKEN='. Store only the token value in the secret."; exit 1 ;;
+            Bearer\ *)
+              echo "::error::RAILWAY_TOKEN contains a 'Bearer ' prefix. Store only the raw token value."; exit 1 ;;
+          esac
+          if printf '%s' "$RAILWAY_TOKEN" | grep -q '[[:space:]]'; then
+            echo "::error::RAILWAY_TOKEN contains whitespace/newlines. Recreate the GitHub secret with only the token value."; exit 1
+          fi
+
           echo "service=$RAILWAY_SERVICE_NAME"
           echo "domain=$RAILWAY_PROD_DOMAIN"
 
@@ -80,6 +91,16 @@ jobs:
           curl -fsSL https://railway.app/install.sh | sh
           echo "$HOME/.railway/bin" >> "$GITHUB_PATH"
           "$HOME/.railway/bin/railway" --version
+
+      - name: "Verify Railway authentication"
+        run: |
+          echo "Checking Railway project-token authentication (token value is never printed)..."
+          railway whoami >/dev/null || {
+            echo "::error::Railway authentication failed. RAILWAY_TOKEN must be a valid Project Token for the production environment.";
+            echo "::error::If you created an Account/Workspace token, use RAILWAY_API_TOKEN instead; for this workflow create a Project Token in the production project's Settings > Tokens.";
+            exit 1;
+          }
+          echo "Railway authentication=PASS"
 
       - name: Show traceability (immutable ref)
         run: |
@@ -90,7 +111,6 @@ jobs:
 
       - name: Deploy (Railway builds from Dockerfile)
         run: |
-          # Link to the dedicated production project (non-interactive) and deploy.
           railway link --project feb-score-production --environment production --service feb-score-api
           railway up --service "$RAILWAY_SERVICE_NAME"
           echo "deployment_id=$(railway service status --service "$RAILWAY_SERVICE_NAME" | grep -oE 'Deployment: [0-9a-f-]+' | awk '{print $2}')"
