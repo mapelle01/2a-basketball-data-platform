@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/contracts/commands/finalize_match.v1.json",
+  "title": "FinalizeMatch Command v1",
+  "description": "Command to validate and finalize a provisional or in-play match. Finalization requires validation checks to pass; complex business rules are referenced in description.",
+  "type":"object",
+  "required":["command_id","meta","actor","payload"],
+  "additionalProperties":false,
+  "$defs":{
+    "uuid":{"type":"string","format":"uuid"},
+    "actor":{"type":"object","required":["id","role"],"properties":{"id":{"type":"string"},"role":{"type":"string","enum":["admin","editor","system"]}},"additionalProperties":false}
+  },
+  "properties":{
+    "command_id":{"$ref":"#/$defs/uuid"},
+    "meta":{"type":"object","required":["version","issued_at"],"properties":{"version":{"type":"string","pattern":"^\\d+\\.\\d+$"},"issued_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "actor":{"$ref":"#/$defs/actor"},
+    "payload":{"type":"object","required":["match_external_id"],"properties":{"match_external_id":{"type":"string"},"validation_context":{"type":"object","properties":{"strict":{"type":"boolean"}},"additionalProperties":false}},"additionalProperties":false}
+  },
+  "examples":[
+    {
+      "command_id":"11111111-2222-3333-4444-555555555555",
+      "meta":{"version":"1.0","issued_at":"2026-02-01T21:00:00Z"},
+      "actor":{"id":"ingestor-1","role":"system"},
+      "payload":{"match_external_id":"2513600","validation_context":{"strict":true}}
+    }
+  ]
+}

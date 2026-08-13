@@ -1,0 +1,19 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://example.com/contracts/events/correction_approved.v1.json",
+  "title":"CorrectionApproved Event v1",
+  "description":"Emitted when a correction proposal is approved and applied. Payload includes diff, who approved and timestamp.",
+  "type":"object",
+  "required":["event_id","meta","source","payload"],
+  "additionalProperties":false,
+  "$defs":{"uuid":{"type":"string","format":"uuid"}},
+  "properties":{
+    "event_id":{"$ref":"#/$defs/uuid"},
+    "meta":{"type":"object","required":["version","produced_at"],"properties":{"version":{"type":"string"},"produced_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "source":{"type":"object","required":["origin"],"properties":{"origin":{"type":"string","enum":["admin","system"]},"actor":{"type":"object","properties":{"id":{"type":"string"}}}},"additionalProperties":false},
+    "payload":{"type":"object","required":["proposal_id","applied_by","applied_at","affected_match_external_id","diff","previous_version","new_version"],"properties":{"proposal_id":{"$ref":"#/$defs/uuid"},"applied_by":{"type":"object","properties":{"id":{"type":"string"}}},"applied_at":{"type":"string","format":"date-time"},"affected_match_external_id":{"type":"string"},"diff":{"type":"object"},"previous_version":{"type":"string"},"new_version":{"type":"string"}},"additionalProperties":false}
+  },
+  "examples":[
+    {"event_id":"11111111-2222-3333-4444-555555555556","meta":{"version":"1.0","produced_at":"2026-02-02T12:01:00Z"},"source":{"origin":"admin","actor":{"id":"admin-1"}},"payload":{"proposal_id":"44444444-5555-6666-7777-888888888888","applied_by":{"id":"admin-1"},"applied_at":"2026-02-02T12:01:00Z","affected_match_external_id":"2513600","diff":{"update_score":{"from":{"home":77,"away":75},"to":{"home":78,"away":75}}},"previous_version":"v1","new_version":"v2"}}
+  ]
+}

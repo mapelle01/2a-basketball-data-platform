@@ -1,0 +1,27 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://example.com/contracts/commands/generate_leaderboard.v1.json",
+  "title":"GenerateLeaderboard Command v1",
+  "description":"Command to generate a leaderboard for a given category and season. Eligibility rules (min_games etc.) are enforced in Rules Engine.",
+  "type":"object",
+  "required":["command_id","meta","actor","payload"],
+  "additionalProperties":false,
+  "$defs":{
+    "uuid":{"type":"string","format":"uuid"},
+    "actor":{"type":"object","required":["id","role"],"properties":{"id":{"type":"string"},"role":{"type":"string","enum":["admin","editor","system"]}},"additionalProperties":false}
+  },
+  "properties":{
+    "command_id":{"$ref":"#/$defs/uuid"},
+    "meta":{"type":"object","required":["version","issued_at"],"properties":{"version":{"type":"string","pattern":"^\\d+\\.\\d+$"},"issued_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "actor":{"$ref":"#/$defs/actor"},
+    "payload":{"type":"object","required":["season_code","category"],"properties":{"competition_id":{"type":"string"},"season_code":{"type":"string"},"category":{"type":"string","minLength":3},"min_games":{"type":"integer","minimum":0},"top_n":{"type":"integer","minimum":1,"maximum":100}},"additionalProperties":false}
+  },
+  "examples":[
+    {
+      "command_id":"77777777-8888-9999-aaaa-bbbbbbbbbbbb",
+      "meta":{"version":"1.0","issued_at":"2026-02-02T01:00:00Z"},
+      "actor":{"id":"system-analytics","role":"system"},
+      "payload":{"season_code":"2025-2026","category":"points_per_game","min_games":3,"top_n":10}
+    }
+  ]
+}

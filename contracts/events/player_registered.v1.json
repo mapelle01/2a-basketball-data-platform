@@ -1,0 +1,19 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://example.com/contracts/events/player_registered.v1.json",
+  "title":"PlayerRegistered Event v1",
+  "description":"Emitted when a player is registered to a squad for a season.",
+  "type":"object",
+  "required":["event_id","meta","source","payload"],
+  "additionalProperties":false,
+  "$defs":{"uuid":{"type":"string","format":"uuid"}},
+  "properties":{
+    "event_id":{"$ref":"#/$defs/uuid"},
+    "meta":{"type":"object","required":["version","produced_at"],"properties":{"version":{"type":"string"},"produced_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "source":{"type":"object","required":["origin"],"properties":{"origin":{"type":"string","enum":["admin","system"]},"actor":{"type":"object","properties":{"id":{"type":"string"}}}},"additionalProperties":false},
+    "payload":{"type":"object","required":["registration_id","player_external_id","team_external_id","season_code","registered_from"],"properties":{"registration_id":{"$ref":"#/$defs/uuid"},"player_external_id":{"type":"string"},"team_external_id":{"type":"string"},"season_code":{"type":"string"},"dorsal":{"type":"string"},"registered_from":{"type":"string","format":"date-time"},"registered_to":{"type":"string","format":"date-time"}},"additionalProperties":false}
+  },
+  "examples":[
+    {"event_id":"33333333-4444-5555-6666-777777777778","meta":{"version":"1.0","produced_at":"2025-08-01T09:01:00Z"},"source":{"origin":"admin","actor":{"id":"admin-1"}},"payload":{"registration_id":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee","player_external_id":"pl-987","team_external_id":"team-123","season_code":"2025-2026","dorsal":"12","registered_from":"2025-08-01T00:00:00Z"}}
+  ]
+}

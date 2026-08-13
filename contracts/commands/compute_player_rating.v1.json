@@ -1,0 +1,27 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://example.com/contracts/commands/compute_player_rating.v1.json",
+  "title":"ComputePlayerRating Command v1",
+  "description":"Command to compute a player's rating for a given window or season. Ratings are versioned and reproducible. Calculation rules live in Ratings context.",
+  "type":"object",
+  "required":["command_id","meta","actor","payload"],
+  "additionalProperties":false,
+  "$defs":{
+    "uuid":{"type":"string","format":"uuid"},
+    "actor":{"type":"object","required":["id","role"],"properties":{"id":{"type":"string"},"role":{"type":"string","enum":["admin","editor","system"]}},"additionalProperties":false}
+  },
+  "properties":{
+    "command_id":{"$ref":"#/$defs/uuid"},
+    "meta":{"type":"object","required":["version","issued_at"],"properties":{"version":{"type":"string","pattern":"^\\d+\\.\\d+$"},"issued_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "actor":{"$ref":"#/$defs/actor"},
+    "payload":{"type":"object","required":["player_external_id","season_code","rating_version"],"properties":{"competition_id":{"type":"string"},"player_external_id":{"type":"string"},"season_code":{"type":"string"},"window":{"type":"string","enum":["all","last_5","last_10"]},"rating_version":{"type":"string"}},"additionalProperties":false}
+  },
+  "examples":[
+    {
+      "command_id":"88888888-9999-aaaa-bbbb-cccccccccccc",
+      "meta":{"version":"1.0","issued_at":"2026-02-02T02:00:00Z"},
+      "actor":{"id":"analytics-1","role":"system"},
+      "payload":{"player_external_id":"pl-987","season_code":"2025-2026","window":"last_5","rating_version":"v1.0"}
+    }
+  ]
+}

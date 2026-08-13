@@ -1,0 +1,6 @@
+{
+  "command_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "meta": { "version": "1.0", "issued_at": "2026-02-01T20:10:00Z" },
+  "actor": { "id": "ingestor-1", "role": "system" },
+  "payload": { "external_id": "2513600", "season_code": "2025-2026", "scheduled_at": "2026-02-01T18:30:00Z", "home_team": { "external_id": "team-123", "name": "A" }, "away_team": { "external_id": "team-456", "name": "B" }, "source": { "id": "feb-api", "fetched_at": "2026-02-01T20:00:00Z" } }
+}

@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.hypothesis/
+.coverage
+htmlcov/
+
+# Virtualenv
+.venv/
+venv/
+
+# Local configuration / secrets
+.env
+.env.*
+!.env.example
+
+# Runtime artifacts (SQLite dev database)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite3
+
+# Build
+dist/
+build/
+coverage.xml
+
+# OS
+.DS_Store

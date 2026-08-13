@@ -1,0 +1,9 @@
+{
+  "command_id": "not-a-uuid",
+  "meta": { "version": "1.0", "issued_at": "not-a-date" },
+  "actor": { "id": "ingestor-1", "role": "unknown" },
+  "payload": {
+    "season_code": "2025-2026",
+    "home_team": { "name": "Missing external_id" }
+  }
+}

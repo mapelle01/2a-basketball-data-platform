@@ -1,0 +1,44 @@
+# FASE 13 — Local production-like deployment (docker compose).
+#
+# Run:  cp .env.example .env  (fill real values)  then  docker compose up -d
+#
+# Postgres is the only backing service; feb_score keeps its own connections
+# (no pool) and drains its outbox inline after each commit, so no extra
+# workers/brokers are required.
+#
+# FASE 15: POSTGRES_PASSWORD and FEB_SCORE_API_KEYS are REQUIRED (fail-closed,
+# no known-default credentials). `docker compose config` fails with a clear
+# error until both are set in .env.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: feb
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env (no default)}
+      POSTGRES_DB: feb_score
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U feb -d feb_score"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      FEB_SCORE_ENV: production
+      FEB_SCORE_DATABASE_URL: postgresql://feb:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env (no default)}@db:5432/feb_score
+      FEB_SCORE_API_KEYS: ${FEB_SCORE_API_KEYS:?set FEB_SCORE_API_KEYS in .env}
+      FEB_SCORE_LOG_LEVEL: ${FEB_SCORE_LOG_LEVEL:-info}
+      FEB_SCORE_RATE_LIMIT: "true"
+      FEB_SCORE_RATE_LIMIT_PER_MINUTE: ${FEB_SCORE_RATE_LIMIT_PER_MINUTE:-120}
+    ports:
+      - "8000:8000"
+
+volumes:
+  pgdata:

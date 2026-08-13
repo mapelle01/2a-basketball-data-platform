@@ -1,0 +1,19 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://example.com/contracts/events/correction_proposed.v1.json",
+  "title":"CorrectionProposed Event v1",
+  "description":"Emitted when a correction proposal is created. Includes proposal id, who proposed and a summary.",
+  "type":"object",
+  "required":["event_id","meta","source","payload"],
+  "additionalProperties":false,
+  "$defs":{"uuid":{"type":"string","format":"uuid"}},
+  "properties":{
+    "event_id":{"$ref":"#/$defs/uuid"},
+    "meta":{"type":"object","required":["version","produced_at"],"properties":{"version":{"type":"string"},"produced_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "source":{"type":"object","required":["origin"],"properties":{"origin":{"type":"string","enum":["admin","editor","system"]},"actor":{"type":"object","properties":{"id":{"type":"string"}}}},"additionalProperties":false},
+    "payload":{"type":"object","required":["proposal_id","match_external_id","proposed_by","summary"],"properties":{"proposal_id":{"$ref":"#/$defs/uuid"},"match_external_id":{"type":"string"},"proposed_by":{"type":"object","properties":{"id":{"type":"string"}}},"summary":{"type":"string"},"changes":{"type":"array","items":{"type":"object"}}},"additionalProperties":false}
+  },
+  "examples":[
+    {"event_id":"00000000-1111-2222-3333-444444444444","meta":{"version":"1.0","produced_at":"2026-02-02T10:01:00Z"},"source":{"origin":"admin","actor":{"id":"editor-12"}},"payload":{"proposal_id":"44444444-5555-6666-7777-888888888888","match_external_id":"2513600","proposed_by":{"id":"editor-12"},"summary":"Update final score per official act","changes":[{"op":"update_score","home_score":78,"away_score":75}]}}
+  ]
+}

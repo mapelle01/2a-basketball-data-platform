@@ -1,0 +1,12 @@
+{
+  "event_id": "eeeeeeee-ffff-0000-1111-222222222222",
+  "meta": { "version": "1.0", "produced_at": "2026-02-01T20:13:00Z" },
+  "source": { "origin": "system", "actor": { "id": "validator-1" } },
+  "payload": {
+    "external_id": "2513600",
+    "match_uuid": "11111111-2222-3333-4444-555555555555",
+    "finalized_at": "2026-02-01T20:13:00Z",
+    "score_summary": { "home_score": 78, "away_score": 75, "periods": [] },
+    "snapshots": { "standing_snapshot_id": "snap-20260201", "leaderboard_refs": [ "lb-points-2025" ] }
+  }
+}

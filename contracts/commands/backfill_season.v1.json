@@ -1,0 +1,27 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://example.com/contracts/commands/backfill_season.v1.json",
+  "title":"BackfillSeason Command v1",
+  "description":"Admin command to reingest and reproces a season. Heavy operation; intended for admin-level principals (admin or system) only.",
+  "type":"object",
+  "required":["command_id","meta","actor","payload"],
+  "additionalProperties":false,
+  "$defs":{
+    "uuid":{"type":"string","format":"uuid"},
+    "actor":{"type":"object","required":["id","role"],"properties":{"id":{"type":"string"},"role":{"type":"string","enum":["admin","editor","system"]}},"additionalProperties":false}
+  },
+  "properties":{
+    "command_id":{"$ref":"#/$defs/uuid"},
+    "meta":{"type":"object","required":["version","issued_at"],"properties":{"version":{"type":"string","pattern":"^\\d+\\.\\d+$"},"issued_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "actor":{"$ref":"#/$defs/actor"},
+    "payload":{"type":"object","required":["season_code"],"properties":{"competition_id":{"type":"string"},"season_code":{"type":"string"},"from_round":{"type":"integer","minimum":1},"to_round":{"type":"integer","minimum":1}},"additionalProperties":false}
+  },
+  "examples":[
+    {
+      "command_id":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "meta":{"version":"1.0","issued_at":"2026-02-03T00:00:00Z"},
+      "actor":{"id":"admin-1","role":"admin"},
+      "payload":{"season_code":"2025-2026","from_round":1,"to_round":38}
+    }
+  ]
+}

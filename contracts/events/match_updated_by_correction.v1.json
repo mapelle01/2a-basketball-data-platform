@@ -1,0 +1,19 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://example.com/contracts/events/match_updated_by_correction.v1.json",
+  "title":"MatchUpdatedByCorrection Event v1",
+  "description":"Emitted when a match is updated as a result of an approved correction. Contains references to previous and new versions for audit.",
+  "type":"object",
+  "required":["event_id","meta","source","payload"],
+  "additionalProperties":false,
+  "$defs":{"uuid":{"type":"string","format":"uuid"}},
+  "properties":{
+    "event_id":{"$ref":"#/$defs/uuid"},
+    "meta":{"type":"object","required":["version","produced_at"],"properties":{"version":{"type":"string"},"produced_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "source":{"type":"object","required":["origin"],"properties":{"origin":{"type":"string","enum":["admin","system"]},"actor":{"type":"object","properties":{"id":{"type":"string"}}}},"additionalProperties":false},
+    "payload":{"type":"object","required":["match_external_id","match_uuid","previous_version","new_version","applied_at"],"properties":{"match_external_id":{"type":"string"},"match_uuid":{"type":"string","format":"uuid"},"previous_version":{"type":"string"},"new_version":{"type":"string"},"applied_at":{"type":"string","format":"date-time"},"summary":{"type":"object"}},"additionalProperties":false}
+  },
+  "examples":[
+    {"event_id":"22222222-3333-4444-5555-666666666667","meta":{"version":"1.0","produced_at":"2026-02-02T12:02:00Z"},"source":{"origin":"admin","actor":{"id":"admin-1"}},"payload":{"match_external_id":"2513600","match_uuid":"11111111-2222-3333-4444-555555555555","previous_version":"v1","new_version":"v2","applied_at":"2026-02-02T12:02:00Z","summary":{"change":"score update"}}}
+  ]
+}

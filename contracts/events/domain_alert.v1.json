@@ -1,0 +1,19 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://example.com/contracts/events/domain_alert.v1.json",
+  "title":"DomainAlert Event v1",
+  "description":"Generic domain alert for errors/warnings in ingestion or processing. Contains severity and details.",
+  "type":"object",
+  "required":["event_id","meta","source","payload"],
+  "additionalProperties":false,
+  "$defs":{"uuid":{"type":"string","format":"uuid"}},
+  "properties":{
+    "event_id":{"$ref":"#/$defs/uuid"},
+    "meta":{"type":"object","required":["version","produced_at"],"properties":{"version":{"type":"string"},"produced_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "source":{"type":"object","required":["origin"],"properties":{"origin":{"type":"string","enum":["collector","system","admin"]},"actor":{"type":"object","properties":{"id":{"type":"string"}}}},"additionalProperties":false},
+    "payload":{"type":"object","required":["severity","message"],"properties":{"severity":{"type":"string","enum":["info","warning","critical"]},"message":{"type":"string"},"details":{"type":"object"}},"additionalProperties":false}
+  },
+  "examples":[
+    {"event_id":"cccccccc-dddd-eeee-ffff-000000000001","meta":{"version":"1.0","produced_at":"2026-02-01T19:59:59Z"},"source":{"origin":"collector","actor":{"id":"ingestor-1"}},"payload":{"severity":"warning","message":"Rate limit approaching for feb-api","details":{"remaining":10}}}
+  ]
+}

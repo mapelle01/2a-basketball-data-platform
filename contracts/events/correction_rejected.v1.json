@@ -1,0 +1,19 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://example.com/contracts/events/correction_rejected.v1.json",
+  "title":"CorrectionRejected Event v1",
+  "description":"Emitted when a correction proposal is rejected. Includes reason and proposal id.",
+  "type":"object",
+  "required":["event_id","meta","source","payload"],
+  "additionalProperties":false,
+  "$defs":{"uuid":{"type":"string","format":"uuid"}},
+  "properties":{
+    "event_id":{"$ref":"#/$defs/uuid"},
+    "meta":{"type":"object","required":["version","produced_at"],"properties":{"version":{"type":"string"},"produced_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "source":{"type":"object","required":["origin"],"properties":{"origin":{"type":"string","enum":["admin"]},"actor":{"type":"object","properties":{"id":{"type":"string"}}}},"additionalProperties":false},
+    "payload":{"type":"object","required":["proposal_id","rejected_by","rejected_at","reason"],"properties":{"proposal_id":{"$ref":"#/$defs/uuid"},"rejected_by":{"type":"object","properties":{"id":{"type":"string"}}},"rejected_at":{"type":"string","format":"date-time"},"reason":{"type":"string"}},"additionalProperties":false}
+  },
+  "examples":[
+    {"event_id":"bbbbbbbb-cccc-dddd-eeee-fffffffffff0","meta":{"version":"1.0","produced_at":"2026-02-02T12:05:00Z"},"source":{"origin":"admin","actor":{"id":"admin-1"}},"payload":{"proposal_id":"44444444-5555-6666-7777-888888888888","rejected_by":{"id":"admin-1"},"rejected_at":"2026-02-02T12:05:00Z","reason":"Insufficient evidence"}}
+  ]
+}

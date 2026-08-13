@@ -1,0 +1,14 @@
+{
+  "command_id": "22222222-3333-4444-5555-666666666666",
+  "meta": { "version": "1.0", "issued_at": "2026-02-02T10:00:00Z" },
+  "actor": { "id": "editor-12", "role": "editor" },
+  "payload": {
+    "match_external_id": "2513600",
+    "proposed_by": { "id": "editor-12", "role": "editor" },
+    "reason": "Official act corrected score",
+    "changes": [
+      { "op": "update_score", "home_score": 78, "away_score": 75 },
+      { "op": "update_player_stat", "player_external_id": "pl-987", "values": { "points": 24, "assists": 6 } }
+    ]
+  }
+}

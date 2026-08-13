@@ -1,0 +1,19 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://example.com/contracts/events/season_backfill_completed.v1.json",
+  "title":"SeasonBackfillCompleted Event v1",
+  "description":"Emitted when a Season backfill process completes (success or failure).",
+  "type":"object",
+  "required":["event_id","meta","source","payload"],
+  "additionalProperties":false,
+  "$defs":{"uuid":{"type":"string","format":"uuid"}},
+  "properties":{
+    "event_id":{"$ref":"#/$defs/uuid"},
+    "meta":{"type":"object","required":["version","produced_at"],"properties":{"version":{"type":"string"},"produced_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "source":{"type":"object","required":["origin"],"properties":{"origin":{"type":"string","enum":["admin","system"]},"actor":{"type":"object","properties":{"id":{"type":"string"}}}},"additionalProperties":false},
+    "payload":{"type":"object","required":["season_code","request_id","status"],"properties":{"season_code":{"type":"string"},"request_id":{"$ref":"#/$defs/uuid"},"status":{"type":"string","enum":["ok","partial","failed"]},"details":{"type":"object"},"from_round":{"type":"integer"},"to_round":{"type":"integer"},"competition_external_id":{"type":"string"}},"additionalProperties":false}
+  },
+  "examples":[
+    {"event_id":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeef","meta":{"version":"1.0","produced_at":"2026-02-10T23:59:59Z"},"source":{"origin":"system","actor":{"id":"backfill-service"}},"payload":{"season_code":"2025-2026","request_id":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee","status":"ok","details":{"matches_processed":530}}}
+  ]
+}

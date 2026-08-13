@@ -1,0 +1,28 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://example.com/contracts/commands/create_publication.v1.json",
+  "title":"CreatePublication Command v1",
+  "description":"Command to create a Publication artifact (draft) using templates and canonical references. Publication must reference immutable snapshots for reproducibility.",
+  "type":"object",
+  "required":["command_id","meta","actor","payload"],
+  "additionalProperties":false,
+  "$defs":{
+    "uuid":{"type":"string","format":"uuid"},
+    "actor":{"type":"object","required":["id","role"],"properties":{"id":{"type":"string"},"role":{"type":"string","enum":["admin","editor","system"]}},"additionalProperties":false},
+    "snapshotRef":{"type":"object","required":["snapshot_id","type"],"properties":{"snapshot_id":{"type":"string"},"type":{"type":"string","enum":["standing","leaderboard","rating","match"]}},"additionalProperties":false}
+  },
+  "properties":{
+    "command_id":{"$ref":"#/$defs/uuid"},
+    "meta":{"type":"object","required":["version","issued_at"],"properties":{"version":{"type":"string","pattern":"^\\d+\\.\\d+$"},"issued_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "actor":{"$ref":"#/$defs/actor"},
+    "payload":{"type":"object","required":["template_id","payload_refs","scheduled_at"],"properties":{"template_id":{"type":"string"},"payload_refs":{"type":"object","properties":{"match_external_id":{"type":"string"},"snapshot_ref":{"$ref":"#/$defs/snapshotRef"}},"additionalProperties":false},"scheduled_at":{"type":"string","format":"date-time"},"locale":{"type":"string"}},"additionalProperties":false}
+  },
+  "examples":[
+    {
+      "command_id":"99999999-aaaa-bbbb-cccc-dddddddddddd",
+      "meta":{"version":"1.0","issued_at":"2026-02-02T03:00:00Z"},
+      "actor":{"id":"editor-12","role":"editor"},
+      "payload":{"template_id":"tpl-match-summary-v1","payload_refs":{"match_external_id":"2513600","snapshot_ref":{"snapshot_id":"snap-20260201","type":"standing"}},"scheduled_at":"2026-02-02T08:00:00Z","locale":"es-ES"}
+    }
+  ]
+}

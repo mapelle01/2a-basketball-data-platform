@@ -1,0 +1,19 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://example.com/contracts/events/season_backfill_started.v1.json",
+  "title":"SeasonBackfillStarted Event v1",
+  "description":"Emitted when a Season backfill process is started by admin.",
+  "type":"object",
+  "required":["event_id","meta","source","payload"],
+  "additionalProperties":false,
+  "$defs":{"uuid":{"type":"string","format":"uuid"}},
+  "properties":{
+    "event_id":{"$ref":"#/$defs/uuid"},
+    "meta":{"type":"object","required":["version","produced_at"],"properties":{"version":{"type":"string"},"produced_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "source":{"type":"object","required":["origin"],"properties":{"origin":{"type":"string","enum":["admin"]},"actor":{"type":"object","properties":{"id":{"type":"string"}}}},"additionalProperties":false},
+    "payload":{"type":"object","required":["season_code","request_id","requested_by"],"properties":{"season_code":{"type":"string"},"request_id":{"$ref":"#/$defs/uuid"},"requested_by":{"type":"object","properties":{"id":{"type":"string"}}},"from_round":{"type":"integer"},"to_round":{"type":"integer"},"competition_external_id":{"type":"string"}},"additionalProperties":false}
+  },
+  "examples":[
+    {"event_id":"99999999-aaaa-bbbb-cccc-ddddddddddde","meta":{"version":"1.0","produced_at":"2026-02-03T00:01:00Z"},"source":{"origin":"admin","actor":{"id":"admin-1"}},"payload":{"season_code":"2025-2026","request_id":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee","requested_by":{"id":"admin-1"},"from_round":1,"to_round":38}}
+  ]
+}

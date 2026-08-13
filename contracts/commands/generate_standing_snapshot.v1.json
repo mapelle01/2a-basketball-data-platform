@@ -1,0 +1,27 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://example.com/contracts/commands/generate_standing_snapshot.v1.json",
+  "title":"GenerateStandingSnapshot Command v1",
+  "description":"Command to generate an immutable standings snapshot for a season as of a given date/time. Uses rules defined by the competition/season.",
+  "type":"object",
+  "required":["command_id","meta","actor","payload"],
+  "additionalProperties":false,
+  "$defs":{
+    "uuid":{"type":"string","format":"uuid"},
+    "actor":{"type":"object","required":["id","role"],"properties":{"id":{"type":"string"},"role":{"type":"string","enum":["admin","editor","system"]}},"additionalProperties":false}
+  },
+  "properties":{
+    "command_id":{"$ref":"#/$defs/uuid"},
+    "meta":{"type":"object","required":["version","issued_at"],"properties":{"version":{"type":"string","pattern":"^\\d+\\.\\d+$"},"issued_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "actor":{"$ref":"#/$defs/actor"},
+    "payload":{"type":"object","required":["season_code","as_of","rules_version"],"properties":{"competition_id":{"type":"string"},"season_code":{"type":"string"},"as_of":{"type":"string","format":"date-time"},"description":{"type":"string"},"rules_version":{"type":"string"}},"additionalProperties":false}
+  },
+  "examples":[
+    {
+      "command_id":"66666666-7777-8888-9999-aaaaaaaaaaaa",
+      "meta":{"version":"1.0","issued_at":"2026-02-01T23:59:59Z"},
+      "actor":{"id":"admin-1","role":"admin"},
+      "payload":{"season_code":"2025-2026","as_of":"2026-02-01T23:59:59Z","rules_version":"rules-v1","description":"Snapshot after round 5"}
+    }
+  ]
+}

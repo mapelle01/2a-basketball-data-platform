@@ -1,0 +1,135 @@
+from __future__ import annotations
+
+from typing import Dict, Iterable, List, Optional
+
+from .interfaces import (
+    CompetitionRepository,
+    CorrectionRepository,
+    IdempotencyRepository,
+    LeaderboardRepository,
+    MatchRepository,
+    PlayerRepository,
+    PublicationRepository,
+    RatingRepository,
+    StandingRepository,
+    TeamRepository,
+)
+from ...domain.competition.model import Competition
+from ...domain.correction.model import CorrectionProposal
+from ...domain.leaderboard.model import Leaderboard
+from ...domain.match.model import Match
+from ...domain.player.model import Player
+from ...domain.publication.model import Publication
+from ...domain.ratings.model import PlayerRating
+from ...domain.standings.model import StandingSnapshot
+from ...domain.team.model import Team
+from ...domain.value_objects import CompetitionId, ExternalId, LeaderboardId, SeasonCode
+
+
+class InMemoryMatchRepository(MatchRepository):
+    def __init__(self) -> None:
+        self._matches: Dict[str, Match] = {}
+
+    def get_by_external_id(self, external_id: ExternalId) -> Optional[Match]:
+        return self._matches.get(str(external_id))
+
+    def save(self, match: Match) -> None:
+        self._matches[str(match.external_id)] = match
+
+    def list_by_season(self, competition_id: CompetitionId, season_code: SeasonCode) -> Iterable[Match]:
+        return [
+            match
+            for match in self._matches.values()
+            if str(match.season_code) == str(season_code)
+            and str(match.competition_id) == str(competition_id)
+        ]
+
+
+class InMemoryPlayerRepository(PlayerRepository):
+    def __init__(self) -> None:
+        self._players: Dict[str, Player] = {}
+
+    def get_by_external_id(self, external_id: ExternalId) -> Optional[Player]:
+        return self._players.get(str(external_id))
+
+    def save(self, player: Player) -> None:
+        self._players[str(player.external_id)] = player
+
+
+class InMemoryTeamRepository(TeamRepository):
+    def __init__(self) -> None:
+        self._teams: Dict[str, Team] = {}
+
+    def get_by_external_id(self, external_id: ExternalId) -> Optional[Team]:
+        return self._teams.get(str(external_id))
+
+    def save(self, team: Team) -> None:
+        self._teams[str(team.external_id)] = team
+
+
+class InMemoryCompetitionRepository(CompetitionRepository):
+    def __init__(self) -> None:
+        self._competitions: Dict[str, Competition] = {}
+
+    def get_by_external_id(self, external_id: ExternalId) -> Optional[Competition]:
+        return self._competitions.get(str(external_id))
+
+    def save(self, competition: Competition) -> None:
+        self._competitions[str(competition.external_id)] = competition
+
+
+class InMemoryCorrectionRepository(CorrectionRepository):
+    def __init__(self) -> None:
+        self._proposals: Dict[str, CorrectionProposal] = {}
+
+    def get_by_id(self, proposal_id: str) -> Optional[CorrectionProposal]:
+        return self._proposals.get(proposal_id)
+
+    def save(self, proposal: CorrectionProposal) -> None:
+        self._proposals[proposal.proposal_id.value] = proposal
+
+
+class InMemoryStandingRepository(StandingRepository):
+    def __init__(self) -> None:
+        self._standings: List[StandingSnapshot] = []
+
+    def save(self, standing_snapshot: StandingSnapshot) -> None:
+        self._standings.append(standing_snapshot)
+
+
+class InMemoryLeaderboardRepository(LeaderboardRepository):
+    def __init__(self) -> None:
+        self._leaderboards: Dict[str, Leaderboard] = {}
+
+    def get_by_id(self, leaderboard_id: LeaderboardId) -> Optional[Leaderboard]:
+        return self._leaderboards.get(str(leaderboard_id))
+
+    def save(self, leaderboard: Leaderboard) -> None:
+        self._leaderboards[str(leaderboard.leaderboard_id)] = leaderboard
+
+
+class InMemoryRatingRepository(RatingRepository):
+    def __init__(self) -> None:
+        self._ratings: List[PlayerRating] = []
+
+    def save(self, player_rating: PlayerRating) -> None:
+        self._ratings.append(player_rating)
+
+
+class InMemoryPublicationRepository(PublicationRepository):
+    def __init__(self) -> None:
+        self._publications: List[Publication] = []
+
+    def save(self, publication: Publication) -> None:
+        self._publications.append(publication)
+
+
+class InMemoryIdempotencyRepository(IdempotencyRepository):
+    def __init__(self) -> None:
+        self._processed: set[str] = set()
+
+    def has_processed(self, command_id: str) -> bool:
+        return command_id in self._processed
+
+    def mark_processed(self, command_id: str) -> None:
+        self._processed.add(command_id)

@@ -1,0 +1,79 @@
+{
+  "topics": {
+    "MATCH_RAW_RECEIVED": {
+      "description": "Evento publicado por el Collector cuando se ha guardado el raw JSON en object store",
+      "key": "match_external_id",
+      "value_schema": {
+        "match_external_id": "string",
+        "season_code": "string",
+        "round_number": "int",
+        "s3_path": "string",
+        "sources": ["BoxScore","TeamStats","KeyFacts","ShotChart","Ranking"],
+        "fetched_at": "timestamp",
+        "size_bytes": "long",
+        "ingest_meta": {"user_agent":"string","collector_version":"string"}
+      },
+      "retention": "7 days (topic compacted or retention policy configurable)"
+    },
+
+    "MATCH_VALIDATED": {
+      "description": "Resultado de la validación del payload raw",
+      "key": "match_external_id",
+      "value_schema": {
+        "match_external_id": "string",
+        "valid": "boolean",
+        "errors": ["string"],
+        "schema_version": "string",
+        "validated_at": "timestamp"
+      },
+      "retention": "30 days"
+    },
+
+    "MATCH_NORMALIZED": {
+      "description": "Payload canonicalizado listo para persistencia (ligero)",
+      "key": "match_external_id",
+      "value_schema": {
+        "match_external_id": "string",
+        "match_id": "uuid (optional until persisted)",
+        "season_code": "string",
+        "round_number": "int",
+        "scheduled_at": "timestamp",
+        "status": "string",
+        "home_team": {"external_id":"string","name":"string"},
+        "away_team": {"external_id":"string","name":"string"},
+        "team_stats": [{"team_external_id":"string","pts":"int","fga":"int","fgm":"int","reb":"int"}],
+        "player_stats": [{"player_external_id":"string","team_external_id":"string","pts":"int","reb":"int","ast":"int","val":"int"}],
+        "events": [{"minute":"int","type":"string","actor_external_id":"string","desc":"string"}],
+        "normalized_at": "timestamp",
+        "normalizer_version": "string"
+      },
+      "retention": "7 days"
+    },
+
+    "MATCH_PERSISTED": {
+      "description": "Confirmación de escritura en Postgres",
+      "key": "match_external_id",
+      "value_schema": {
+        "match_external_id": "string",
+        "match_uuid": "uuid",
+        "season_id": "uuid",
+        "persisted_at": "timestamp",
+        "rows_inserted": {"matches":"int","player_stats":"int","team_stats":"int","events":"int"}
+      },
+      "retention": "30 days"
+    },
+
+    "RANKING_UPDATED": {
+      "description": "Evento disparado cuando leaderboards/standings cambian",
+      "key": "season_code",
+      "value_schema": {
+        "season_code": "string",
+        "category": "string",
+        "generated_at": "timestamp",
+        "s3_path_entries": "string (optional)",
+        "top_n": "int"
+      },
+      "retention": "14 days"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://example.com/contracts/events/standing_snapshot_generated.v1.json",
+  "title":"StandingSnapshotGenerated Event v1",
+  "description":"Emitted after a StandingSnapshot is created. Snapshot is immutable and identifies competition, season, as_of and rules version.",
+  "type":"object",
+  "required":["event_id","meta","source","payload"],
+  "additionalProperties":false,
+  "$defs":{"uuid":{"type":"string","format":"uuid"}},
+  "properties":{
+    "event_id":{"$ref":"#/$defs/uuid"},
+    "meta":{"type":"object","required":["version","produced_at"],"properties":{"version":{"type":"string"},"produced_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "source":{"type":"object","required":["origin"],"properties":{"origin":{"type":"string","enum":["system","admin"]},"actor":{"type":"object","properties":{"id":{"type":"string"}}}},"additionalProperties":false},
+    "payload":{"type":"object","required":["snapshot_id","competition_id","season_code","as_of","matches_included_count","rules_version"],"properties":{"snapshot_id":{"$ref":"#/$defs/uuid"},"competition_id":{"type":"string"},"season_code":{"type":"string"},"as_of":{"type":"string","format":"date-time"},"matches_included_count":{"type":"integer","minimum":0},"rules_version":{"type":"string"},"s3_path":{"type":"string"}},"additionalProperties":false}
+  },
+  "examples":[
+    {"event_id":"44444444-5555-6666-7777-888888888889","meta":{"version":"1.0","produced_at":"2026-02-01T23:59:59Z"},"source":{"origin":"system","actor":{"id":"snapshotter-1"}},"payload":{"snapshot_id":"snap-20260201","competition_id":"segundafeb","season_code":"2025-2026","as_of":"2026-02-01T23:59:59Z","matches_included_count":14,"rules_version":"rules-v1"}}
+  ]
+}

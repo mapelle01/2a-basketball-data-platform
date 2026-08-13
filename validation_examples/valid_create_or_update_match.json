@@ -1,0 +1,16 @@
+{
+  "command_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "meta": { "version": "1.0", "issued_at": "2026-02-01T20:10:00Z" },
+  "actor": { "id": "ingestor-1", "role": "system" },
+  "payload": {
+    "external_id": "2513600",
+    "season_code": "2025-2026",
+    "round_number": 5,
+    "scheduled_at": "2026-02-01T18:30:00+01:00",
+    "home_team": { "external_id": "team-123", "name": "CLASS BASQUET SANT ANTONI" },
+    "away_team": { "external_id": "team-456", "name": "INSOLAC CAJA 87" },
+    "venue": { "name": "Pabellón X", "city": "Ciudad" },
+    "source": { "id": "feb-api", "fetched_at": "2026-02-01T20:00:00Z", "s3_path": "s3://raw/2513600_boxscore.json" },
+    "raw": { "boxscore_ref": "s3://raw/2513600_boxscore.json" }
+  }
+}

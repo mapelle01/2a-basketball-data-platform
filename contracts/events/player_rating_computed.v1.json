@@ -1,0 +1,19 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://example.com/contracts/events/player_rating_computed.v1.json",
+  "title":"PlayerRatingComputed Event v1",
+  "description":"Emitted when a player's rating is computed. Must include player id, season, rating_value, rating_version and calculated_at.",
+  "type":"object",
+  "required":["event_id","meta","source","payload"],
+  "additionalProperties":false,
+  "$defs":{"uuid":{"type":"string","format":"uuid"}},
+  "properties":{
+    "event_id":{"$ref":"#/$defs/uuid"},
+    "meta":{"type":"object","required":["version","produced_at"],"properties":{"version":{"type":"string"},"produced_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "source":{"type":"object","required":["origin"],"properties":{"origin":{"type":"string","enum":["system","analytics"]},"actor":{"type":"object","properties":{"id":{"type":"string"}}}},"additionalProperties":false},
+    "payload":{"type":"object","required":["player_external_id","season_code","rating_value","rating_version","calculated_at"],"properties":{"player_external_id":{"type":"string"},"player_id":{"type":"string","format":"uuid"},"season_code":{"type":"string"},"rating_value":{"type":"number"},"rating_version":{"type":"string"},"calculated_at":{"type":"string","format":"date-time"},"components":{"type":"object"}},"additionalProperties":false}
+  },
+  "examples":[
+    {"event_id":"66666666-7777-8888-9999-aaaaaaaaaaab","meta":{"version":"1.0","produced_at":"2026-02-02T02:10:00Z"},"source":{"origin":"analytics","actor":{"id":"analytics-1"}},"payload":{"player_external_id":"pl-987","season_code":"2025-2026","rating_value":7.4,"rating_version":"v1.0","calculated_at":"2026-02-02T02:10:00Z","components":{"pts":4.5,"reb":1.3}}}
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://example.com/contracts/events/validation_failed.v1.json",
+  "title":"ValidationFailed Event v1",
+  "description":"Emitted when match validation fails. Payload lists errors and failing checks. Consumers should not assume match is finalized.",
+  "type":"object",
+  "required":["event_id","meta","source","payload"],
+  "additionalProperties":false,
+  "$defs":{"uuid":{"type":"string","format":"uuid"}},
+  "properties":{
+    "event_id":{"$ref":"#/$defs/uuid"},
+    "meta":{"type":"object","required":["version","produced_at"],"properties":{"version":{"type":"string"},"produced_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "source":{"type":"object","required":["origin"],"properties":{"origin":{"type":"string","enum":["collector","system","admin"]},"actor":{"type":"object","properties":{"id":{"type":"string"}}}},"additionalProperties":false},
+    "payload":{"type":"object","required":["external_id","match_uuid","errors"],"properties":{"external_id":{"type":"string"},"match_uuid":{"type":"string","format":"uuid"},"errors":{"type":"array","items":{"type":"string"}},"details":{"type":"object"}},"additionalProperties":false}
+  },
+  "examples":[
+    {"event_id":"fffffff0-0000-1111-2222-333333333333","meta":{"version":"1.0","produced_at":"2026-02-01T20:12:20Z"},"source":{"origin":"system","actor":{"id":"validator-1"}},"payload":{"external_id":"2513600","match_uuid":"11111111-2222-3333-4444-555555555555","errors":["parciales_no_sum","player_not_registered:pl-987"]}}
+  ]
+}

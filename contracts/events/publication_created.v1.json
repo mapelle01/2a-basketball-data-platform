@@ -1,0 +1,19 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://example.com/contracts/events/publication_created.v1.json",
+  "title":"PublicationCreated Event v1",
+  "description":"Emitted when a Publication artifact is created (draft). References immutable snapshots for reproducibility.",
+  "type":"object",
+  "required":["event_id","meta","source","payload"],
+  "additionalProperties":false,
+  "$defs":{"uuid":{"type":"string","format":"uuid"}},
+  "properties":{
+    "event_id":{"$ref":"#/$defs/uuid"},
+    "meta":{"type":"object","required":["version","produced_at"],"properties":{"version":{"type":"string"},"produced_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "source":{"type":"object","required":["origin"],"properties":{"origin":{"type":"string","enum":["editor","system"]},"actor":{"type":"object","properties":{"id":{"type":"string"}}}},"additionalProperties":false},
+    "payload":{"type":"object","required":["publication_id","status","references"],"properties":{"publication_id":{"$ref":"#/$defs/uuid"},"status":{"type":"string","enum":["DRAFT","SCHEDULED","PUBLISHED","CANCELLED"]},"references":{"type":"array","items":{"type":"object","properties":{"type":{"type":"string"},"id":{"type":"string"}},"required":["type","id"],"additionalProperties":false}},"preview_url":{"type":"string"}},"additionalProperties":false}
+  },
+  "examples":[
+    {"event_id":"88888888-9999-aaaa-bbbb-cccccccccccd","meta":{"version":"1.0","produced_at":"2026-02-02T03:05:00Z"},"source":{"origin":"editor","actor":{"id":"editor-12"}},"payload":{"publication_id":"pub-0001","status":"DRAFT","references":[{"type":"match","id":"2513600"},{"type":"standing","id":"snap-20260201"}],"preview_url":"https://preview.example/pub/pub-0001"}}
+  ]
+}

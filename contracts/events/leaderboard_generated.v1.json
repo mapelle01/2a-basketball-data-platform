@@ -1,0 +1,19 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://example.com/contracts/events/leaderboard_generated.v1.json",
+  "title":"LeaderboardGenerated Event v1",
+  "description":"Emitted when a leaderboard is generated for a category and season.",
+  "type":"object",
+  "required":["event_id","meta","source","payload"],
+  "additionalProperties":false,
+  "$defs":{"uuid":{"type":"string","format":"uuid"}},
+  "properties":{
+    "event_id":{"$ref":"#/$defs/uuid"},
+    "meta":{"type":"object","required":["version","produced_at"],"properties":{"version":{"type":"string"},"produced_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "source":{"type":"object","required":["origin"],"properties":{"origin":{"type":"string","enum":["system","admin"]},"actor":{"type":"object","properties":{"id":{"type":"string"}}}},"additionalProperties":false},
+    "payload":{"type":"object","required":["leaderboard_id","season_code","category","generated_at","entries_count"],"properties":{"leaderboard_id":{"$ref":"#/$defs/uuid"},"season_code":{"type":"string"},"category":{"type":"string"},"generated_at":{"type":"string","format":"date-time"},"entries_count":{"type":"integer","minimum":0},"s3_path":{"type":"string"}},"additionalProperties":false}
+  },
+  "examples":[
+    {"event_id":"55555555-6666-7777-8888-999999999990","meta":{"version":"1.0","produced_at":"2026-02-02T01:05:00Z"},"source":{"origin":"system","actor":{"id":"leaderboard-gen-1"}},"payload":{"leaderboard_id":"lb-2025-points","season_code":"2025-2026","category":"points_per_game","generated_at":"2026-02-02T01:05:00Z","entries_count":30}}
+  ]
+}
