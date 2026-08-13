@@ -1,4 +1,4 @@
-name: probe
+name: probe2
 on:
   workflow_dispatch:
   push:
@@ -12,7 +12,6 @@ jobs:
       - run: echo hi
   deploy:
     needs: test
-    if: ${{ secrets.RAILWAY_TOKEN != '' }}
     runs-on: ubuntu-latest
     steps:
       - run: echo deploy-skipped
