@@ -1,11 +1,14 @@
-# FASE 18.1 — Staging deployment to Railway.
+# FASE 18.1 - Staging deployment to Railway.
 #
 # Trigger: manual (workflow_dispatch) or push to the `staging` branch.
-# The deploy STEPS only run when the RAILWAY_TOKEN secret exists; until then
-# the job prints a warning and skips, so this workflow can never deploy
-# against non-existent infrastructure or fail on missing credentials.
-# (Note: `secrets` is not accepted in a job-level `if`; gating is done at the
-# step level, where it is valid.)
+# Until the RAILWAY_TOKEN secret is configured, every deploy step prints a
+# message and exits 0 (no-op), so this workflow can never deploy against
+# non-existent infrastructure or fail on missing credentials.
+#
+# Note on gating: GitHub Actions does NOT accept `secrets` inside an `if`
+# expression (job-level or step-level) - the workflow fails to compile. The
+# presence of RAILWAY_TOKEN is therefore checked inside each `run` step via the
+# job-level env, which is the supported way to reference secrets.
 #
 # Secrets required (set in the GitHub repository, NOT in this file):
 #   RAILWAY_TOKEN            Railway project token (scoped to the staging env)
@@ -56,25 +59,26 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_SERVICE_NAME: ${{ secrets.RAILWAY_SERVICE_NAME }}
+      RAILWAY_STAGING_DOMAIN: ${{ secrets.RAILWAY_STAGING_DOMAIN }}
+      FEB_SCORE_SMOKE_KEY: ${{ secrets.FEB_SCORE_SMOKE_KEY }}
     steps:
-      - name: Gate — Railway access required
-        if: ${{ secrets.RAILWAY_TOKEN == '' }}
-        run: echo "::warning::RAILWAY_TOKEN secret not configured; staging deploy skipped (no Railway access)"
-
       - uses: actions/checkout@v4
 
       - name: Install Railway CLI
-        if: ${{ secrets.RAILWAY_TOKEN != '' }}
-        run: curl -fsSL https://railway.app/install.sh | sh
+        run: |
+          [ -n "$RAILWAY_TOKEN" ] || { echo "skipping: RAILWAY_TOKEN secret not configured"; exit 0; }
+          curl -fsSL https://railway.app/install.sh | sh
 
       - name: Deploy (Railway builds from Dockerfile)
-        if: ${{ secrets.RAILWAY_TOKEN != '' }}
-        run: railway up --service "${{ secrets.RAILWAY_SERVICE_NAME }}"
+        run: |
+          [ -n "$RAILWAY_TOKEN" ] || { echo "skipping: RAILWAY_TOKEN secret not configured"; exit 0; }
+          railway up --service "$RAILWAY_SERVICE_NAME"
 
       - name: Wait for readiness
-        if: ${{ secrets.RAILWAY_TOKEN != '' }}
         run: |
-          url="https://${{ secrets.RAILWAY_STAGING_DOMAIN }}/ready"
+          [ -n "$RAILWAY_TOKEN" ] || { echo "skipping: RAILWAY_TOKEN secret not configured"; exit 0; }
+          url="https://$RAILWAY_STAGING_DOMAIN/ready"
           for i in $(seq 1 60); do
             if curl -fsS "$url" | grep -q '"status": *"ready"'; then
               echo "READY after $((i * 5))s"
@@ -87,5 +91,6 @@ jobs:
           exit 1
 
       - name: Smoke test
-        if: ${{ secrets.RAILWAY_TOKEN != '' }}
-        run: bash scripts/staging_smoke.sh "https://${{ secrets.RAILWAY_STAGING_DOMAIN }}" "${{ secrets.FEB_SCORE_SMOKE_KEY }}"
+        run: |
+          [ -n "$RAILWAY_TOKEN" ] || { echo "skipping: RAILWAY_TOKEN secret not configured"; exit 0; }
+          bash scripts/staging_smoke.sh "https://$RAILWAY_STAGING_DOMAIN" "$FEB_SCORE_SMOKE_KEY"
