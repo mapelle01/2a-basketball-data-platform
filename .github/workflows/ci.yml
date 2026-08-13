@@ -93,5 +93,12 @@ jobs:
             -d '{"payload":{"external_id":"ci-1","competition_id":"c","season_code":"2025-2026","round_number":1,"scheduled_at":"2026-02-01T18:30:00Z","home_team":{"external_id":"h","name":"H"},"away_team":{"external_id":"a","name":"A"},"source":{"id":"ci","fetched_at":"2026-02-01T18:00:00Z","s3_path":"s3://x"}}}' \
             | grep '"status": "accepted"'
           docker compose ps
+      - name: Container diagnostics (FASE 15)
+        if: always()
+        run: |
+          docker compose ps || true
+          docker compose logs --no-color api db 2>&1 || true
+          curl -sv http://127.0.0.1:8000/health 2>&1 || true
+          curl -sv http://127.0.0.1:8000/ready 2>&1 || true
       - name: Compose down
         run: docker compose down -v
