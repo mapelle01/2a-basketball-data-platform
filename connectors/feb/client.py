@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, Iterable
 from urllib.parse import urljoin
 
 import requests
@@ -14,6 +14,7 @@ BASE_URL = "https://baloncestoenvivo.feb.es"
 LIVE_STATS_BASE = "https://intrafeb.feb.es/LiveStats.API/api/v1"
 DEFAULT_RESULTS_URL = f"{BASE_URL}/resultados.aspx?g=2&t=2025&nm=segundafeb"
 DEFAULT_SEASON_CODE = "2025-2026"
+DEFAULT_LIVE_ENDPOINTS = ("BoxScore", "TeamStats", "KeyFacts", "ShotChart", "Ranking")
 
 
 @dataclass(frozen=True)
@@ -30,12 +31,7 @@ class FEBMatch:
 
 
 class FEBClient:
-    """Read-only client for the public FEB competition pages and LiveStats API.
-
-    The LiveStats API is not called with a permanent credential. FEB embeds a
-    short-lived token in each match page; the connector extracts it and uses it
-    only for the subsequent read-only LiveStats requests.
-    """
+    """Read-only client for FEB competition pages and its LiveStats API."""
 
     def __init__(self, session: requests.Session | None = None, timeout: int = 30):
         self.session = session or requests.Session()
@@ -53,7 +49,6 @@ class FEBClient:
         soup = BeautifulSoup(html, "lxml")
         round_number = self._parse_round_number(soup)
         matches: list[FEBMatch] = []
-
         for row in soup.find_all("tr"):
             cells = row.find_all(["td", "th"])
             if len(cells) < 4:
@@ -61,19 +56,14 @@ class FEBClient:
             score_link = cells[1].find("a", href=True)
             if score_link is None:
                 continue
-
             match_id = self._match_id(score_link["href"])
             if match_id is None:
                 continue
-
             home, away = self._split_teams(cells[0].get_text(" ", strip=True))
             home_score, away_score = self._parse_score(cells[1].get_text(" ", strip=True))
-            scheduled_at = self._parse_datetime(
-                cells[2].get_text(" ", strip=True), cells[3].get_text(" ", strip=True)
-            )
+            scheduled_at = self._parse_datetime(cells[2].get_text(" ", strip=True), cells[3].get_text(" ", strip=True))
             if scheduled_at is None:
                 continue
-
             matches.append(
                 FEBMatch(
                     external_id=str(match_id),
@@ -94,15 +84,18 @@ class FEBClient:
         response.raise_for_status()
         return response.text
 
-    def fetch_live_stats(self, match: FEBMatch, match_html: str) -> dict[str, Any]:
+    def fetch_live_stats(
+        self,
+        match: FEBMatch,
+        match_html: str,
+        endpoints: Iterable[str] = DEFAULT_LIVE_ENDPOINTS,
+    ) -> dict[str, Any]:
         token = self._extract_token(match_html)
         if not token:
             raise RuntimeError(f"FEB token not found for match {match.external_id}")
-
-        referer = match.match_url
-        headers = {"Authorization": f"Bearer {token}", "Referer": referer, "Accept": "application/json"}
+        headers = {"Authorization": f"Bearer {token}", "Referer": match.match_url, "Accept": "application/json"}
         responses: dict[str, Any] = {}
-        for endpoint in ("BoxScore", "TeamStats", "KeyFacts", "ShotChart", "Ranking"):
+        for endpoint in endpoints:
             url = f"{LIVE_STATS_BASE}/{endpoint}/{match.external_id}"
             response = self.session.get(url, headers=headers, timeout=self.timeout)
             response.raise_for_status()
