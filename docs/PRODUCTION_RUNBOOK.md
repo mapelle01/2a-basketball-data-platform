@@ -139,7 +139,17 @@ Objetivo production (provisional): RPO ≤ 5 min (PITR), RTO ≤ 30 min.
 - Validación final prod (2026-08-13 cierre): `/health` 200, `/ready` 200 (`schema_version=1, database=ok, migrations=up_to_date`), `/docs` 404, POST no-key 401, deployment `d0bc5e25` SUCCESS. Smoke autenticado corre dentro del workflow con el secret.
 - Staging intacto (FASE 20.2): `/health` 200, `/ready` 200, `/docs` 200 (no redeploy/hardening).
 
-Ver `docs/FASE_20_2_CLEANUP_REPORT.md` para el reporte completo.
+Ver `docs/FASE_20_2_CLEANUP_REPORT.md` y `docs/FASE_21_B2_REPORT.md`.
+
+### FEB Source Connector (FASE 21.B1/B2)
+
+- Fuente real FEB: `GET https://intrafeb.feb.es/LiveStats.API/api/v1/BoxScore/{match_id}` con `Authorization: Bearer <FEB_TOKEN>`.
+- `external_id` = match_id FEB. `competition_id` domain = `segunda-feb` (Feb `CompID` preservado en `source`).
+- `scheduled_at` parseado de `dd-mm-yyyy - HH:MM` → ISO `+01:00` (offset B2 provisional; TZ real → B3).
+- Idempotent: `command_id` UUIDv5(`season_code|competition_id|external_id`); `POST create_or_update_match` → 200/409.
+- CLI: `python3 scripts/feb/ingest_match.py --fixture <json> --dry-run` (offline, NO exige token/API key); `--match-id` con `FEB_TOKEN`+`FEB_API_KEY` para POST real.
+- `scripts/feb/smoke_fetch_feb.py` (manual), no CI. Env: `FEB_TOKEN, FEB_MATCH_ID, FEB_SEASON_CODE` (req), `FEB_COMPETITION_ID`, `FEB_API_KEY`, `FEB_TARGET_API`.
+- **Contract constraint:** `raw` sólo `boxscore_ref`/`teamstats_ref`; player stats NO se embeden (FASE 21.B3 persistence).
 
 ## 16. FEB Source Connector (FASE 21.B1)
 
