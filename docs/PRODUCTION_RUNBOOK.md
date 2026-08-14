@@ -140,3 +140,11 @@ Objetivo production (provisional): RPO ≤ 5 min (PITR), RTO ≤ 30 min.
 - Staging intacto (FASE 20.2): `/health` 200, `/ready` 200, `/docs` 200 (no redeploy/hardening).
 
 Ver `docs/FASE_20_2_CLEANUP_REPORT.md` para el reporte completo.
+
+## 16. FEB Source Connector (FASE 21.B1)
+
+- Connector: `scripts/feb/ingest_match.py` (Python stdlib only, read-only fetch → normalize → `POST /v1/commands/create_or_update_match`).
+- Idempotent: `command_id` = UUIDv5 deterministic (`season_code|competition_id|external_id`); `external_id` preservado del source FEB → server-side dedup garantiza no-duplicado.
+- Sources no-secret: API key via env `FEB_API_KEY` (raw 64-hex); nunca impresa. `FEB_SOURCE_URL`, `FEB_TARGET_API`, `FEB_COMPETITION_ID` vía env.
+- No toca dominio/staging/prod ni la imagen API (es script standalone; no redeploy necesario).
+- Estado: **merged `main`** (PR #2 → `92fa4a2`), CI 488 tests PASS. Ingesta real en vivo **PENDING** fuente FEB real (ver `docs/FASE_21_B1_REPORT.md`).
