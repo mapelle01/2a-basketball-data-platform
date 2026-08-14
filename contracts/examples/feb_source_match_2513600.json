@@ -1,0 +1,19 @@
+{
+  "source": "feb-api",
+  "fetched_at": "2026-02-01T20:00:00Z",
+  "payload": {
+    "external_id": "2513600",
+    "season_code": "2025-2026",
+    "competition_id": "segunda-feb",
+    "round_number": 5,
+    "scheduled_at": "2026-02-01T18:30:00+01:00",
+    "home_team": { "external_id": "team-123", "name": "CLASS BASQUET SANT ANTONI" },
+    "away_team": { "external_id": "team-456", "name": "INSOLAC CAJA 87" },
+    "venue": { "name": "Pabellón X", "city": "Ciudad" },
+    "score": { "home": 82, "away": 76, "finalized": true },
+    "raw": {
+      "boxscore_ref": "s3://raw/2513600_boxscore.json",
+      "teamstats_ref": "s3://raw/2513600_teamstats.json"
+    }
+  }
+}
