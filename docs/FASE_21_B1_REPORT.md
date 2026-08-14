@@ -85,6 +85,43 @@ FEB_SOURCE_URL="https://<feb-real>/<match>.json" FEB_TARGET_API=https://feb-scor
 - Bulk ingestion / scheduling → external cron (post-B1).
 - match/team/player estadísticas derivadas → FASE 21.B2.
 
+## Verificación post-merge (PASO 5-8)
+
+Merge → `92fa4a2` (commit) / PR #2 closed. CI del merge (run 31782928123 → success, 488 tests), CI del PR (31782888852 → success, tests incluidos el connector).
+
+Production (intacta, no redeploy por el connector — el conector NO toca la imagen API):
+- `/health` 200; `/ready` 200 (`schema_version=1, database=ok, migrations=up_to_date`).
+- `/docs` 404 (hardened).
+- POST no-key → 401.
+- deployment actual `3471a1de` SUCCESS.
+
+Staging (`pretty-motilaition`): `/health` 200, `/ready` 200, `/docs` 200 → **INTACTO** (no deploy, no var, no resource touched).
+
+## Ingesta real (PASO 4) — BLOCKED / PENDING
+
+- No se dispone de fuente FEB pública real ni credentials FEB API (LaLiga/FEF) en este session/sandbox.
+- Probe endpoints públicos conocidos (`lfep.es`) → DNS no resuelve / no disponible; no se scrapea (TOS + regla: no inventar datos).
+- → **PRIMERA INGESTA REAL PENDING**: se activa al momento de proveer `FEB_SOURCE_URL` (endpoint JSON público real) o credentials FEB API.
+- El conector está preparado: ver `scripts/feb/README.md` (comando de ingest con env vars).
+
+## Estado FASE 21.B1 (honesto, evidence-based)
+
+| Criterio | Estado | Evidencia |
+|---|---|---|
+| FEB connector (offline-ready, idempotent) | PASS | `scripts/feb/ingest_match.py`; 9 tests unitarios; deterministic UUIDv5 command_id |
+| CI (tests + connector tests) | PASS | 488 passed (479 base + 9); CI del merge 31782928123 success |
+| Merge a main | PASS | PR #2 → `92fa4a2` |
+| Production deploy | PASS | `3471a1de` SUCCESS (intacto; connector no-redeploy) |
+| `/health` 200 | PASS | verified |
+| `/ready` 200 (schema_version=1, db, migrations) | PASS | verified |
+| `/docs` 404 | PASS | hardened |
+| smoke autenticado | PASS | validated (workflow run 31780767211) |
+| auth 401 sin key | PASS | verified |
+| Staging intacto | PASS | 200/200 |
+| Primera ingesta real (partido FEB) | BLOCKED | no source credential/public URL available |
+
 ## Conclusión parcial
 
-El conector FEB-source está entregado, testeado offline, idempotent, sin secrets en Git, sin tocar dominio/staging/prod, listo para la primera ingesta real en cuanto se provea una FEF_SOURCE_URL real.
+El **FEB-source connector está entregado, testeado offline, idempotent, sin secrets en Git, sin tocar dominio/staging/prod, y merged a `main`** (CI verde 488 tests).
+
+La **primera ingesta real en vivo** está **BLOCKED** hasta que se provea una fuente FEB real (endpoint JSON público o credential API) — no se inventan datos. Production segue operativa y verde.
