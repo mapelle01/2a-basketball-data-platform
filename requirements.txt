@@ -1,11 +1,10 @@
 # FASE 11 + FASE 12 — Runtime dependencies of feb_score.
-#
-# Runtime: stdlib (sqlite3, json, dataclasses, contextvars) + jsonschema (contract
-# validation) + FastAPI/Uvicorn (HTTP boundary, FASE 11) + psycopg (PostgreSQL
-# backend, FASE 12; only needed if FEB_SCORE_DATABASE_URL is set).
-#
-# Install with:  python3 -m pip install -r requirements.txt
+# FEB source connector dependencies are included so CI can exercise its parser
+# and the production image can run the connector without a separate environment.
 jsonschema>=4.0
 fastapi>=0.110
 uvicorn[standard]>=0.29
 psycopg[binary]>=3.1
+requests>=2.31
+beautifulsoup4>=4.12
+lxml>=5.0
