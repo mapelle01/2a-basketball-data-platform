@@ -4,8 +4,8 @@
 
 **PASS (offline-ready) / INGESTA REAL — PENDING FEB real source credential or public URL**
 
-Se entregó el conector FEB-source (read-only fetch -> normalize -> submit
-`create_or_update_match`), idempotent, sin secrets en Git, sin tocar dominio/staging/prod.
+> Refinado por FASE 21.B2: el conector ahora consume el formato REAL de FEB
+> (`intrafeb.feb.es BoxScore`). Ver `docs/FASE_21_B2_REPORT.md`. CI 493 tests.
 Validado offline con 9 tests unitarios (488 tests CI green).
 
 ## Arquitectura del connector

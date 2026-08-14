@@ -139,6 +139,46 @@ class Match(AggregateRoot):
             )
         )
 
+    def record_stats(
+        self,
+        home_team_stats: Optional[TeamStats] = None,
+        away_team_stats: Optional[TeamStats] = None,
+        player_stats: Optional[Tuple[PlayerStats, ...]] = None,
+        actor_id: str = "system",
+    ) -> None:
+        """FASE 21.B3 — record provisional team/player stats on the match.
+
+        Stats belong to the Match aggregate (already modeled as value objects;
+        serialization round-trips them and rating/leaderboard consume
+        ``match.player_stats``). Unlike ``finalize`` this does NOT change status
+        or require a score: the match stays provisional while its BoxScore stats
+        are stored. Every mutation bumps the version (optimistic concurrency) and
+        reuses the existing ``MatchUpserted`` event type (no new event contract).
+        """
+        if home_team_stats is not None:
+            self.home_team_stats = home_team_stats
+        if away_team_stats is not None:
+            self.away_team_stats = away_team_stats
+        if player_stats is not None:
+            self.player_stats = tuple(player_stats)
+
+        self.version += 1
+        self._record_event(
+            MatchUpserted(
+                event_id=str(uuid.uuid4()),
+                meta=EventMeta(version="1.0", produced_at=datetime.utcnow()),
+                source={"origin": "system", "actor": {"id": actor_id}},
+                payload={
+                    "external_id": str(self.external_id),
+                    "match_uuid": str(self.match_id),
+                    "competition_id": str(self.competition_id),
+                    "season_code": str(self.season_code),
+                    "status": str(self.status),
+                    "source": self.source,
+                },
+            )
+        )
+
     def start(self, actor_id: str = "system") -> None:
         if self.status != MatchStatus("SCHEDULED"):
             raise InvalidMatchStateTransition(f"Match can only start from SCHEDULED status, not {self.status}")

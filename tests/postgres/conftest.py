@@ -97,6 +97,7 @@ class SqliteBackend(_Backend):
 
         return {
             "match": R.SqliteMatchRepository,
+            "stats": R.SqliteMatchStatsRepository,
             "player": R.SqlitePlayerRepository,
             "team": R.SqliteTeamRepository,
             "competition": R.SqliteCompetitionRepository,
@@ -137,6 +138,7 @@ class PostgresBackend(_Backend):
 
         return {
             "match": R.PgMatchRepository,
+            "stats": R.PgMatchStatsRepository,
             "player": R.PgPlayerRepository,
             "team": R.PgTeamRepository,
             "competition": R.PgCompetitionRepository,

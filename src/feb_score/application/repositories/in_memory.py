@@ -8,6 +8,7 @@ from .interfaces import (
     IdempotencyRepository,
     LeaderboardRepository,
     MatchRepository,
+    MatchStatsRepository,
     PlayerRepository,
     PublicationRepository,
     RatingRepository,
@@ -22,6 +23,7 @@ from ...domain.player.model import Player
 from ...domain.publication.model import Publication
 from ...domain.ratings.model import PlayerRating
 from ...domain.standings.model import StandingSnapshot
+from ...domain.statistics.model import PlayerStats, TeamStats
 from ...domain.team.model import Team
 from ...domain.value_objects import CompetitionId, ExternalId, LeaderboardId, SeasonCode
 
@@ -133,3 +135,41 @@ class InMemoryIdempotencyRepository(IdempotencyRepository):
 
     def mark_processed(self, command_id: str) -> None:
         self._processed.add(command_id)
+
+
+class InMemoryMatchStatsRepository(MatchStatsRepository):
+    """FASE 21.B3 — dict-backed projection (tests / handlers)."""
+
+    def __init__(self) -> None:
+        self._player: Dict[str, Dict[str, PlayerStats]] = {}  # match -> player_id -> stats
+        self._team: Dict[str, Dict[str, TeamStats]] = {}  # match -> team_id -> stats
+
+    def save_player_stats(
+        self, match_external_id: str, season_code: SeasonCode, player_stats: Iterable[PlayerStats]
+    ) -> None:
+        bucket = self._player.setdefault(match_external_id, {})
+        for ps in player_stats:
+            bucket[ps.player_external_id] = ps
+
+    def save_team_stats(
+        self, match_external_id: str, season_code: SeasonCode, team_stats: Iterable[TeamStats]
+    ) -> None:
+        bucket = self._team.setdefault(match_external_id, {})
+        for ts in team_stats:
+            bucket[ts.team_external_id] = ts
+
+    def list_player_stats(self, match_external_id: str) -> Iterable[PlayerStats]:
+        return list(self._player.get(match_external_id, {}).values())
+
+    def list_team_stats(self, match_external_id: str) -> Iterable[TeamStats]:
+        return list(self._team.get(match_external_id, {}).values())
+
+    def list_player_stats_by_season(
+        self, player_external_id: str, season_code: SeasonCode
+    ) -> Iterable[PlayerStats]:
+        return [
+            ps
+            for bucket in self._player.values()
+            for ps in bucket.values()
+            if ps.player_external_id == player_external_id
+        ]

@@ -55,6 +55,12 @@ MIGRATIONS: List[Migration] = [
         destructive=True,
         script=(_MIGRATIONS_DIR / "002_match_integrity.sql").read_text(),
     ),
+    Migration(
+        version=3,
+        name="match_stats",
+        destructive=False,
+        script=(_MIGRATIONS_DIR / "003_match_stats.sql").read_text(),
+    ),
 ]
 
 

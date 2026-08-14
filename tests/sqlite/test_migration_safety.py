@@ -66,12 +66,12 @@ def test_destructive_migration_backs_up_before_applying_and_can_roll_back(db_pat
         conn.close()
 
     original = list(connection.MIGRATIONS)
-    destructive = Migration(3, "drop_players", True, "DROP TABLE players;")
+    destructive = Migration(99, "drop_players", True, "DROP TABLE players;")
     monkeypatch.setattr(connection, "MIGRATIONS", original + [destructive])
 
     db.migrate()
-    assert db.user_version == 3
-    backup_path = f"{db_path}.pre-migrate-3.sqlite3"
+    assert db.user_version == 99
+    backup_path = f"{db_path}.pre-migrate-99.sqlite3"
     assert os.path.exists(backup_path)
 
     # Roll back the destructive upgrade from the automatic safety backup.

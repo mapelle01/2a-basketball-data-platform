@@ -42,6 +42,7 @@ from ....application.repositories.interfaces import (
     IdempotencyRepository,
     LeaderboardRepository,
     MatchRepository,
+    MatchStatsRepository,
     PlayerRepository,
     PublicationRepository,
     RatingRepository,
@@ -56,6 +57,7 @@ from ....domain.player.model import Player
 from ....domain.publication.model import Publication
 from ....domain.ratings.model import PlayerRating
 from ....domain.standings.model import StandingSnapshot
+from ....domain.statistics.model import PlayerStats, TeamStats
 from ....domain.team.model import Team
 from ....domain.value_objects import CompetitionId, ExternalId, LeaderboardId, SeasonCode
 from ..errors import CorruptedRecordError, StaleVersionError
@@ -398,3 +400,153 @@ class PgIdempotencyRepository(_PgRepoMixin, IdempotencyRepository):
         finally:
             if owned:
                 conn.close()
+
+
+class PgMatchStatsRepository(_PgRepoMixin, MatchStatsRepository):
+    """FASE 21.B3 — indexed projection of BoxScore stats (PostgreSQL).
+
+    Upsert via ``ON CONFLICT ... DO UPDATE`` keyed by
+    ``(match_external_id, player_external_id)`` / team key: replaying the same
+    stats for a match overwrites rows, never duplicates them.
+    """
+
+    def __init__(self, db: PgDatabase) -> None:
+        self.db = db
+
+    def save_player_stats(
+        self, match_external_id: str, season_code: SeasonCode, player_stats: Iterable[PlayerStats]
+    ) -> None:
+        conn, owned = self._conn()
+        try:
+            for ps in player_stats:
+                conn.execute(
+                    "INSERT INTO match_player_stats"
+                    " (match_external_id, player_external_id, team_external_id, season_code,"
+                    "  points, rebounds, assists, steals, blocks, turnovers, minutes, played_at, data)"
+                    " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)"
+                    " ON CONFLICT (match_external_id, player_external_id) DO UPDATE SET"
+                    "  team_external_id = EXCLUDED.team_external_id,"
+                    "  season_code = EXCLUDED.season_code,"
+                    "  points = EXCLUDED.points, rebounds = EXCLUDED.rebounds,"
+                    "  assists = EXCLUDED.assists, steals = EXCLUDED.steals,"
+                    "  blocks = EXCLUDED.blocks, turnovers = EXCLUDED.turnovers,"
+                    "  minutes = EXCLUDED.minutes, played_at = EXCLUDED.played_at,"
+                    "  data = EXCLUDED.data",
+                    (
+                        match_external_id,
+                        ps.player_external_id,
+                        ps.team_external_id,
+                        str(season_code),
+                        ps.points,
+                        ps.rebounds,
+                        ps.assists,
+                        ps.steals,
+                        ps.blocks,
+                        ps.turnovers,
+                        ps.minutes,
+                        ps.played_at,
+                        json.dumps(ps.to_dict()),
+                    ),
+                )
+        except Exception as exc:  # noqa: BLE001
+            raise translate_pg_error(exc) from exc
+        finally:
+            if owned:
+                conn.close()
+
+    def save_team_stats(
+        self, match_external_id: str, season_code: SeasonCode, team_stats: Iterable[TeamStats]
+    ) -> None:
+        conn, owned = self._conn()
+        try:
+            for ts in team_stats:
+                conn.execute(
+                    "INSERT INTO match_team_stats"
+                    " (match_external_id, team_external_id, season_code, points_for, points_against,"
+                    "  field_goals_made, field_goals_attempted, three_points_made, three_points_attempted,"
+                    "  free_throws_made, free_throws_attempted, turnovers, rebounds, data)"
+                    " VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb)"
+                    " ON CONFLICT (match_external_id, team_external_id) DO UPDATE SET"
+                    "  season_code = EXCLUDED.season_code,"
+                    "  points_for = EXCLUDED.points_for, points_against = EXCLUDED.points_against,"
+                    "  field_goals_made = EXCLUDED.field_goals_made,"
+                    "  field_goals_attempted = EXCLUDED.field_goals_attempted,"
+                    "  three_points_made = EXCLUDED.three_points_made,"
+                    "  three_points_attempted = EXCLUDED.three_points_attempted,"
+                    "  free_throws_made = EXCLUDED.free_throws_made,"
+                    "  free_throws_attempted = EXCLUDED.free_throws_attempted,"
+                    "  turnovers = EXCLUDED.turnovers, rebounds = EXCLUDED.rebounds,"
+                    "  data = EXCLUDED.data",
+                    (
+                        match_external_id,
+                        ts.team_external_id,
+                        str(season_code),
+                        ts.points_for,
+                        ts.points_against,
+                        ts.field_goals_made,
+                        ts.field_goals_attempted,
+                        ts.three_points_made,
+                        ts.three_points_attempted,
+                        ts.free_throws_made,
+                        ts.free_throws_attempted,
+                        ts.turnovers,
+                        ts.rebounds,
+                        json.dumps(ts.to_dict()),
+                    ),
+                )
+        except Exception as exc:  # noqa: BLE001
+            raise translate_pg_error(exc) from exc
+        finally:
+            if owned:
+                conn.close()
+
+    def list_player_stats(self, match_external_id: str) -> Iterable[PlayerStats]:
+        conn, owned = self._conn()
+        try:
+            rows = conn.execute(
+                "SELECT data::text AS data FROM match_player_stats WHERE match_external_id = %s",
+                (match_external_id,),
+            ).fetchall()
+            return [_player_stats_from_blob(r["data"]) for r in rows]
+        finally:
+            if owned:
+                conn.close()
+
+    def list_team_stats(self, match_external_id: str) -> Iterable[TeamStats]:
+        conn, owned = self._conn()
+        try:
+            rows = conn.execute(
+                "SELECT data::text AS data FROM match_team_stats WHERE match_external_id = %s",
+                (match_external_id,),
+            ).fetchall()
+            return [TeamStats(**json.loads(r["data"])) for r in rows]
+        finally:
+            if owned:
+                conn.close()
+
+    def list_player_stats_by_season(
+        self, player_external_id: str, season_code: SeasonCode
+    ) -> Iterable[PlayerStats]:
+        conn, owned = self._conn()
+        try:
+            rows = conn.execute(
+                "SELECT data::text AS data FROM match_player_stats"
+                " WHERE player_external_id = %s AND season_code = %s",
+                (player_external_id, str(season_code)),
+            ).fetchall()
+            return [_player_stats_from_blob(r["data"]) for r in rows]
+        finally:
+            if owned:
+                conn.close()
+
+
+def _player_stats_from_blob(data: str) -> PlayerStats:
+    """Reconstruct a PlayerStats from its JSON blob, parsing played_at (ISO
+    string in storage) back to a datetime so re-serialization round-trips."""
+    from datetime import datetime
+
+    raw = json.loads(data)
+    played_at = raw.get("played_at")
+    if played_at:
+        raw["played_at"] = datetime.fromisoformat(played_at)
+    return PlayerStats(**raw)

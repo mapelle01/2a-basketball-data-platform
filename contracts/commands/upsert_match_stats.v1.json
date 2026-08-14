@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/contracts/commands/upsert_match_stats.v1.json",
+  "title": "UpsertMatchStats Command v1",
+  "description": "FASE 21.B3 — Record provisional BoxScore team/player stats on an existing Match aggregate. Idempotent via command_id (row-level idempotency via match_external_id + player_external_id UNIQUE).",
+  "type": "object",
+  "required": ["command_id","meta","actor","payload"],
+  "additionalProperties": false,
+  "$defs": {
+    "uuid": {"type":"string","format":"uuid"},
+    "actor": {
+      "type":"object",
+      "required":["id","role"],
+      "properties":{
+        "id": {"type":"string","minLength":1},
+        "role": {"type":"string","enum":["admin","editor","system"]}
+      },
+      "additionalProperties": false
+    },
+    "teamStats": {
+      "type":"object",
+      "required":[
+        "team_external_id","points_for","points_against",
+        "field_goals_made","field_goals_attempted",
+        "three_points_made","three_points_attempted",
+        "free_throws_made","free_throws_attempted",
+        "turnovers","rebounds"
+      ],
+      "properties":{
+        "team_external_id":{"type":"string","minLength":1},
+        "points_for":{"type":"integer","minimum":0},
+        "points_against":{"type":"integer","minimum":0},
+        "field_goals_made":{"type":"integer","minimum":0},
+        "field_goals_attempted":{"type":"integer","minimum":0},
+        "three_points_made":{"type":"integer","minimum":0},
+        "three_points_attempted":{"type":"integer","minimum":0},
+        "free_throws_made":{"type":"integer","minimum":0},
+        "free_throws_attempted":{"type":"integer","minimum":0},
+        "turnovers":{"type":"integer","minimum":0},
+        "rebounds":{"type":"integer","minimum":0}
+      },
+      "additionalProperties": false
+    },
+    "playerStats": {
+      "type":"object",
+      "required":[
+        "player_external_id","team_external_id",
+        "points","rebounds","assists"
+      ],
+      "properties":{
+        "player_external_id":{"type":"string","minLength":1},
+        "team_external_id":{"type":"string","minLength":1},
+        "points":{"type":"integer","minimum":0},
+        "rebounds":{"type":"integer","minimum":0},
+        "assists":{"type":"integer","minimum":0},
+        "steals":{"type":"integer","minimum":0},
+        "blocks":{"type":"integer","minimum":0},
+        "turnovers":{"type":"integer","minimum":0},
+        "minutes":{"type":"number","minimum":0},
+        "played_at":{"type":["string","null"],"format":"date-time"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "properties":{
+    "command_id": {"$ref":"#/$defs/uuid"},
+    "meta":{
+      "type":"object",
+      "required":["version","issued_at"],
+      "properties":{
+        "version":{"type":"string","pattern":"^\\d+\\.\\d+$","example":"1.0"},
+        "issued_at":{"type":"string","format":"date-time"}
+      },
+      "additionalProperties": false
+    },
+    "actor": {"$ref":"#/$defs/actor"},
+    "payload":{
+      "type":"object",
+      "required":["match_external_id","season_code"],
+      "properties":{
+        "match_external_id":{"type":"string","minLength":1},
+        "season_code":{"type":"string","minLength":3},
+        "home_team_stats":{"$ref":"#/$defs/teamStats"},
+        "away_team_stats":{"$ref":"#/$defs/teamStats"},
+        "player_stats":{"type":"array","items":{"$ref":"#/$defs/playerStats"}}
+      },
+      "additionalProperties": false
+    }
+  }
+}

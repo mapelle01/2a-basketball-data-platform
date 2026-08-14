@@ -64,6 +64,13 @@ def _command_id(season_code: str, competition_id: str, external_id: str) -> str:
     return str(uuid.uuid5(uuid.NAMESPACE_URL, f"feb-score-ingestor:{name}"))
 
 
+def _stats_command_id(season_code: str, competition_id: str, external_id: str) -> str:
+    """UUIDv5 deterministic for the upsert_match_stats command (distinct namespace
+    from _command_id so the match and its stats are independently idempotent)."""
+    name = f"{season_code}|{competition_id}|{external_id}"
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"feb-score-ingestor-stats:{name}"))
+
+
 def _now_iso() -> str:
     return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -135,6 +142,78 @@ def _player_stats(player: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _team_total(team: Dict[str, Any]) -> Dict[str, Any]:
+    """BOXSCORE.TEAM[].TOTAL -> normalized team-stats dict (real fields).
+
+    FEB 'min' is in seconds (e.g. 12000 = 200:00); the domain stores minutes, so
+    the converter divides by 60. Numeric fields come as strings -> floats.
+    """
+    def num(v):
+        if v in (None, "",):
+            return 0
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return 0.0
+
+    total = team.get("TOTAL") or {}
+    return {
+        "team_external_id": str(team.get("id", "")),
+        "points_for": int(num(total.get("pts"))),
+        "field_goals_made": int(num(total.get("fgm"))),
+        "field_goals_attempted": int(num(total.get("fga"))),
+        "three_points_made": int(num(total.get("p3m"))),
+        "three_points_attempted": int(num(total.get("p3a"))),
+        "free_throws_made": int(num(total.get("p1m"))),
+        "free_throws_attempted": int(num(total.get("p1a"))),
+        "turnovers": int(num(total.get("to"))),
+        "rebounds": int(num(total.get("rt"))),
+        "minutes_seconds": num(total.get("min")),
+        "_raw_team": team,
+    }
+
+
+def _team_stats_for(team: Dict[str, Any], opponent_score: int, points_for: int) -> Dict[str, Any]:
+    """Build a domain-compliant teamStats payload for one side.
+
+    points_for = own score; points_against = opponent score (from HEADER.TEAM[].pts).
+    """
+    total = _team_total(team)
+    total["points_for"] = int(points_for)
+    total["points_against"] = int(opponent_score)
+    total.pop("minutes_seconds", None)
+    total.pop("_raw_team", None)
+    return total
+
+
+def _player_stats_for(player: Dict[str, Any], team_id: str, played_at: str) -> Dict[str, Any]:
+    """FEB player stats -> domain-compliant playerStats payload.
+
+    Optional FEB fields (st/bs/to) default to 0 when absent; minutes are FEB
+    seconds -> domain minutes (/60).
+    """
+    def num(v):
+        if v in (None, "",):
+            return 0
+        try:
+            return int(float(v))
+        except (TypeError, ValueError):
+            return 0
+
+    return {
+        "player_external_id": player["id"],
+        "team_external_id": team_id,
+        "points": num(player.get("pts")),
+        "rebounds": num(player.get("reb")),
+        "assists": num(player.get("assist")),
+        "steals": num(player.get("st")),
+        "blocks": num(player.get("bs")),
+        "turnovers": num(player.get("to")),
+        "minutes": round(float(player["min"]) / 60.0, 3) if player.get("min") else 0.0,
+        "played_at": played_at,
+    }
+
+
 def parse_boxscore(boxscore: Dict[str, Any], match_id: str, season_code: str) -> Dict[str, Any]:
     """Transform the REAL FEB BoxScore JSON into the intermediate format used by to_command().
 
@@ -200,6 +279,10 @@ def parse_boxscore(boxscore: Dict[str, Any], match_id: str, season_code: str) ->
         },
         "quarters": partials,
         "stats": {"home": home_players, "away": away_players},
+        "team_totals": {
+            "home": _team_total(box_teams.get(str(home_hdr.get("id", "")), {})),
+            "away": _team_total(box_teams.get(str(away_hdr.get("id", "")), {})),
+        },
     }
 
 
@@ -277,12 +360,125 @@ def to_command(parsed: Dict[str, Any], competition_id: str) -> Dict[str, Any]:
     }
 
 
+def _status_line(parsed, cmd, res) -> str:
+    """Build a REJECTED/OK line with the response body for diagnosis.
+
+    Safe by construction: never includes Authorization header, FEB_TOKEN,
+    FEB_API_KEY, or any secret. Body is limited to avoid dumping large payloads.
+    """
+    status = res["status"]
+    body = res.get("body")
+    if isinstance(body, (dict, list)):
+        body = json.dumps(body)[:1500]
+    elif body is None:
+        body = ""
+    else:
+        body = str(body)[:1500]
+
+    base = f"external_id={parsed['external_id']} command_id={cmd['command_id']} HTTP {status}"
+    if status in (200, 201, 204):
+        return f"OK {base} body={body}"
+    if status == 409:
+        return f"IDEMPOTENT {base} body={body}"
+    return f"REJECTED {base} body={body}"
+
+
+def _post_and_report(target: str, api_key: str, parsed: Dict[str, Any], cmd: Dict[str, Any]) -> int:
+    """POST once; print result (no secrets); return process exit code."""
+    res = post_command(target, api_key, cmd)
+    print(_status_line(parsed, cmd, res))
+    return 0 if res["status"] in (200, 201, 204, 409) else 4
+
+
+def _post_stats_and_report(target: str, api_key: str, parsed: Dict[str, Any], cmd: Dict[str, Any]) -> int:
+    """POST the FASE 21.B3 upsert_match_stats command; print result (no secrets)."""
+    res = post_stats_command(target, api_key, cmd)
+    print(f"stats {_status_line(parsed, cmd, res)}")
+    return 0 if res["status"] in (200, 201, 204, 409) else 4
+
+
 def post_command(base_url: str, api_key: str, command: Dict[str, Any]) -> Dict[str, Any]:
-    """POST create_or_update_match. Key never logged (masked by caller / run logs)."""
-    payload = {k: v for k, v in command.items() if not k.startswith("_")}  # strip dry-run/trace keys
-    body = json.dumps(payload).encode("utf-8")
+    """POST create_or_update_match. Key never logged (masked by caller / run logs).
+
+    HTTP envelope: the API boundary (CommandRequest in src/feb_score/api/main.py)
+    accepts ONLY ``{command_id, payload}`` (extra=forbid). meta/actor are domain-level
+    contract fields reconstructed server-side from the authenticated principal
+    (FASE 13) and MUST NOT be sent over HTTP.
+    """
+    http_body = {
+        "command_id": command["command_id"],
+        "payload": command["payload"],
+    }
+    body = json.dumps(http_body).encode("utf-8")
     req = urllib.request.Request(
         f"{base_url.rstrip('/')}/v1/commands/create_or_update_match",
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+            "X-Request-Id": command["command_id"],
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return {"status": resp.status, "body": json.loads(resp.read().decode("utf-8"))}
+    except urllib.error.HTTPError as e:
+        return {"status": e.code, "body": e.read().decode("utf-8", "replace")}
+
+
+def to_stats_command(parsed: Dict[str, Any], competition_id: str) -> Dict[str, Any]:
+    """Build the FASE 21.B3 upsert_match_stats command envelope from parsed FEB data.
+
+    Payload respects contracts/commands/upsert_match_stats.v1.json
+    (additionalProperties:false). Team totals come from BOXSCORE.TEAM[].TOTAL and
+    player stats from BOXSCORE.TEAM[].PLAYER; nothing is injected into the
+    create_or_update_match `raw` (kept boxscore_ref/teamstats_ref only).
+    """
+    ext = parsed["external_id"]
+    season_code = parsed["season_code"]
+    teams = parsed["teams"]
+    home, away = teams["home"], teams["away"]
+
+    home_stats = _team_stats_for(
+        parsed["team_totals"]["home"]["_raw_team"],
+        opponent_score=away["score"],
+        points_for=home["score"],
+    )
+    away_stats = _team_stats_for(
+        parsed["team_totals"]["away"]["_raw_team"],
+        opponent_score=home["score"],
+        points_for=away["score"],
+    )
+    played_at = parsed["scheduling"]["scheduled_at"]
+    player_stats = [
+        _player_stats_for(pl, home["id"], played_at) for pl in parsed["stats"]["home"]
+    ] + [_player_stats_for(pl, away["id"], played_at) for pl in parsed["stats"]["away"]]
+
+    return {
+        "command_id": _stats_command_id(season_code, competition_id, ext),
+        "meta": {"version": COMMAND_VERSION, "issued_at": _now_iso()},
+        "actor": {"id": ACTOR_ID, "role": ACTOR_ROLE},
+        "payload": {
+            "match_external_id": ext,
+            "season_code": season_code,
+            "home_team_stats": home_stats,
+            "away_team_stats": away_stats,
+            "player_stats": player_stats,
+        },
+    }
+
+
+def post_stats_command(base_url: str, api_key: str, command: Dict[str, Any]) -> Dict[str, Any]:
+    """POST upsert_match_stats. Same HTTP envelope policy as post_command:
+    ONLY {command_id, payload}; meta/actor are domain-level (FASE 13)."""
+    http_body = {
+        "command_id": command["command_id"],
+        "payload": command["payload"],
+    }
+    body = json.dumps(http_body).encode("utf-8")
+    req = urllib.request.Request(
+        f"{base_url.rstrip('/')}/v1/commands/upsert_match_stats",
         data=body,
         headers={
             "Content-Type": "application/json",
@@ -329,6 +525,13 @@ def _run_dry(parsed: Dict[str, Any], competition_id: str, season_code: str) -> D
     print(f"quarters={[(q['period'],q['home_score'],q['away_score']) for q in cmd['_stats']['quarters']]}")
     print(f"players= home:{cmd['_stats']['player_counts']['home']} away:{cmd['_stats']['player_counts']['away']}")
     print(f"command_id={cmd['command_id']}")
+
+    stats_cmd = to_stats_command(parsed, competition_id)
+    sp = stats_cmd["payload"]
+    print(f"stats_command_id={stats_cmd['command_id']}")
+    print(f"stats= teams: home:{sp['home_team_stats']['team_external_id']} "
+          f"away:{sp['away_team_stats']['team_external_id']} "
+          f"players:{len(sp['player_stats'])}")
     print("DRY_RUN")
     return cmd
 
@@ -353,9 +556,11 @@ def run() -> int:
         if not args.dry_run:
             target = _require_env("FEB_TARGET_API")
             api_key = _require_env("FEB_API_KEY")
-            res = post_command(target, api_key, cmd)
-            print(f"POST external_id={parsed['external_id']} command_id={cmd['command_id']} HTTP {res['status']}")
-            return 0 if res["status"] in (200, 409) else 4
+            rc = _post_and_report(target, api_key, parsed, cmd)
+            if rc != 0:
+                return rc
+            stats_cmd = to_stats_command(parsed, competition_id)
+            return _post_stats_and_report(target, api_key, parsed, stats_cmd)
         return 0
 
     # Real FEB fetch path (needs token + match-id).
@@ -372,9 +577,11 @@ def run() -> int:
     target = _require_env("FEB_TARGET_API")
     api_key = _require_env("FEB_API_KEY")
     cmd = to_command(parsed, competition_id)
-    res = post_command(target, api_key, cmd)
-    print(f"OK external_id={parsed['external_id']} command_id={cmd['command_id']} HTTP {res['status']}")
-    return 0 if res["status"] in (200, 409) else 4
+    rc = _post_and_report(target, api_key, parsed, cmd)
+    if rc != 0:
+        return rc
+    stats_cmd = to_stats_command(parsed, competition_id)
+    return _post_stats_and_report(target, api_key, parsed, stats_cmd)
 
 
 def _external_id_from_path(path: str) -> str:

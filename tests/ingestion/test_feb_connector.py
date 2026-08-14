@@ -190,3 +190,159 @@ def test_command_payload_matches_contract_schema():
     allowed = set(schema["properties"]["payload"]["properties"].keys())
     extra = set(payload.keys()) - allowed
     assert not extra, f"payload has extra props not in schema: {extra}"
+
+
+# --- 13. el POST HTTP envía SOLO {command_id, payload}; nunca meta/actor (FASE 13 envelope)
+def test_post_command_http_body_has_no_meta_or_actor(monkeypatch):
+    sent = {}
+
+    class _FakeResp:
+        status = 200
+        def read(self):
+            return b'{"ok": true}'
+
+    class _FakeHTTP:
+        def __init__(self, req, timeout=None):
+            sent["url"] = req.full_url
+            sent["method"] = req.get_method()
+            sent["body"] = req.data.decode("utf-8")
+            sent["auth"] = req.headers.get("Authorization")
+        def __enter__(self):
+            return _FakeResp()
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(M.urllib.request, "urlopen", lambda *a, **k: _FakeHTTP(a[0]))
+    cmd = M.to_command(_parsed(), "segunda-feb")
+    res = M.post_command("http://api.test", "the-api-key", cmd)
+    assert res["status"] == 200
+
+    posted = json.loads(sent["body"])
+    assert set(posted.keys()) == {"command_id", "payload"}
+    assert "meta" not in posted
+    assert "actor" not in posted
+    assert posted["command_id"] == cmd["command_id"]
+    assert posted["payload"] == cmd["payload"]
+    assert sent["method"] == "POST"
+    # Auth header must carry the api key (never printed here), but no secret literal in body
+    assert "the-api-key" not in sent["body"]
+    assert "meta" not in sent["body"]
+
+
+# --- FASE 21.B3: upsert_match_stats command from the real fixture
+
+def test_stats_command_contract_compliant():
+    schema = json.loads((ROOT / "contracts/commands/upsert_match_stats.v1.json").read_text())
+    import jsonschema
+    from jsonschema import FormatChecker
+    cmd = M.to_stats_command(_parsed(), "segunda-feb")
+    jsonschema.validate(cmd, schema, format_checker=FormatChecker())
+
+
+def test_stats_command_reid_maps_exactly():
+    cmd = M.to_stats_command(_parsed(), "segunda-feb")
+    payload = cmd["payload"]
+    reid = next(p for p in payload["player_stats"] if p["player_external_id"] == "2813013")
+    assert reid["points"] == 12
+    assert reid["rebounds"] == 6
+    assert reid["assists"] == 1
+    assert reid["steals"] == 1
+    assert reid["blocks"] == 0
+    assert reid["turnovers"] == 0
+    assert reid["minutes"] == pytest.approx(33.517, abs=0.01)
+    assert reid["played_at"] == "2025-10-18T19:00:00+01:00"
+
+
+def test_stats_command_has_all_players_both_teams():
+    cmd = M.to_stats_command(_parsed(), "segunda-feb")
+    payload = cmd["payload"]
+    assert len(payload["player_stats"]) == 21  # home 10 + away 11
+    home_ids = {p["player_external_id"] for p in payload["player_stats"]
+                if p["team_external_id"] == "979897"}
+    away_ids = {p["player_external_id"] for p in payload["player_stats"]
+                if p["team_external_id"] == "981281"}
+    assert len(home_ids) == 10
+    assert len(away_ids) == 11
+
+
+def test_stats_command_team_totals_from_total():
+    cmd = M.to_stats_command(_parsed(), "segunda-feb")
+    payload = cmd["payload"]
+    home, away = payload["home_team_stats"], payload["away_team_stats"]
+    assert home["team_external_id"] == "979897"
+    assert home["points_for"] == 80 and home["points_against"] == 88
+    assert home["field_goals_made"] == 31 and home["field_goals_attempted"] == 68
+    assert home["three_points_made"] == 8 and home["three_points_attempted"] == 25
+    assert home["free_throws_made"] == 10 and home["free_throws_attempted"] == 23
+    assert home["turnovers"] == 9 and home["rebounds"] == 34
+    assert away["team_external_id"] == "981281"
+    assert away["points_for"] == 88 and away["points_against"] == 80
+
+
+def test_stats_command_id_deterministic_and_distinct_from_match():
+    s1 = M.to_stats_command(_parsed(), "segunda-feb")["command_id"]
+    s2 = M.to_stats_command(_parsed(), "segunda-feb")["command_id"]
+    assert s1 == s2
+    match_cmd = M.to_command(_parsed(), "segunda-feb")["command_id"]
+    assert s1 != match_cmd
+
+
+def test_stats_command_leaves_create_or_update_match_raw_intact():
+    """B3 keeps raw contract-compliant: create_or_update_match payload has NO
+    player/team stats; raw only carries boxscore_ref/teamstats_ref."""
+    cmd = M.to_command(_parsed(), "segunda-feb")
+    payload = cmd["payload"]
+    assert "player_stats" not in payload
+    assert "home_team_stats" not in payload and "away_team_stats" not in payload
+    assert set(payload["raw"].keys()) == {"boxscore_ref", "teamstats_ref"}
+
+
+def test_stats_command_http_body_has_no_meta_or_actor(monkeypatch):
+    sent = {}
+
+    class _FakeResp:
+        status = 200
+        def read(self):
+            return b'{"ok": true}'
+
+    class _FakeHTTP:
+        def __init__(self, req, timeout=None):
+            sent["url"] = req.full_url
+            sent["body"] = req.data.decode("utf-8")
+        def __enter__(self):
+            return _FakeResp()
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(M.urllib.request, "urlopen", lambda *a, **k: _FakeHTTP(a[0]))
+    cmd = M.to_stats_command(_parsed(), "segunda-feb")
+    res = M.post_stats_command("http://api.test", "the-api-key", cmd)
+    assert res["status"] == 200
+    assert sent["url"].endswith("/v1/commands/upsert_match_stats")
+    posted = json.loads(sent["body"])
+    assert set(posted.keys()) == {"command_id", "payload"}
+
+
+def test_stats_command_without_player_stats_is_valid():
+    """A match with no player stats (optional field absent) still yields a
+    contract-compliant command with an empty player_stats list."""
+    parsed = _parsed()
+    parsed["stats"] = {"home": [], "away": []}
+    cmd = M.to_stats_command(parsed, "segunda-feb")
+    payload = cmd["payload"]
+    assert payload["player_stats"] == []
+    assert payload["home_team_stats"]["team_external_id"] == "979897"
+
+
+def test_stats_command_optional_player_fields_default():
+    """A player missing optional FEB fields (st/bs/to absent) maps to zeros."""
+    parsed = _parsed()
+    sample = parsed["stats"]["home"][0]
+    minimal = {"id": sample["id"], "no": "7", "name": "MIN", "min": 1200,
+               "pts": 5, "reb": 2, "assist": 1, "val": 3}
+    parsed["stats"]["home"] = [minimal]
+    parsed["stats"]["away"] = []
+    cmd = M.to_stats_command(parsed, "segunda-feb")
+    payload = cmd["payload"]
+    p = payload["player_stats"][0]
+    assert p["steals"] == 0 and p["blocks"] == 0 and p["turnovers"] == 0

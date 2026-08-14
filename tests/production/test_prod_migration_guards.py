@@ -70,7 +70,7 @@ def test_pg_apply_migration_rolls_back_on_failure(pg_db):
             pg_db._apply_migration(
                 conn,
                 PgMigration(
-                    version=2,
+                    version=99,
                     name="bad",
                     script="CREATE TABLE broken_table (id INT NOT NULL); THIS IS NOT SQL;",
                 ),
@@ -87,7 +87,7 @@ def test_pg_apply_migration_rolls_back_on_failure(pg_db):
             (pg_db.schema,),
         ).fetchone()["n"] == 0
         version_row = check.execute(
-            "SELECT COUNT(*) AS n FROM %s.schema_version WHERE version = 2"
+            "SELECT COUNT(*) AS n FROM %s.schema_version WHERE version = 99"
             % pg_db.schema
         ).fetchone()
         assert version_row["n"] == 0

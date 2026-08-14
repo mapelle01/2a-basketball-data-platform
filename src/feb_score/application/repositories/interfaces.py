@@ -11,6 +11,7 @@ from ...domain.player.model import Player
 from ...domain.publication.model import Publication
 from ...domain.ratings.model import PlayerRating
 from ...domain.standings.model import StandingSnapshot
+from ...domain.statistics.model import PlayerStats, TeamStats
 from ...domain.team.model import Team
 from ...domain.value_objects import CompetitionId, ExternalId, LeaderboardId, MatchId, PlayerId, PublicationId, SeasonCode
 
@@ -104,4 +105,41 @@ class IdempotencyRepository(ABC):
 
     @abstractmethod
     def mark_processed(self, command_id: str) -> None:
+        pass
+
+
+class MatchStatsRepository(ABC):
+    """FASE 21.B3 — queryable projection of BoxScore team/player stats.
+
+    The Match aggregate owns the stats (source of truth lives in matches.data);
+    this repository exposes an indexed, UNIQUE-guaranteed read model so queries
+    like "player stats in a match", "all players of a match" or "player stats
+    across a season" are efficient and re-ingestion cannot duplicate rows
+    (match_external_id + player_external_id).
+    """
+
+    @abstractmethod
+    def save_player_stats(
+        self, match_external_id: str, season_code: SeasonCode, player_stats: Iterable[PlayerStats]
+    ) -> None:
+        pass
+
+    @abstractmethod
+    def save_team_stats(
+        self, match_external_id: str, season_code: SeasonCode, team_stats: Iterable[TeamStats]
+    ) -> None:
+        pass
+
+    @abstractmethod
+    def list_player_stats(self, match_external_id: str) -> Iterable[PlayerStats]:
+        pass
+
+    @abstractmethod
+    def list_team_stats(self, match_external_id: str) -> Iterable[TeamStats]:
+        pass
+
+    @abstractmethod
+    def list_player_stats_by_season(
+        self, player_external_id: str, season_code: SeasonCode
+    ) -> Iterable[PlayerStats]:
         pass

@@ -28,6 +28,7 @@ from ..application.use_cases.handlers import (
     GenerateStandingSnapshotHandler,
     ProposeCorrectionHandler,
     RegisterPlayerToSquadHandler,
+    UpsertMatchStatsHandler,
 )
 from ..domain.value_objects import Actor, CommandMeta
 from .config import settings_from_env
@@ -67,6 +68,7 @@ class _GatewayBase(CommandGateway):
         self._competition_repo = repos["competition"]
         self._correction_repo = repos["correction"]
         self._leaderboard_repo = repos["leaderboard"]
+        self._stats_repo = repos["stats"]
 
         self._handlers: Dict[str, Any] = {
             "create_or_update_match": lambda: CreateOrUpdateMatchHandler(repos["match"], repos["idempotency"]),
@@ -87,6 +89,9 @@ class _GatewayBase(CommandGateway):
             ),
             "create_publication": lambda: CreatePublicationHandler(repos["publication"]),
             "backfill_season": lambda: BackfillSeasonHandler(repos["competition"]),
+            "upsert_match_stats": lambda: UpsertMatchStatsHandler(
+                repos["match"], repos["stats"], repos["idempotency"]
+            ),
         }
         assert set(self._handlers) == set(COMMANDS), "handler catalog must match command catalog"
 
@@ -251,6 +256,7 @@ class SqliteGateway(_GatewayBase):
             SqliteIdempotencyRepository,
             SqliteLeaderboardRepository,
             SqliteMatchRepository,
+            SqliteMatchStatsRepository,
             SqlitePlayerRepository,
             SqlitePublicationRepository,
             SqliteRatingRepository,
@@ -261,6 +267,7 @@ class SqliteGateway(_GatewayBase):
         return {
             "idempotency": SqliteIdempotencyRepository(self.db),
             "match": SqliteMatchRepository(self.db),
+            "stats": SqliteMatchStatsRepository(self.db),
             "player": SqlitePlayerRepository(self.db),
             "team": SqliteTeamRepository(self.db),
             "competition": SqliteCompetitionRepository(self.db),
@@ -300,6 +307,7 @@ class PgGateway(_GatewayBase):
             PgIdempotencyRepository,
             PgLeaderboardRepository,
             PgMatchRepository,
+            PgMatchStatsRepository,
             PgPlayerRepository,
             PgPublicationRepository,
             PgRatingRepository,
@@ -310,6 +318,7 @@ class PgGateway(_GatewayBase):
         return {
             "idempotency": PgIdempotencyRepository(self.db),
             "match": PgMatchRepository(self.db),
+            "stats": PgMatchStatsRepository(self.db),
             "player": PgPlayerRepository(self.db),
             "team": PgTeamRepository(self.db),
             "competition": PgCompetitionRepository(self.db),

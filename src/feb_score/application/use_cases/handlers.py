@@ -21,6 +21,7 @@ from ..commands.commands import (
     GenerateStandingSnapshotCommand,
     ProposeCorrectionCommand,
     RegisterPlayerToSquadCommand,
+    UpsertMatchStatsCommand,
 )
 from ..repositories.interfaces import (
     CompetitionRepository,
@@ -28,6 +29,7 @@ from ..repositories.interfaces import (
     IdempotencyRepository,
     LeaderboardRepository,
     MatchRepository,
+    MatchStatsRepository,
     PlayerRepository,
     PublicationRepository,
     RatingRepository,
@@ -130,6 +132,91 @@ class CreateOrUpdateMatchHandler:
         events = match.collect_events()
         match.clear_events()
         return events
+
+
+class UpsertMatchStatsHandler:
+    """FASE 21.B3 — record provisional BoxScore team/player stats on a match.
+
+    Stats belong to the Match aggregate (Match.record_stats) and are ALSO
+    persisted as a queryable projection (MatchStatsRepository) keyed by FEB
+    external ids, so reads are indexed and re-ingestion cannot duplicate rows.
+    """
+
+    def __init__(
+        self,
+        match_repository: MatchRepository,
+        stats_repository: MatchStatsRepository,
+        idempotency_repository: IdempotencyRepository | None = None,
+    ):
+        self.match_repository = match_repository
+        self.stats_repository = stats_repository
+        self.idempotency_repository = idempotency_repository
+
+    @contract_validated("commands/upsert_match_stats.v1.json")
+    def handle(self, command: UpsertMatchStatsCommand) -> List[object]:
+        if self.idempotency_repository and self.idempotency_repository.has_processed(command.command_id):
+            return []
+
+        payload = command.payload
+        match = self.match_repository.get_by_external_id(ExternalId(payload["match_external_id"]))
+        if match is None:
+            raise MatchNotFound("Match not found")
+
+        home_team_stats = self._team_stats(payload.get("home_team_stats"))
+        away_team_stats = self._team_stats(payload.get("away_team_stats"))
+        player_stats = tuple(self._player_stats(ps) for ps in payload.get("player_stats", []))
+
+        match.record_stats(
+            home_team_stats=home_team_stats,
+            away_team_stats=away_team_stats,
+            player_stats=player_stats,
+            actor_id=command.actor.id,
+        )
+
+        season_code = SeasonCode(payload["season_code"])
+        self.match_repository.save(match)
+        team_stats = [ts for ts in (home_team_stats, away_team_stats) if ts is not None]
+        self.stats_repository.save_team_stats(str(match.external_id), season_code, team_stats)
+        self.stats_repository.save_player_stats(str(match.external_id), season_code, player_stats)
+        if self.idempotency_repository:
+            self.idempotency_repository.mark_processed(command.command_id)
+        events = match.collect_events()
+        match.clear_events()
+        return events
+
+    @staticmethod
+    def _team_stats(raw: Optional[Dict[str, object]]) -> Optional[TeamStats]:
+        if raw is None:
+            return None
+        return TeamStats(
+            team_external_id=raw["team_external_id"],
+            points_for=int(raw["points_for"]),
+            points_against=int(raw["points_against"]),
+            field_goals_made=int(raw["field_goals_made"]),
+            field_goals_attempted=int(raw["field_goals_attempted"]),
+            three_points_made=int(raw["three_points_made"]),
+            three_points_attempted=int(raw["three_points_attempted"]),
+            free_throws_made=int(raw["free_throws_made"]),
+            free_throws_attempted=int(raw["free_throws_attempted"]),
+            turnovers=int(raw["turnovers"]),
+            rebounds=int(raw["rebounds"]),
+        )
+
+    @staticmethod
+    def _player_stats(raw: Dict[str, object]) -> PlayerStats:
+        played_at = raw.get("played_at")
+        return PlayerStats(
+            player_external_id=str(raw["player_external_id"]),
+            team_external_id=str(raw["team_external_id"]),
+            points=int(raw["points"]),
+            rebounds=int(raw["rebounds"]),
+            assists=int(raw["assists"]),
+            steals=int(raw.get("steals", 0)),
+            blocks=int(raw.get("blocks", 0)),
+            turnovers=int(raw.get("turnovers", 0)),
+            minutes=float(raw.get("minutes", 0.0)),
+            played_at=parse_iso_datetime(played_at) if played_at else None,
+        )
 
 
 class FinalizeMatchHandler:
