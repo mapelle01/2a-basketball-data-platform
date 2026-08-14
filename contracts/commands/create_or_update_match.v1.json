@@ -2,87 +2,86 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/contracts/commands/create_or_update_match.v1.json",
   "title": "CreateOrUpdateMatch Command v1",
-  "description": "Command to create or update a provisional MatchAggregate with raw source references. Idempotent via command_id.",
+  "description": "Command to create or update a MatchAggregate with source references and optional normalized score/statistics.",
   "type": "object",
-  "required": ["command_id","meta","actor","payload"],
+  "required": ["command_id", "meta", "actor", "payload"],
   "additionalProperties": false,
   "$defs": {
-    "uuid": {"type":"string","format":"uuid"},
+    "uuid": {"type": "string", "format": "uuid"},
     "actor": {
-      "type":"object",
-      "required":["id","role"],
-      "properties":{
-        "id": {"type":"string","minLength":1},
-        "role": {"type":"string","enum":["admin","editor","system"]}
-      },
+      "type": "object",
+      "required": ["id", "role"],
+      "properties": {"id": {"type": "string", "minLength": 1}, "role": {"type": "string", "enum": ["admin", "editor", "system"]}},
       "additionalProperties": false
     },
     "sourceRef": {
-      "type":"object",
-      "properties":{
-        "id": {"type":"string"},
-        "fetched_at": {"type":"string","format":"date-time"},
-        "s3_path": {"type":"string","minLength":1}
-      },
-      "required":["id","fetched_at"],
+      "type": "object",
+      "properties": {"id": {"type": "string"}, "fetched_at": {"type": "string", "format": "date-time"}, "s3_path": {"type": "string", "minLength": 1}},
+      "required": ["id", "fetched_at"],
       "additionalProperties": false
     },
-    "teamRef":{
-      "type":"object",
-      "required":["external_id","name"],
-      "properties":{
-        "external_id":{"type":"string","minLength":1},
-        "name":{"type":"string","minLength":1}
+    "teamRef": {
+      "type": "object",
+      "required": ["external_id", "name"],
+      "properties": {"external_id": {"type": "string", "minLength": 1}, "name": {"type": "string", "minLength": 1}},
+      "additionalProperties": false
+    },
+    "periodScore": {
+      "type": "object",
+      "required": ["period", "home", "away"],
+      "properties": {"period": {"type": "integer", "minimum": 1}, "home": {"type": "integer", "minimum": 0}, "away": {"type": "integer", "minimum": 0}},
+      "additionalProperties": false
+    },
+    "scoreSummary": {
+      "type": "object",
+      "required": ["home_score", "away_score"],
+      "properties": {"home_score": {"type": "integer", "minimum": 0}, "away_score": {"type": "integer", "minimum": 0}, "periods": {"type": "array", "items": {"$ref": "#/$defs/periodScore"}}},
+      "additionalProperties": false
+    },
+    "teamStats": {
+      "type": "object",
+      "required": ["team_external_id", "points_for", "points_against", "field_goals_made", "field_goals_attempted", "three_points_made", "three_points_attempted", "free_throws_made", "free_throws_attempted", "turnovers", "rebounds"],
+      "properties": {
+        "team_external_id": {"type": "string", "minLength": 1}, "points_for": {"type": "integer", "minimum": 0}, "points_against": {"type": "integer", "minimum": 0},
+        "field_goals_made": {"type": "integer", "minimum": 0}, "field_goals_attempted": {"type": "integer", "minimum": 0},
+        "three_points_made": {"type": "integer", "minimum": 0}, "three_points_attempted": {"type": "integer", "minimum": 0},
+        "free_throws_made": {"type": "integer", "minimum": 0}, "free_throws_attempted": {"type": "integer", "minimum": 0},
+        "turnovers": {"type": "integer", "minimum": 0}, "rebounds": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "playerStats": {
+      "type": "object",
+      "required": ["player_external_id", "team_external_id", "points", "rebounds", "assists", "steals", "blocks", "turnovers", "minutes"],
+      "properties": {
+        "player_external_id": {"type": "string", "minLength": 1}, "team_external_id": {"type": "string", "minLength": 1},
+        "points": {"type": "integer", "minimum": 0}, "rebounds": {"type": "integer", "minimum": 0}, "assists": {"type": "integer", "minimum": 0},
+        "steals": {"type": "integer", "minimum": 0}, "blocks": {"type": "integer", "minimum": 0}, "turnovers": {"type": "integer", "minimum": 0},
+        "minutes": {"type": "number", "minimum": 0}, "played_at": {"type": ["string", "null"], "format": "date-time"}
       },
       "additionalProperties": false
     }
   },
-  "properties":{
-    "command_id": {"$ref":"#/$defs/uuid"},
-    "meta":{
-      "type":"object",
-      "required":["version","issued_at"],
-      "properties":{
-        "version":{"type":"string","pattern":"^\\d+\\.\\d+$","example":"1.0"},
-        "issued_at":{"type":"string","format":"date-time"}
-      },
-      "additionalProperties": false
-    },
-    "actor": {"$ref":"#/$defs/actor"},
-    "payload":{
-      "type":"object",
-      "required":["external_id","season_code","home_team","away_team","source","scheduled_at"],
-      "properties":{
-        "external_id":{"type":"string","minLength":1},
-        "competition_id":{"type":"string","minLength":1},
-        "season_code":{"type":"string","minLength":3},
-        "round_number":{"type":"integer","minimum":1},
-        "scheduled_at":{"type":"string","format":"date-time"},
-        "home_team":{"$ref":"#/$defs/teamRef"},
-        "away_team":{"$ref":"#/$defs/teamRef"},
-        "venue":{"type":"object","properties":{"name":{"type":"string"},"city":{"type":"string"}},"additionalProperties": false},
-        "source":{"$ref":"#/$defs/sourceRef"},
-        "raw":{"type":"object","properties":{"boxscore_ref":{"type":"string"},"teamstats_ref":{"type":"string"}},"additionalProperties": false}
+  "properties": {
+    "command_id": {"$ref": "#/$defs/uuid"},
+    "meta": {"type": "object", "required": ["version", "issued_at"], "properties": {"version": {"type": "string", "pattern": "^\\d+\\.\\d+$"}, "issued_at": {"type": "string", "format": "date-time"}}, "additionalProperties": false},
+    "actor": {"$ref": "#/$defs/actor"},
+    "payload": {
+      "type": "object",
+      "required": ["external_id", "season_code", "home_team", "away_team", "source", "scheduled_at"],
+      "properties": {
+        "external_id": {"type": "string", "minLength": 1}, "competition_id": {"type": "string", "minLength": 1}, "season_code": {"type": "string", "minLength": 3},
+        "round_number": {"type": "integer", "minimum": 1}, "scheduled_at": {"type": "string", "format": "date-time"},
+        "home_team": {"$ref": "#/$defs/teamRef"}, "away_team": {"$ref": "#/$defs/teamRef"},
+        "venue": {"type": "object", "properties": {"name": {"type": "string"}, "city": {"type": "string"}}, "additionalProperties": false},
+        "source": {"$ref": "#/$defs/sourceRef"},
+        "raw": {"type": "object", "properties": {"match_page_ref": {"type": "string"}, "boxscore_ref": {"type": "string"}, "teamstats_ref": {"type": "string"}, "keyfacts_ref": {"type": "string"}, "shotchart_ref": {"type": "string"}, "ranking_ref": {"type": "string"}}, "additionalProperties": false},
+        "score_summary": {"$ref": "#/$defs/scoreSummary"},
+        "home_team_stats": {"$ref": "#/$defs/teamStats"},
+        "away_team_stats": {"$ref": "#/$defs/teamStats"},
+        "player_stats": {"type": "array", "items": {"$ref": "#/$defs/playerStats"}}
       },
       "additionalProperties": false
     }
-  },
-  "examples":[
-    {
-      "command_id":"3fa85f64-5717-4562-b3fc-2c963f66afa6",
-      "meta":{"version":"1.0","issued_at":"2026-02-01T20:10:00Z"},
-      "actor":{"id":"ingestor-1","role":"system"},
-      "payload":{
-        "external_id":"2513600",
-        "season_code":"2025-2026",
-        "round_number":5,
-        "scheduled_at":"2026-02-01T18:30:00+01:00",
-        "home_team":{"external_id":"team-123","name":"CLASS BASQUET SANT ANTONI"},
-        "away_team":{"external_id":"team-456","name":"INSOLAC CAJA 87"},
-        "venue":{"name":"Pabellón X","city":"Ciudad"},
-        "source":{"id":"feb-api","fetched_at":"2026-02-01T20:00:00Z","s3_path":"s3://raw/2513600_boxscore.json"},
-        "raw":{"boxscore_ref":"s3://raw/2513600_boxscore.json"}
-      }
-    }
-  ]
+  }
 }
