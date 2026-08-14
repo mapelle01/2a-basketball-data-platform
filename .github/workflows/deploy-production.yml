@@ -1,9 +1,10 @@
 # FASE 20 — Production CD (Railway).
 #
 # Trigger: MANUAL ONLY (workflow_dispatch). Production is NEVER deployed from any
-# push. A human must start it and, because the job targets the GitHub "production"
-# Environment (required reviewer = repo owner), it requires an explicit
-# environment approval before the deploy steps run.
+# push. A human must start it and pass the manual "confirm" gate; the job targets the
+# GitHub "production" Environment (no required-reviewers configured under the
+# Free plan), so no auto-merge environment approval is enforced by GitHub
+# — the `confirm` input + fail-fast guards are the human-in-the-loop control.
 #
 # Secrets required in the GitHub repository (NOT in this file):
 #   RAILWAY_TOKEN            Railway token scoped to the production project env

@@ -128,3 +128,15 @@ Objetivo production (provisional): RPO ≤ 5 min (PITR), RTO ≤ 30 min.
 - Railway plan Hobby **limita a 3 buckets/project** → el dump lógico prod reutiliza el bucket `Postgres-PITR` con prefijo `prod-dumps/` (no se creó bucket dedicado; no se auto-upgradeó).
 - External S3 (true DR) NO disponible → offsite real = bucket Railway S3-compatible (off-app). Bloqueado a external S3 hasta credentials reales.
 - Alerting (email/Slack) NO expuesto vía CLI → Dashboard.
+
+## 15. CD validation + auth-token-format (FASE 20.1 / 20.2)
+
+- `RAILWAY_TOKEN` (production PAT) → GitHub Secret (crearse en Railway Dashboard → Settings → API Tokens; CLI no lo minte). Presente en el secret registry.
+- `FEB_SCORE_PROD_SMOKE_KEY` → GitHub Secret = **el 64-hex production key crudo** (parte antes del `=` en `FEB_SCORE_API_KEYS`). NO incluye `;role` ni `=prod:admin`. El API (`src/feb_score/api/auth.py`) parsea `FEB_SCORE_API_KEYS` como entries `key=principal_id:role` (`;` separador) y hace lookup directo del `Bearer <key>` → el header porta SOLO el 64-hex; el role se deriva del entry env, nunca del request. Enviar `key=prod:admin` o `;prod:smoke` como Bearer → 401 (lookup miss). `staging_smoke.sh "BASE_URL" "$FEB_SCORE_PROD_SMOKE_KEY"` envía `Bearer ${API_KEY}` crudo.
+- Fail-fast: el workflow verifica presencia no vacía de `RAILWAY_TOKEN`, `FEB_SCORE_PROD_SMOKE_KEY` y fail-fast `exit 1` antes de `railway up` (validado: run detenido en guard cuando el secret estaba vacío → prod untouched).
+- `RAILWAY_SERVICE_NAME` (=`feb-score-api`) y `RAILWAY_PROD_DOMAIN` (=`feb-score-api-production.up.railway.app`) son identifiers públicos → fallback en el workflow (`${VAR:-literal}`); no son secret.
+- GitHub Environment `production` con `protection_rules=[]` (plan Free) → no required-reviewers; el control humano es el input `confirm="deploy production"` + fail-fast guards (no auto-deploy desde push).
+- Validación final prod (2026-08-13 cierre): `/health` 200, `/ready` 200 (`schema_version=1, database=ok, migrations=up_to_date`), `/docs` 404, POST no-key 401, deployment `d0bc5e25` SUCCESS. Smoke autenticado corre dentro del workflow con el secret.
+- Staging intacto (FASE 20.2): `/health` 200, `/ready` 200, `/docs` 200 (no redeploy/hardening).
+
+Ver `docs/FASE_20_2_CLEANUP_REPORT.md` para el reporte completo.
