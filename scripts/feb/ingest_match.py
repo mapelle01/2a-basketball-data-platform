@@ -29,11 +29,12 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 COMMAND_VERSION = "1.0"
 ACTOR_ID = "ingestor-1"
@@ -42,6 +43,12 @@ ACTOR_ROLE = "system"
 DEFAULT_COMPETITION_ID = "segunda-feb"
 DEFAULT_BOXSCORE_BASE = "https://intrafeb.feb.es/LiveStats.API/api/v1/BoxScore"
 TZ_OFFSET_B2 = "+01:00"  # FEB no publica TZ en starttime; Spain winter/summer provisional. B3 generalization.
+
+# --- FASE 22.4: retry/backoff para HTTP 429 (FEB y nuestra API) ----------------
+DEFAULT_MAX_RETRIES = 3
+DEFAULT_RETRY_BACKOFF = 1.0   # segundos base (exponencial: 1s, 2s, 4s)
+RETRY_STATUSES = (429,)
+TIMEOUT_SECONDS = 30
 
 
 def _env(name: str, default: Optional[str] = None) -> Optional[str]:
@@ -73,6 +80,69 @@ def _stats_command_id(season_code: str, competition_id: str, external_id: str) -
 
 def _now_iso() -> str:
     return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _int_env(name: str, default: int) -> int:
+    v = _env(name)
+    if v is None:
+        return default
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return default
+
+
+def _float_env(name: str, default: float) -> float:
+    v = _env(name)
+    if v is None:
+        return default
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
+
+def _retry_after_seconds(headers: Any) -> Optional[float]:
+    """Retry-After may be delta-seconds or an HTTP-date; only delta-seconds is honored."""
+    if headers is None:
+        return None
+    raw = headers.get("Retry-After")
+    if raw is None:
+        return None
+    try:
+        return max(0.0, float(raw))
+    except (TypeError, ValueError):
+        return None
+
+
+def request_with_retry(
+    open_fn: Callable[[], Any],
+    *,
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    base_backoff: float = DEFAULT_RETRY_BACKOFF,
+    retry_statuses: tuple = RETRY_STATUSES,
+    sleep: Callable[[float], None] = time.sleep,
+) -> Any:
+    """Call open_fn() once, retrying ONLY the given HTTP statuses (429 by default).
+
+    Bounded: at most max_retries retries (not infinite). Backoff is exponential
+    base_backoff * 2**attempt; a Retry-After header (delta-seconds) overrides it.
+    Any other HTTPError propagates immediately (401/403/404/500 never become retries).
+    `sleep` and `open_fn` are injectable for tests. Raises the last HTTPError after
+    exhausting retries. Never logs the request (no secrets in errors).
+    """
+    attempt = 0
+    while True:
+        try:
+            return open_fn()
+        except urllib.error.HTTPError as exc:
+            if exc.code not in retry_statuses or attempt >= max_retries:
+                raise
+            wait = _retry_after_seconds(exc.headers)
+            if wait is None:
+                wait = base_backoff * (2 ** attempt)
+            sleep(wait)
+            attempt += 1
 
 
 def parse_starttime(raw: str) -> str:
@@ -214,7 +284,8 @@ def _player_stats_for(player: Dict[str, Any], team_id: str, played_at: str) -> D
     }
 
 
-def parse_boxscore(boxscore: Dict[str, Any], match_id: str, season_code: str) -> Dict[str, Any]:
+def parse_boxscore(boxscore: Dict[str, Any], match_id: str, season_code: str,
+                   round_number: Optional[int] = None) -> Dict[str, Any]:
     """Transform the REAL FEB BoxScore JSON into the intermediate format used by to_command().
 
     Real fixture `HEADER`/`BOXSCORE` layout (verified):
@@ -222,6 +293,10 @@ def parse_boxscore(boxscore: Dict[str, Any], match_id: str, season_code: str) ->
       HEADER.TEAM[0|1]{id,name,teamCode,clubCode,pts}, HEADER.QUARTERS.QUARTER[{n,scoreA,scoreB}],
       BOXSCORE.TEAM[{id,name,TOTAL,PLAYER[{...}]}]
     Team order in HEADER.TEAM defines home/away (FEB convention).
+
+    `round_number` (FASE 22.4): propagado desde el discovery del calendario
+    (MatchRef.round_number). El BoxScore FEB NO lleva la jornada (HEADER.round es el
+    nombre del grupo, ej. "ESTE"); None = desconocida -> to_command omite round_number.
     """
     if not isinstance(boxscore, dict):
         raise ValueError("boxscore must be a JSON object")
@@ -283,6 +358,7 @@ def parse_boxscore(boxscore: Dict[str, Any], match_id: str, season_code: str) ->
             "home": _team_total(box_teams.get(str(home_hdr.get("id", "")), {})),
             "away": _team_total(box_teams.get(str(away_hdr.get("id", "")), {})),
         },
+        "round_number": round_number,
     }
 
 
@@ -310,42 +386,46 @@ def to_command(parsed: Dict[str, Any], competition_id: str) -> Dict[str, Any]:
     command_id = _command_id(season_code, competition_id, ext)
     now = _now_iso()
 
-    # Round number from HEADER.round (real FEB provides "round"; fallback via quarters count heuristic is avoided).
-    # parsed does not carry round; derive 0 when absent (schema round_number is optional, min 1).
-    round_number = 1
+    # FASE 22.4: round_number propagado desde discovery (MatchRef.round_number -> parse_boxscore).
+    # None = jornada desconocida (fixture/--match-id sin discovery) -> el payload lo omite
+    # (schema: round_number es opcional, min 1). Nunca se inventa una jornada.
+    round_number = parsed.get("round_number")
+
+    payload = {
+        "external_id": ext,
+        "competition_id": competition_id,
+        "season_code": season_code,
+        "scheduled_at": parsed["scheduling"]["scheduled_at"],
+        "home_team": {
+            "external_id": home["id"],
+            "name": home["name"],
+        },
+        "away_team": {
+            "external_id": away["id"],
+            "name": away["name"],
+        },
+        "venue": {
+            "name": home.get("teamCode") or "",
+            "city": "",
+        },
+        "source": {
+            "id": "feb-intrafeb",
+            "fetched_at": now,
+            "s3_path": f"s3://feb-live/{season_code}/{ext}_boxscore.json",
+        },
+        "raw": {
+            "boxscore_ref": f"s3://feb-live/{season_code}/{ext}_boxscore.json",
+            "teamstats_ref": f"s3://feb-live/{season_code}/{ext}_teamstats.json",
+        },
+    }
+    if round_number is not None:
+        payload["round_number"] = round_number
 
     return {
         "command_id": command_id,
         "meta": {"version": COMMAND_VERSION, "issued_at": now},
         "actor": {"id": ACTOR_ID, "role": ACTOR_ROLE},
-        "payload": {
-            "external_id": ext,
-            "competition_id": competition_id,
-            "season_code": season_code,
-            "round_number": round_number,
-            "scheduled_at": parsed["scheduling"]["scheduled_at"],
-            "home_team": {
-                "external_id": home["id"],
-                "name": home["name"],
-            },
-            "away_team": {
-                "external_id": away["id"],
-                "name": away["name"],
-            },
-            "venue": {
-                "name": home.get("teamCode") or "",
-                "city": "",
-            },
-            "source": {
-                "id": "feb-intrafeb",
-                "fetched_at": now,
-                "s3_path": f"s3://feb-live/{season_code}/{ext}_boxscore.json",
-            },
-            "raw": {
-                "boxscore_ref": f"s3://feb-live/{season_code}/{ext}_boxscore.json",
-                "teamstats_ref": f"s3://feb-live/{season_code}/{ext}_teamstats.json",
-            },
-        },
+        "payload": payload,
         # Extended metadata kept OUT of payload (would break schema); attached for dry-run/trace.
         "_stats": {
             "comp_id": parsed["comp_id"],
@@ -404,6 +484,9 @@ def post_command(base_url: str, api_key: str, command: Dict[str, Any]) -> Dict[s
     accepts ONLY ``{command_id, payload}`` (extra=forbid). meta/actor are domain-level
     contract fields reconstructed server-side from the authenticated principal
     (FASE 13) and MUST NOT be sent over HTTP.
+
+    FASE 22.4: HTTP 429 (rate-limit) is retried with bounded backoff; any other
+    status returns immediately.
     """
     http_body = {
         "command_id": command["command_id"],
@@ -420,8 +503,14 @@ def post_command(base_url: str, api_key: str, command: Dict[str, Any]) -> Dict[s
         },
         method="POST",
     )
+    max_retries = _int_env("FEB_MAX_RETRIES", DEFAULT_MAX_RETRIES)
+    base_backoff = _float_env("FEB_RETRY_BACKOFF", DEFAULT_RETRY_BACKOFF)
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with request_with_retry(
+            lambda: urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS),
+            max_retries=max_retries,
+            base_backoff=base_backoff,
+        ) as resp:
             return {"status": resp.status, "body": json.loads(resp.read().decode("utf-8"))}
     except urllib.error.HTTPError as e:
         return {"status": e.code, "body": e.read().decode("utf-8", "replace")}
@@ -471,7 +560,9 @@ def to_stats_command(parsed: Dict[str, Any], competition_id: str) -> Dict[str, A
 
 def post_stats_command(base_url: str, api_key: str, command: Dict[str, Any]) -> Dict[str, Any]:
     """POST upsert_match_stats. Same HTTP envelope policy as post_command:
-    ONLY {command_id, payload}; meta/actor are domain-level (FASE 13)."""
+    ONLY {command_id, payload}; meta/actor are domain-level (FASE 13). FASE 22.4:
+    HTTP 429 retried with bounded backoff.
+    """
     http_body = {
         "command_id": command["command_id"],
         "payload": command["payload"],
@@ -487,15 +578,25 @@ def post_stats_command(base_url: str, api_key: str, command: Dict[str, Any]) -> 
         },
         method="POST",
     )
+    max_retries = _int_env("FEB_MAX_RETRIES", DEFAULT_MAX_RETRIES)
+    base_backoff = _float_env("FEB_RETRY_BACKOFF", DEFAULT_RETRY_BACKOFF)
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with request_with_retry(
+            lambda: urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS),
+            max_retries=max_retries,
+            base_backoff=base_backoff,
+        ) as resp:
             return {"status": resp.status, "body": json.loads(resp.read().decode("utf-8"))}
     except urllib.error.HTTPError as e:
         return {"status": e.code, "body": e.read().decode("utf-8", "replace")}
 
 
 def fetch_feb_boxscore(match_id: str, token: str, base_url: str = DEFAULT_BOXSCORE_BASE) -> Dict[str, Any]:
-    """GET real FEB BoxScore. Token NEVER printed/stored/URLized."""
+    """GET real FEB BoxScore. Token NEVER printed/stored/URLized.
+
+    FASE 22.4: HTTP 429 is retried with bounded backoff (Retry-After honored);
+    any other HTTP status propagates immediately.
+    """
     url = f"{base_url.rstrip('/')}/{match_id}"
     req = urllib.request.Request(
         url,
@@ -505,7 +606,13 @@ def fetch_feb_boxscore(match_id: str, token: str, base_url: str = DEFAULT_BOXSCO
             "User-Agent": "feb-score-connector/1.0",
         },
     )
-    with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310 (configurable, FEB real endpoint)
+    max_retries = _int_env("FEB_MAX_RETRIES", DEFAULT_MAX_RETRIES)
+    base_backoff = _float_env("FEB_RETRY_BACKOFF", DEFAULT_RETRY_BACKOFF)
+    with request_with_retry(
+        lambda: urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS),
+        max_retries=max_retries,
+        base_backoff=base_backoff,
+    ) as resp:  # noqa: S310 (configurable, FEB real endpoint)
         if not (200 <= resp.status < 300):
             raise RuntimeError(f"FEB {url} HTTP {resp.status}")
         return json.loads(resp.read().decode("utf-8"))
@@ -515,6 +622,8 @@ def _run_dry(parsed: Dict[str, Any], competition_id: str, season_code: str) -> D
     cmd = to_command(parsed, competition_id)
     t = cmd["payload"]
     print(f"external_id={t['external_id']}")
+    if "round_number" in t:
+        print(f"round_number={t['round_number']}")
     print(f"competition={parsed['competition']} (CompID={parsed['comp_id']})")
     print(f"season={season_code}")
     print(f"home_team={t['home_team']['external_id']} ({t['home_team']['name']})")
@@ -534,6 +643,21 @@ def _run_dry(parsed: Dict[str, Any], competition_id: str, season_code: str) -> D
           f"players:{len(sp['player_stats'])}")
     print("DRY_RUN")
     return cmd
+
+
+def _resolve_round_for_match(season_code: str, match_id: str) -> Optional[int]:
+    """FASE 22.4: jornada real de un match vía discovery (un GET al calendario).
+
+    Solo usado por `--match-id` manual, donde el BoxScore no lleva la jornada.
+    Si el discovery no está disponible (fixture offline) o el match no está en el
+    calendario, devuelve None -> el payload omite round_number (schema: opcional).
+    Nunca se inventa una jornada.
+    """
+    try:
+        import discover_matches as DM  # local: evita acoplar el módulo (fixture/offline)
+        return DM.resolve_round_for_match(season_code, match_id)
+    except Exception:  # noqa: BLE001 — fuente/parse puede fallar; round es opcional
+        return None
 
 
 def run() -> int:
@@ -568,7 +692,9 @@ def run() -> int:
     match_id = args.match_id or _require_env("FEB_MATCH_ID")
     base = _env("FEB_BOX_SCORE_BASE_URL", DEFAULT_BOXSCORE_BASE)
     box = fetch_feb_boxscore(match_id, token, base)
-    parsed = parse_boxscore(box, match_id=match_id, season_code=season_code)
+    round_number = _resolve_round_for_match(season_code, match_id)
+    parsed = parse_boxscore(box, match_id=match_id, season_code=season_code,
+                            round_number=round_number)
 
     if args.dry_run:
         _run_dry(parsed, competition_id, season_code)

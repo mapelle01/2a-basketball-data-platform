@@ -80,7 +80,10 @@ def process_one(
     ext = ref.external_id
     try:
         box = IM.fetch_feb_boxscore(str(ext), token, base_url)
-        parsed = IM.parse_boxscore(box, match_id=str(ext), season_code=season_code)
+        parsed = IM.parse_boxscore(
+            box, match_id=str(ext), season_code=season_code,
+            round_number=ref.round_number,  # FASE 22.4: jornada real del discovery
+        )
         cmd = IM.to_command(parsed, competition_id)
         res = IM.post_command(target, api_key, cmd)
         if res["status"] not in _OK_STATUSES:

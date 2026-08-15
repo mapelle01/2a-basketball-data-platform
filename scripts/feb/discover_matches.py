@@ -222,6 +222,35 @@ def discover_matches(
     return refs
 
 
+def resolve_round_for_match(
+    season_code: str,
+    external_id: str,
+    calendar_html: Optional[str] = None,
+) -> Optional[int]:
+    """Jornada real de un match dado (para `--match-id` manual, FASE 22.4).
+
+    Hace UN GET al calendario (o acepta HTML offline) y busca el `external_id`;
+    devuelve su round_number o None si el partido no está en el calendario.
+    Coherente con el pipeline: la jornada SIEMPRE viene del discovery (nunca se
+    inventa). Lanza ConfigError/SourceError igual que discover_matches().
+    """
+    if season_code != SUPPORTED_SEASON:
+        raise ConfigError(
+            f"unsupported season {season_code!r}; only {SUPPORTED_SEASON!r}"
+        )
+    if calendar_html is None:
+        url = _discovery_url(season_code)
+        calendar_html = fetch_calendar(url)
+
+    by_round = parse_calendar(calendar_html)
+    target = str(external_id)
+    for round_number, refs in by_round.items():
+        for ref in refs:
+            if str(ref.external_id) == target:
+                return round_number
+    return None
+
+
 def run() -> int:
     ap = argparse.ArgumentParser(prog="feb-discover")
     ap.add_argument("--season", required=True, help="season code (only 2025-2026)")
