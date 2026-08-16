@@ -233,3 +233,26 @@ Hallazgos documentados (no bloqueantes para el read model):
 
 Este addendum registra el estado real verificado en producción; no reescribe
 los veredictos históricos de las secciones anteriores.
+
+---
+
+## 12. Addendum FASE 23.9 — Deploy y validación pública del analytics API
+
+**Fecha:** 2026-08-16
+
+FASE 23.9:
+- **HEAD desplegado**: `railway up` sobre el servicio `feb-score-api`
+  (`feb-score-production`, producción); commit `2721606`, árbol limpio, sin
+  push.
+- **Migración 003 aplicada**: `003_analytics_indexes` (índices season-first,
+  aditiva e idempotente) aplicada con el runner de migraciones del proyecto;
+  `schema_version` 2 → 3, `migrations: up_to_date`.
+- **Analytics API pública validada**: los 6 endpoints de FASE 23.5 responden
+  **200** en la URL pública con datos reales (players=449, teams=28),
+  leaderboards/métricas coherentes, hardening 400 controlado, determinismo
+  confirmado, sin secretos.
+- **Producción real validada end-to-end**: `validate_season_analytics_production.py`
+  → `PRODUCTION VALIDATION: PASS` (6/6 bloques). `/health` y `/ready` → 200
+  (schema v3).
+
+Detalles en `docs/FASE_23_9_REPORT.md`. No se reescribió contenido histórico.

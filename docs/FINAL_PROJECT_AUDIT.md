@@ -415,3 +415,25 @@ the season with no stats and no analytics impact, flagged as a diagnostic.
 
 This addendum records the verified real production state; it does not rewrite
 the historical verdicts in the sections above.
+
+---
+
+## 17. Addendum FASE 23.9 — Production deploy & public analytics validation
+
+**Date:** 2026-08-16
+
+FASE 23.9:
+- **HEAD deployed**: `railway up` on the existing `feb-score-api` service
+  (`feb-score-production`, production); commit `2721606`, clean tree, no push.
+- **Migration 003 applied**: `003_analytics_indexes` (season-first indexes,
+  additive & idempotent) applied via the project's migration runner;
+  `schema_version` 2 → 3, `migrations: up_to_date`.
+- **Public analytics API validated**: the six FASE 23.5 endpoints answer
+  **200** on the public URL against real data (players=449, teams=28),
+  coherent leaderboards/metrics, controlled 400 hardening, determinism
+  confirmed, no secrets.
+- **Real production validated end-to-end**: `validate_season_analytics_production.py`
+  → `PRODUCTION VALIDATION: PASS` (6/6 blocks). `/health` and `/ready` → 200
+  (schema v3).
+
+Details in `docs/FASE_23_9_REPORT.md`. Historical content unchanged.
