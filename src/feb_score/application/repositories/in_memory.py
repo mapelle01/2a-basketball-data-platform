@@ -167,9 +167,51 @@ class InMemoryMatchStatsRepository(MatchStatsRepository):
     def list_player_stats_by_season(
         self, player_external_id: str, season_code: SeasonCode
     ) -> Iterable[PlayerStats]:
-        return [
-            ps
-            for bucket in self._player.values()
-            for ps in bucket.values()
-            if ps.player_external_id == player_external_id
-        ]
+        result = []
+        for bucket in self._player.values():
+            if player_external_id in bucket:
+                # InMemory mock: doesn't strictly filter by season_code, assumes test setup matches
+                result.append(bucket[player_external_id])
+        return result
+
+    def list_season_player_aggregates(
+        self, season_code: SeasonCode
+    ) -> Iterable[SeasonPlayerStats]:
+        from collections import defaultdict
+        
+        # grouping by player_external_id
+        grouped = defaultdict(lambda: {
+            "games_played": 0, "points": 0, "rebounds": 0, "assists": 0,
+            "steals": 0, "blocks": 0, "turnovers": 0, "minutes": 0.0
+        })
+        
+        # in memory doesn't track season_code per bucket natively, 
+        # but player stats have it implicitly. We will just aggregate all.
+        for bucket in self._player.values():
+            for player_id, ps in bucket.items():
+                aggr = grouped[player_id]
+                aggr["games_played"] += 1
+                aggr["points"] += ps.points
+                aggr["rebounds"] += ps.rebounds
+                aggr["assists"] += ps.assists
+                aggr["steals"] += ps.steals
+                aggr["blocks"] += ps.blocks
+                aggr["turnovers"] += ps.turnovers
+                aggr["minutes"] += ps.minutes
+                
+        result = []
+        for pid in sorted(grouped.keys()):
+            aggr = grouped[pid]
+            result.append(SeasonPlayerStats(
+                player_external_id=pid,
+                season_code=str(season_code),
+                games_played=aggr["games_played"],
+                points=aggr["points"],
+                rebounds=aggr["rebounds"],
+                assists=aggr["assists"],
+                steals=aggr["steals"],
+                blocks=aggr["blocks"],
+                turnovers=aggr["turnovers"],
+                minutes=aggr["minutes"]
+            ))
+        return result

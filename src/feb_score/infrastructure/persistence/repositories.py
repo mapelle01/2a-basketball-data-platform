@@ -54,7 +54,7 @@ from ...domain.player.model import Player
 from ...domain.publication.model import Publication
 from ...domain.ratings.model import PlayerRating
 from ...domain.standings.model import StandingSnapshot
-from ...domain.statistics.model import PlayerStats, TeamStats
+from ...domain.statistics.model import PlayerStats, SeasonPlayerStats, TeamStats
 from ...domain.team.model import Team
 from ...domain.value_objects import (
     CompetitionId,
@@ -553,6 +553,48 @@ class SqliteMatchStatsRepository(_SqliteRepoMixin, MatchStatsRepository):
                 (player_external_id, str(season_code)),
             ).fetchall()
             return [_player_stats_from_blob(r["data"]) for r in rows]
+        finally:
+            if owned:
+                conn.close()
+
+    def list_season_player_aggregates(
+        self, season_code: SeasonCode
+    ) -> Iterable[SeasonPlayerStats]:
+        conn, owned = self._conn()
+        try:
+            rows = conn.execute(
+                "SELECT"
+                "  player_external_id,"
+                "  season_code,"
+                "  COUNT(match_external_id) AS games_played,"
+                "  SUM(points) AS points,"
+                "  SUM(rebounds) AS rebounds,"
+                "  SUM(assists) AS assists,"
+                "  SUM(steals) AS steals,"
+                "  SUM(blocks) AS blocks,"
+                "  SUM(turnovers) AS turnovers,"
+                "  SUM(minutes) AS minutes"
+                " FROM match_player_stats"
+                " WHERE season_code = ?"
+                " GROUP BY player_external_id, season_code"
+                " ORDER BY player_external_id",
+                (str(season_code),),
+            ).fetchall()
+            return [
+                SeasonPlayerStats(
+                    player_external_id=r["player_external_id"],
+                    season_code=r["season_code"],
+                    games_played=int(r["games_played"]),
+                    points=int(r["points"]),
+                    rebounds=int(r["rebounds"]),
+                    assists=int(r["assists"]),
+                    steals=int(r["steals"]),
+                    blocks=int(r["blocks"]),
+                    turnovers=int(r["turnovers"]),
+                    minutes=float(r["minutes"]),
+                )
+                for r in rows
+            ]
         finally:
             if owned:
                 conn.close()

@@ -92,3 +92,27 @@ class TeamStats:
             "turnovers": self.turnovers,
             "rebounds": self.rebounds,
         }
+
+
+@dataclass(frozen=True)
+class SeasonPlayerStats:
+    player_external_id: str
+    season_code: str
+    games_played: int
+    points: int
+    rebounds: int
+    assists: int
+    steals: int
+    blocks: int
+    turnovers: int
+    minutes: float
+
+    def __post_init__(self) -> None:
+        if self.games_played < 0:
+            raise ValueError("games_played must be non-negative")
+        for field_name in ("points", "rebounds", "assists", "steals", "blocks", "turnovers"):
+            value = getattr(self, field_name)
+            if value < 0:
+                raise ValueError(f"{field_name} must be non-negative")
+        if self.minutes < 0:
+            raise ValueError("minutes must be non-negative")

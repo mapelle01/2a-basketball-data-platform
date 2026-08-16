@@ -11,7 +11,7 @@ from ...domain.player.model import Player
 from ...domain.publication.model import Publication
 from ...domain.ratings.model import PlayerRating
 from ...domain.standings.model import StandingSnapshot
-from ...domain.statistics.model import PlayerStats, TeamStats
+from ...domain.statistics.model import PlayerStats, SeasonPlayerStats, TeamStats
 from ...domain.team.model import Team
 from ...domain.value_objects import CompetitionId, ExternalId, LeaderboardId, MatchId, PlayerId, PublicationId, SeasonCode
 
@@ -142,4 +142,10 @@ class MatchStatsRepository(ABC):
     def list_player_stats_by_season(
         self, player_external_id: str, season_code: SeasonCode
     ) -> Iterable[PlayerStats]:
+        pass
+
+    @abstractmethod
+    def list_season_player_aggregates(
+        self, season_code: SeasonCode
+    ) -> Iterable[SeasonPlayerStats]:
         pass
