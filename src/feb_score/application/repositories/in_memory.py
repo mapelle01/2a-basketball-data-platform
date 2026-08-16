@@ -23,7 +23,7 @@ from ...domain.player.model import Player
 from ...domain.publication.model import Publication
 from ...domain.ratings.model import PlayerRating
 from ...domain.standings.model import StandingSnapshot
-from ...domain.statistics.model import PlayerStats, TeamStats
+from ...domain.statistics.model import PlayerStats, SeasonPlayerStats, SeasonTeamStats, TeamStats
 from ...domain.team.model import Team
 from ...domain.value_objects import CompetitionId, ExternalId, LeaderboardId, SeasonCode
 
@@ -213,5 +213,68 @@ class InMemoryMatchStatsRepository(MatchStatsRepository):
                 blocks=aggr["blocks"],
                 turnovers=aggr["turnovers"],
                 minutes=aggr["minutes"]
+            ))
+        return result
+
+    def list_season_team_aggregates(
+        self, season_code: SeasonCode
+    ) -> Iterable[SeasonTeamStats]:
+        """In-memory aggregation over the team stats projection.
+
+        Each bucket entry is keyed (match_external_id, team_external_id).
+        wins/losses are derived per-match by comparing points_for vs points_against
+        within the same match bucket.
+        """
+        from collections import defaultdict
+
+        # grouped[team_id] accumulates running totals
+        grouped: dict = defaultdict(lambda: {
+            "games_played": 0, "wins": 0, "losses": 0,
+            "points_for": 0, "points_against": 0,
+            "field_goals_made": 0, "field_goals_attempted": 0,
+            "three_points_made": 0, "three_points_attempted": 0,
+            "free_throws_made": 0, "free_throws_attempted": 0,
+            "turnovers": 0, "rebounds": 0,
+        })
+
+        for bucket in self._team.values():  # bucket: {team_id -> TeamStats}
+            for team_id, ts in bucket.items():
+                aggr = grouped[team_id]
+                aggr["games_played"] += 1
+                # win/loss derived from points_for vs points_against for this match
+                if ts.points_for > ts.points_against:
+                    aggr["wins"] += 1
+                else:
+                    aggr["losses"] += 1
+                aggr["points_for"] += ts.points_for
+                aggr["points_against"] += ts.points_against
+                aggr["field_goals_made"] += ts.field_goals_made
+                aggr["field_goals_attempted"] += ts.field_goals_attempted
+                aggr["three_points_made"] += ts.three_points_made
+                aggr["three_points_attempted"] += ts.three_points_attempted
+                aggr["free_throws_made"] += ts.free_throws_made
+                aggr["free_throws_attempted"] += ts.free_throws_attempted
+                aggr["turnovers"] += ts.turnovers
+                aggr["rebounds"] += ts.rebounds
+
+        result = []
+        for tid in sorted(grouped.keys()):
+            aggr = grouped[tid]
+            result.append(SeasonTeamStats(
+                team_external_id=tid,
+                season_code=str(season_code),
+                games_played=aggr["games_played"],
+                wins=aggr["wins"],
+                losses=aggr["losses"],
+                points_for=aggr["points_for"],
+                points_against=aggr["points_against"],
+                field_goals_made=aggr["field_goals_made"],
+                field_goals_attempted=aggr["field_goals_attempted"],
+                three_points_made=aggr["three_points_made"],
+                three_points_attempted=aggr["three_points_attempted"],
+                free_throws_made=aggr["free_throws_made"],
+                free_throws_attempted=aggr["free_throws_attempted"],
+                turnovers=aggr["turnovers"],
+                rebounds=aggr["rebounds"],
             ))
         return result

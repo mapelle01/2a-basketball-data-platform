@@ -54,7 +54,7 @@ from ...domain.player.model import Player
 from ...domain.publication.model import Publication
 from ...domain.ratings.model import PlayerRating
 from ...domain.standings.model import StandingSnapshot
-from ...domain.statistics.model import PlayerStats, SeasonPlayerStats, TeamStats
+from ...domain.statistics.model import PlayerStats, SeasonPlayerStats, SeasonTeamStats, TeamStats
 from ...domain.team.model import Team
 from ...domain.value_objects import (
     CompetitionId,
@@ -592,6 +592,58 @@ class SqliteMatchStatsRepository(_SqliteRepoMixin, MatchStatsRepository):
                     blocks=int(r["blocks"]),
                     turnovers=int(r["turnovers"]),
                     minutes=float(r["minutes"]),
+                )
+                for r in rows
+            ]
+        finally:
+            if owned:
+                conn.close()
+
+    def list_season_team_aggregates(
+        self, season_code: SeasonCode
+    ) -> Iterable[SeasonTeamStats]:
+        conn, owned = self._conn()
+        try:
+            rows = conn.execute(
+                "SELECT"
+                "  team_external_id,"
+                "  season_code,"
+                "  COUNT(match_external_id)                                     AS games_played,"
+                "  SUM(CASE WHEN points_for > points_against THEN 1 ELSE 0 END) AS wins,"
+                "  SUM(CASE WHEN points_for < points_against THEN 1 ELSE 0 END) AS losses,"
+                "  SUM(points_for)             AS points_for,"
+                "  SUM(points_against)         AS points_against,"
+                "  SUM(field_goals_made)       AS field_goals_made,"
+                "  SUM(field_goals_attempted)  AS field_goals_attempted,"
+                "  SUM(three_points_made)      AS three_points_made,"
+                "  SUM(three_points_attempted) AS three_points_attempted,"
+                "  SUM(free_throws_made)       AS free_throws_made,"
+                "  SUM(free_throws_attempted)  AS free_throws_attempted,"
+                "  SUM(turnovers)              AS turnovers,"
+                "  SUM(rebounds)               AS rebounds"
+                " FROM match_team_stats"
+                " WHERE season_code = ?"
+                " GROUP BY team_external_id, season_code"
+                " ORDER BY team_external_id",
+                (str(season_code),),
+            ).fetchall()
+            return [
+                SeasonTeamStats(
+                    team_external_id=r["team_external_id"],
+                    season_code=r["season_code"],
+                    games_played=int(r["games_played"]),
+                    wins=int(r["wins"]),
+                    losses=int(r["losses"]),
+                    points_for=int(r["points_for"]),
+                    points_against=int(r["points_against"]),
+                    field_goals_made=int(r["field_goals_made"]),
+                    field_goals_attempted=int(r["field_goals_attempted"]),
+                    three_points_made=int(r["three_points_made"]),
+                    three_points_attempted=int(r["three_points_attempted"]),
+                    free_throws_made=int(r["free_throws_made"]),
+                    free_throws_attempted=int(r["free_throws_attempted"]),
+                    turnovers=int(r["turnovers"]),
+                    rebounds=int(r["rebounds"]),
                 )
                 for r in rows
             ]

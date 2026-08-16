@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional
 
 
 @dataclass(frozen=True)
@@ -116,3 +116,52 @@ class SeasonPlayerStats:
                 raise ValueError(f"{field_name} must be non-negative")
         if self.minutes < 0:
             raise ValueError("minutes must be non-negative")
+
+
+@dataclass(frozen=True)
+class SeasonTeamStats:
+    """Season-level read model aggregated from match_team_stats.
+
+    Only fields that exist as physical columns in match_team_stats are included.
+    assists, steals, blocks and minutes are NOT available in TeamStats and are
+    therefore intentionally absent.
+
+    wins/losses are derived by comparing points_for vs points_against per match:
+        win  → points_for > points_against
+        loss → points_for < points_against
+    Basketball does not have draws in regulation (overtime always produces a
+    winner), so the model does not model ties.
+    """
+
+    team_external_id: str
+    season_code: str
+    games_played: int
+    wins: int
+    losses: int
+    points_for: int
+    points_against: int
+    field_goals_made: int
+    field_goals_attempted: int
+    three_points_made: int
+    three_points_attempted: int
+    free_throws_made: int
+    free_throws_attempted: int
+    turnovers: int
+    rebounds: int
+
+    def __post_init__(self) -> None:
+        for field_name in (
+            "games_played", "wins", "losses",
+            "points_for", "points_against",
+            "field_goals_made", "field_goals_attempted",
+            "three_points_made", "three_points_attempted",
+            "free_throws_made", "free_throws_attempted",
+            "turnovers", "rebounds",
+        ):
+            value = getattr(self, field_name)
+            if value < 0:
+                raise ValueError(f"{field_name} must be non-negative")
+        if self.wins + self.losses != self.games_played:
+            raise ValueError(
+                f"wins ({self.wins}) + losses ({self.losses}) must equal games_played ({self.games_played})"
+            )
