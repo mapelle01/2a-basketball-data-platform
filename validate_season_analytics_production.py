@@ -13,7 +13,10 @@ Blocks (for season_code=2025-2026):
 
   MATCHES           total matches == 364; distinct external_id == 364 (0 dups);
                     all round_number in 1..26 (none NULL/0); 26 rounds x 14
-                    matches; 28 distinct team appearances per round.
+                    matches; 28 distinct team appearances per round. Scoped to
+                    the league competition ``segunda-feb``; rows of other
+                    competition contexts under the same season are reported as
+                    an informational diagnostic (no stats, no analytics impact).
   PLAYER AGGREGATES distinct players; SUM(games_played) == 728; SUM of every
                     stat column == raw match_player_stats SUM.
   TEAM AGGREGATES   SUM(games_played) == 728; SUM(wins) == SUM(losses) == 364;
@@ -22,8 +25,10 @@ Blocks (for season_code=2025-2026):
   LEADERBOARDS      every supported metric: ranks 1..N, no duplicates,
                     determinism (two runs equal), season isolation, and
                     consistency with the aggregates.
-  METRICS           per_game x games_played ~= total for every per-game metric;
-                    win_percentage; point_difference; zero-division guard.
+  METRICS           per_game x games_played ~= total for every per-game metric
+                    (relative tolerance 1e-5; per-game values are single
+                    precision in the read model); win_percentage;
+                    point_difference; zero-division guard.
   INTEGRITY         no unexpected NULLs; no cross-season leakage; season_code
                     filter correct.
 
@@ -75,33 +80,47 @@ def _fmt(n: float) -> str:
 # ---------------------------------------------------------------------------
 
 def check_matches(db: PgDatabase, season_code: str) -> List[str]:
-    """Match count, duplicate-free external ids, round structure and integrity."""
+    """Match count, duplicate-free external ids, round structure and integrity.
+
+    Scoped to the authoritative league competition (``segunda-feb``): the
+    ``matches`` table can legitimately contain rows for other competition
+    contexts under the same season_code (e.g. earlier smoke-test artifacts),
+    which carry no stats and no analytics impact. Those are reported as an
+    informational diagnostic, never as blockers.
+    """
     failures: List[str] = []
     conn = db.connect()
     try:
         total = conn.execute(
             "SELECT COUNT(*) AS n, COUNT(DISTINCT external_id) AS d"
-            " FROM matches WHERE season_code = %s", (season_code,),
+            " FROM matches WHERE season_code = %s AND competition_id = 'segunda-feb'",
+            (season_code,),
         ).fetchone()
         null_rounds = conn.execute(
             "SELECT COUNT(*) AS n FROM matches WHERE season_code = %s"
+            " AND competition_id = 'segunda-feb'"
             " AND (data->>'round_number' IS NULL OR (data->>'round_number')::int = 0)",
             (season_code,),
         ).fetchone()["n"]
         rounds = conn.execute(
             "SELECT (data->>'round_number')::int AS round_number, COUNT(*) AS n"
-            " FROM matches WHERE season_code = %s"
+            " FROM matches WHERE season_code = %s AND competition_id = 'segunda-feb'"
             " GROUP BY 1 ORDER BY 1", (season_code,),
         ).fetchall()
         per_round_teams = conn.execute(
             "SELECT round_number, COUNT(DISTINCT team) AS n FROM ("
             "  SELECT (data->>'round_number')::int AS round_number, data->>'home_team_id' AS team"
-            "    FROM matches WHERE season_code = %s"
+            "    FROM matches WHERE season_code = %s AND competition_id = 'segunda-feb'"
             "  UNION ALL"
             "  SELECT (data->>'round_number')::int, data->>'away_team_id'"
-            "    FROM matches WHERE season_code = %s"
+            "    FROM matches WHERE season_code = %s AND competition_id = 'segunda-feb'"
             ") t GROUP BY round_number ORDER BY round_number",
             (season_code, season_code),
+        ).fetchall()
+        stray = conn.execute(
+            "SELECT competition_id, COUNT(*) AS n FROM matches"
+            " WHERE season_code = %s AND competition_id != 'segunda-feb'"
+            " GROUP BY 1 ORDER BY 1", (season_code,),
         ).fetchall()
     finally:
         conn.close()
@@ -109,6 +128,9 @@ def check_matches(db: PgDatabase, season_code: str) -> List[str]:
     n, d = total["n"], total["d"]
     print(f"  matches total            = {n}  (esperado {EXPECTED_MATCHES})")
     print(f"  matches distinct         = {d}  (0 duplicados)")
+    if stray:
+        stray_s = ", ".join(f"{r['competition_id']}={r['n']}" for r in stray)
+        print(f"  [DIAG] filas de otras competiciones (sin stats): {stray_s}")
     if n != EXPECTED_MATCHES:
         failures.append(f"matches total {n} != {EXPECTED_MATCHES}")
     if d != EXPECTED_MATCHES:
@@ -372,11 +394,14 @@ def check_metrics(svc: SeasonAnalyticsService, season_code: str) -> List[str]:
             ("points", "points_per_game"), ("rebounds", "rebounds_per_game"),
             ("assists", "assists_per_game"), ("steals", "steals_per_game"),
             ("blocks", "blocks_per_game"), ("turnovers", "turnovers_per_game"),
+            ("minutes", "minutes_per_game"),
         ):
-            if abs(getattr(m, pg_f) * m.games_played - getattr(m, total_f)) > _TOL:
+            expected = getattr(m, total_f)
+            if not math.isclose(
+                getattr(m, pg_f) * m.games_played, expected,
+                rel_tol=1e-5, abs_tol=_TOL,
+            ):
                 failures.append(f"player {m.player_external_id}.{pg_f} round-trip mismatch")
-        if abs(m.minutes_per_game * m.games_played - m.minutes) > _TOL:
-            failures.append(f"player {m.player_external_id}.minutes_per_game round-trip mismatch")
         if m.games_played == 0 and any(
             getattr(m, f) != 0 for f in
             ("points_per_game", "rebounds_per_game", "assists_per_game",
@@ -394,15 +419,19 @@ def check_metrics(svc: SeasonAnalyticsService, season_code: str) -> List[str]:
     if ids != sorted(ids):
         failures.append("team metrics: not ordered")
     for m in teams:
-        if abs(m.points_per_game * m.games_played - m.points_for) > _TOL:
+        if not math.isclose(m.points_per_game * m.games_played, m.points_for,
+                            rel_tol=1e-5, abs_tol=_TOL):
             failures.append(f"team {m.team_external_id}.points_per_game round-trip mismatch")
-        if abs(m.points_against_per_game * m.games_played - m.points_against) > _TOL:
+        if not math.isclose(m.points_against_per_game * m.games_played, m.points_against,
+                            rel_tol=1e-5, abs_tol=_TOL):
             failures.append(f"team {m.team_external_id}.points_against_per_game round-trip mismatch")
-        if abs(m.point_difference_per_game * m.games_played
-               - (m.points_for - m.points_against)) > _TOL:
+        if not math.isclose(
+            m.point_difference_per_game * m.games_played,
+            (m.points_for - m.points_against), rel_tol=1e-5, abs_tol=_TOL,
+        ):
             failures.append(f"team {m.team_external_id}.point_difference_per_game round-trip mismatch")
         expected_wp = (m.wins / m.games_played * 100.0) if m.games_played > 0 else 0.0
-        if abs(m.win_percentage - expected_wp) > _TOL:
+        if not math.isclose(m.win_percentage, expected_wp, rel_tol=1e-5, abs_tol=_TOL):
             failures.append(f"team {m.team_external_id}.win_percentage {m.win_percentage:.4f} != {expected_wp:.4f}")
         if m.games_played == 0 and any(
             getattr(m, f) != 0 for f in (

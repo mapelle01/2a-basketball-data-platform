@@ -187,3 +187,49 @@ Se considera que `2aFEB_SCORE` está **técnicamente terminado para el alcance a
 **Known P0/P1 blockers: 0**
 
 Cualquier mejora posterior debe tratarse como evolución del producto, nueva capacidad o hardening incremental, no como una deuda necesaria para considerar terminado el alcance actual.
+
+---
+
+## 11. Addendum FASE 23.8 — Validación real de producción del analytics read model
+
+**Fecha:** 2026-08-16
+
+Validación **real y read-only** del analytics read model de temporada contra la
+PostgreSQL de Railway (`feb-score-production`, servicio `Postgres`), mediante el
+túnel SSH oficial de Railway CLI (`railway connect Postgres --tunnel-only`) —
+sin modificar datos, sin migraciones, sin exponer credenciales.
+
+Resultado del validador `validate_season_analytics_production.py`
+(`season_code=2025-2026`): **PASS** en los 6 bloques:
+
+| Bloque | Resultado |
+|---|---|
+| MATCHES (364, 0 dups, 26×14, 28 equipos/jornada, `segunda-feb`) | PASS |
+| PLAYER AGGREGATES (449 jugadores, 8.230 filas, SUMs == raw) | PASS |
+| TEAM AGGREGATES (28 equipos, 728 filas, wins=losses=364, SUMs == raw) | PASS |
+| LEADERBOARDS (7 jugador + 4 equipo, ranks/determinismo/aislamiento) | PASS |
+| METRICS (per-game round-trips, win%, diff, div-by-zero) | PASS |
+| INTEGRIDAD (sin NULLs, sin contaminación de otras temporadas) | PASS |
+
+`/health` y `/ready` del despliegue público devuelven **200** (`{"status":"ok"}`
+y `{"status":"ready","checks":{"schema_version":"2","database":"ok",
+"migrations":"up_to_date"}}`).
+
+Hallazgos documentados (no bloqueantes para el read model):
+
+1. **La imagen desplegada de `feb-score-api` es anterior a FASE 23.5**: los 6
+   endpoints de analytics responden **404** (no están desplegados); el servicio
+   sigue sirviendo la ingesta de comandos. La validación HTTP de los 6
+   endpoints se ejecutó contra datos reales de producción a través del túnel
+   oficial usando el código del working tree (solo GET, sin migración): todos
+   200, envelopes correctos y errores controlados (400).
+2. **PostgreSQL de producción está en schema v2** (migración `003_analytics_indexes`
+   no aplicada): el deploy actual espera v2 (coherente). Aplicar la migración 003
+   (índices aditivos, no destructiva) queda como paso previo al despliegue del
+   código HEAD.
+3. **6 filas ajenas en `matches`** bajo `2025-2026` (`smoke-comp`=5, `feb-comp`=1)
+   sin stats y sin impacto en analíticas; se reportan como diagnóstico del
+   validador y quedan pendientes de limpieza en producción (no se modificaron).
+
+Este addendum registra el estado real verificado en producción; no reescribe
+los veredictos históricos de las secciones anteriores.

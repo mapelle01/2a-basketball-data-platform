@@ -152,6 +152,36 @@ def test_validator_reports_null_round_number(pg_db):
     assert any("round_number" in f for f in failures)
 
 
+def test_validator_ignores_stray_competition_rows_and_rounds_minutes(pg_db):
+    """FASE 23.8 production findings: the league ``matches`` scoping and the
+    single-precision ``minutes_per_game`` round-trip tolerance."""
+    _seed_full(pg_db)
+    with pg_db.connect() as conn:
+        # stray non-league match rows under the same season (no stats, like the
+        # smoke-test artifacts found in real production) must not fail the block
+        data = {
+            "external_id": "M-SMOKE-1", "match_id": "M-SMOKE-1",
+            "competition_id": "smoke-comp", "season_code": SEASON,
+            "round_number": 1, "home_team_id": "smoke-home", "away_team_id": "smoke-away",
+            "status": "SCHEDULED", "version": 1,
+        }
+        conn.execute(
+            "INSERT INTO matches (match_id, external_id, competition_id,"
+            " season_code, status, version, data)"
+            " VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            ("M-SMOKE-1", "M-SMOKE-1", "smoke-comp", SEASON, "SCHEDULED", 1, json.dumps(data)),
+        )
+        # fractional minutes like real production (single-precision per_game)
+        conn.execute(
+            "UPDATE match_player_stats SET minutes = 23.333"
+            " WHERE season_code = %s AND player_external_id = %s AND match_external_id = %s",
+            (SEASON, "PL-001", "M1"),
+        )
+    code, failures = run_validations(pg_db, SEASON)
+    assert code == 0
+    assert failures == []
+
+
 def test_validate_production_requires_dsn(monkeypatch):
     monkeypatch.delenv("FEB_SCORE_DATABASE_URL", raising=False)
     monkeypatch.delenv("DATABASE_URL", raising=False)

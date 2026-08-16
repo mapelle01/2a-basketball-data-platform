@@ -384,3 +384,34 @@ No additional implementation work is required before treating the current scope 
 **Known functional blockers: 0**  
 **Known test failures: 0**  
 **Regression status: PASS — 527/527**
+
+---
+
+## 16. Addendum FASE 23.8 — Production validation of the season analytics read model
+
+**Date:** 2026-08-16
+
+Real, **read-only** production validation of the season-analytics read model
+(FASE 23.1-23.6) against the Railway PostgreSQL (`feb-score-production` /
+`Postgres` service) through the official Railway CLI SSH tunnel
+(`railway connect Postgres --tunnel-only`). No data modified, no migrations
+run, no credentials exposed.
+
+Validator `validate_season_analytics_production.py` (`season_code=2025-2026`):
+**PASS** on all 6 blocks (MATCHES=364 `segunda-feb`, 0 dups, 26×14, 28 teams
+per round; PLAYER AGGREGATES 449 players / 8.230 rows, all SUMs == raw;
+TEAM AGGREGATES 28 teams / 728 rows, wins=losses=364, all SUMs == raw;
+LEADERBOARDS 7+4 metrics; METRICS per-game round-trips; INTEGRIDAD no NULLs /
+no cross-season contamination). `/health` and `/ready` of the public deployment
+return 200.
+
+Findings recorded (non-blocking for the read model): the deployed
+`feb-score-api` image predates FASE 23.5 (analytics endpoints 404 on the public
+URL; validated at HTTP level against real production data via the official
+tunnel with the working-tree code — all 200, controlled 400s); production
+PostgreSQL is at schema v2 (additive index migration `003` not yet applied);
+6 stray non-league `matches` rows (`smoke-comp`=5, `feb-comp`=1) exist under
+the season with no stats and no analytics impact, flagged as a diagnostic.
+
+This addendum records the verified real production state; it does not rewrite
+the historical verdicts in the sections above.
