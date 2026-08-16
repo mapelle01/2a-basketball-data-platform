@@ -14,8 +14,10 @@ from ...domain.standings.model import StandingSnapshot
 from ...domain.statistics.model import (
     PlayerStats,
     SeasonPlayerLeaderboardEntry,
+    SeasonPlayerMetrics,
     SeasonPlayerStats,
     SeasonTeamLeaderboardEntry,
+    SeasonTeamMetrics,
     SeasonTeamStats,
     TeamStats,
 )
@@ -191,5 +193,31 @@ class MatchStatsRepository(ABC):
         *metric* is one of ``TeamLeaderboardMetric.ALL``; ranking is
         deterministic with metric-specific tiebreakers.  Raises ValueError
         for an unknown metric.
+        """
+        pass
+
+    # ------------------------------------------------------------------ 23.4
+    @abstractmethod
+    def list_season_player_metrics(
+        self, season_code: SeasonCode
+    ) -> Iterable[SeasonPlayerMetrics]:
+        """Per-game season metrics for every player in *season_code*.
+
+        Per-game values are derived from the season totals
+        (``total / games_played``, 0.0 when ``games_played == 0``), kept at
+        full float precision, ordered deterministically by player_external_id.
+        """
+        pass
+
+    @abstractmethod
+    def list_season_team_metrics(
+        self, season_code: SeasonCode
+    ) -> Iterable[SeasonTeamMetrics]:
+        """Per-game season metrics for every team in *season_code*.
+
+        Includes ``win_percentage = wins / games_played * 100`` (percentage,
+        NOT the 0..1 fraction of ``SeasonTeamLeaderboardEntry``) and
+        ``point_difference_per_game = (points_for - points_against) /
+        games_played``. Ordered deterministically by team_external_id.
         """
         pass

@@ -58,8 +58,10 @@ from ...domain.statistics.model import (
     PlayerLeaderboardMetric,
     PlayerStats,
     SeasonPlayerLeaderboardEntry,
+    SeasonPlayerMetrics,
     SeasonPlayerStats,
     SeasonTeamLeaderboardEntry,
+    SeasonTeamMetrics,
     SeasonTeamStats,
     TeamLeaderboardMetric,
     TeamStats,
@@ -791,6 +793,147 @@ class SqliteMatchStatsRepository(_SqliteRepoMixin, MatchStatsRepository):
                     points_against=int(r["points_against"]),
                     point_difference=int(r["point_difference"]),
                     win_percentage=float(r["win_percentage"]),
+                )
+                for r in rows
+            ]
+        finally:
+            if owned:
+                conn.close()
+
+    def list_season_player_metrics(
+        self, season_code: SeasonCode
+    ) -> Iterable[SeasonPlayerMetrics]:
+        """Per-game player metrics resolved in SQL (safe division, no rounding)."""
+        conn, owned = self._conn()
+        try:
+            rows = conn.execute(
+                "WITH agg AS ("
+                " SELECT player_external_id, season_code,"
+                "  COUNT(match_external_id) AS games_played,"
+                "  SUM(points) AS points, SUM(rebounds) AS rebounds,"
+                "  SUM(assists) AS assists, SUM(steals) AS steals,"
+                "  SUM(blocks) AS blocks, SUM(turnovers) AS turnovers,"
+                "  SUM(minutes) AS minutes"
+                " FROM match_player_stats WHERE season_code = ?"
+                " GROUP BY player_external_id, season_code)"
+                " SELECT player_external_id, season_code, games_played,"
+                "  points, rebounds, assists, steals, blocks, turnovers, minutes,"
+                "  CASE WHEN games_played > 0 THEN CAST(points AS REAL) / games_played ELSE 0.0 END"
+                "    AS points_per_game,"
+                "  CASE WHEN games_played > 0 THEN CAST(rebounds AS REAL) / games_played ELSE 0.0 END"
+                "    AS rebounds_per_game,"
+                "  CASE WHEN games_played > 0 THEN CAST(assists AS REAL) / games_played ELSE 0.0 END"
+                "    AS assists_per_game,"
+                "  CASE WHEN games_played > 0 THEN CAST(steals AS REAL) / games_played ELSE 0.0 END"
+                "    AS steals_per_game,"
+                "  CASE WHEN games_played > 0 THEN CAST(blocks AS REAL) / games_played ELSE 0.0 END"
+                "    AS blocks_per_game,"
+                "  CASE WHEN games_played > 0 THEN CAST(turnovers AS REAL) / games_played ELSE 0.0 END"
+                "    AS turnovers_per_game,"
+                "  CASE WHEN games_played > 0 THEN CAST(minutes AS REAL) / games_played ELSE 0.0 END"
+                "    AS minutes_per_game"
+                " FROM agg ORDER BY player_external_id",
+                (str(season_code),),
+            ).fetchall()
+            return [
+                SeasonPlayerMetrics(
+                    player_external_id=r["player_external_id"],
+                    season_code=r["season_code"],
+                    games_played=int(r["games_played"]),
+                    points=int(r["points"]),
+                    points_per_game=float(r["points_per_game"]),
+                    rebounds=int(r["rebounds"]),
+                    rebounds_per_game=float(r["rebounds_per_game"]),
+                    assists=int(r["assists"]),
+                    assists_per_game=float(r["assists_per_game"]),
+                    steals=int(r["steals"]),
+                    steals_per_game=float(r["steals_per_game"]),
+                    blocks=int(r["blocks"]),
+                    blocks_per_game=float(r["blocks_per_game"]),
+                    turnovers=int(r["turnovers"]),
+                    turnovers_per_game=float(r["turnovers_per_game"]),
+                    minutes=float(r["minutes"]),
+                    minutes_per_game=float(r["minutes_per_game"]),
+                )
+                for r in rows
+            ]
+        finally:
+            if owned:
+                conn.close()
+
+    def list_season_team_metrics(
+        self, season_code: SeasonCode
+    ) -> Iterable[SeasonTeamMetrics]:
+        """Per-game team metrics resolved in SQL (safe division, no rounding)."""
+        conn, owned = self._conn()
+        try:
+            rows = conn.execute(
+                "WITH agg AS ("
+                " SELECT team_external_id, season_code,"
+                "  COUNT(match_external_id) AS games_played,"
+                "  SUM(CASE WHEN points_for > points_against THEN 1 ELSE 0 END) AS wins,"
+                "  SUM(CASE WHEN points_for < points_against THEN 1 ELSE 0 END) AS losses,"
+                "  SUM(points_for) AS points_for, SUM(points_against) AS points_against,"
+                "  SUM(field_goals_made) AS field_goals_made,"
+                "  SUM(field_goals_attempted) AS field_goals_attempted,"
+                "  SUM(three_points_made) AS three_points_made,"
+                "  SUM(three_points_attempted) AS three_points_attempted,"
+                "  SUM(free_throws_made) AS free_throws_made,"
+                "  SUM(free_throws_attempted) AS free_throws_attempted,"
+                "  SUM(turnovers) AS turnovers, SUM(rebounds) AS rebounds"
+                " FROM match_team_stats WHERE season_code = ?"
+                " GROUP BY team_external_id, season_code)"
+                " SELECT team_external_id, season_code, games_played, wins, losses,"
+                "  points_for, points_against,"
+                "  CASE WHEN games_played > 0 THEN CAST(points_for AS REAL) / games_played ELSE 0.0 END"
+                "    AS points_per_game,"
+                "  CASE WHEN games_played > 0 THEN CAST(points_against AS REAL) / games_played ELSE 0.0 END"
+                "    AS points_against_per_game,"
+                "  CASE WHEN games_played > 0 THEN"
+                "   CAST(points_for - points_against AS REAL) / games_played ELSE 0.0 END"
+                "    AS point_difference_per_game,"
+                "  CASE WHEN games_played > 0 THEN CAST(wins AS REAL) / games_played * 100.0 ELSE 0.0 END"
+                "    AS win_percentage,"
+                "  CASE WHEN games_played > 0 THEN CAST(field_goals_made AS REAL) / games_played ELSE 0.0 END"
+                "    AS field_goals_made_per_game,"
+                "  CASE WHEN games_played > 0 THEN CAST(field_goals_attempted AS REAL) / games_played ELSE 0.0 END"
+                "    AS field_goals_attempted_per_game,"
+                "  CASE WHEN games_played > 0 THEN CAST(three_points_made AS REAL) / games_played ELSE 0.0 END"
+                "    AS three_points_made_per_game,"
+                "  CASE WHEN games_played > 0 THEN CAST(three_points_attempted AS REAL) / games_played ELSE 0.0 END"
+                "    AS three_points_attempted_per_game,"
+                "  CASE WHEN games_played > 0 THEN CAST(free_throws_made AS REAL) / games_played ELSE 0.0 END"
+                "    AS free_throws_made_per_game,"
+                "  CASE WHEN games_played > 0 THEN CAST(free_throws_attempted AS REAL) / games_played ELSE 0.0 END"
+                "    AS free_throws_attempted_per_game,"
+                "  CASE WHEN games_played > 0 THEN CAST(turnovers AS REAL) / games_played ELSE 0.0 END"
+                "    AS turnovers_per_game,"
+                "  CASE WHEN games_played > 0 THEN CAST(rebounds AS REAL) / games_played ELSE 0.0 END"
+                "    AS rebounds_per_game"
+                " FROM agg ORDER BY team_external_id",
+                (str(season_code),),
+            ).fetchall()
+            return [
+                SeasonTeamMetrics(
+                    team_external_id=r["team_external_id"],
+                    season_code=r["season_code"],
+                    games_played=int(r["games_played"]),
+                    wins=int(r["wins"]),
+                    losses=int(r["losses"]),
+                    points_for=int(r["points_for"]),
+                    points_against=int(r["points_against"]),
+                    points_per_game=float(r["points_per_game"]),
+                    points_against_per_game=float(r["points_against_per_game"]),
+                    point_difference_per_game=float(r["point_difference_per_game"]),
+                    win_percentage=float(r["win_percentage"]),
+                    field_goals_made_per_game=float(r["field_goals_made_per_game"]),
+                    field_goals_attempted_per_game=float(r["field_goals_attempted_per_game"]),
+                    three_points_made_per_game=float(r["three_points_made_per_game"]),
+                    three_points_attempted_per_game=float(r["three_points_attempted_per_game"]),
+                    free_throws_made_per_game=float(r["free_throws_made_per_game"]),
+                    free_throws_attempted_per_game=float(r["free_throws_attempted_per_game"]),
+                    turnovers_per_game=float(r["turnovers_per_game"]),
+                    rebounds_per_game=float(r["rebounds_per_game"]),
                 )
                 for r in rows
             ]

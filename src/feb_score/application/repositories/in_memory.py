@@ -26,11 +26,14 @@ from ...domain.standings.model import StandingSnapshot
 from ...domain.statistics.model import (
     PlayerStats,
     SeasonPlayerLeaderboardEntry,
+    SeasonPlayerMetrics,
     SeasonPlayerStats,
     SeasonTeamLeaderboardEntry,
+    SeasonTeamMetrics,
     SeasonTeamStats,
     TeamStats,
 )
+from ...domain.statistics.metrics import compute_player_metrics, compute_team_metrics
 from ...domain.statistics.ranking import rank_player_entries, rank_team_entries
 from ...domain.team.model import Team
 from ...domain.value_objects import CompetitionId, ExternalId, LeaderboardId, SeasonCode
@@ -314,3 +317,13 @@ class InMemoryMatchStatsRepository(MatchStatsRepository):
         return rank_team_entries(
             self.list_season_team_aggregates(season_code), metric, limit
         )
+
+    def list_season_player_metrics(
+        self, season_code: SeasonCode
+    ) -> List[SeasonPlayerMetrics]:
+        return compute_player_metrics(self.list_season_player_aggregates(season_code))
+
+    def list_season_team_metrics(
+        self, season_code: SeasonCode
+    ) -> List[SeasonTeamMetrics]:
+        return compute_team_metrics(self.list_season_team_aggregates(season_code))
