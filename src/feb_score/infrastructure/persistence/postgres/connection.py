@@ -68,6 +68,11 @@ MIGRATIONS: List[PgMigration] = [
         name="match_stats",
         script=(_MIGRATIONS_DIR / "002_match_stats.sql").read_text(),
     ),
+    PgMigration(
+        version=3,
+        name="analytics_indexes",
+        script=(_MIGRATIONS_DIR / "003_analytics_indexes.sql").read_text(),
+    ),
 ]
 
 

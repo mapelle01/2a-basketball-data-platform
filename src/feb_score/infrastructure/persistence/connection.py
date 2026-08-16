@@ -61,6 +61,12 @@ MIGRATIONS: List[Migration] = [
         destructive=False,
         script=(_MIGRATIONS_DIR / "003_match_stats.sql").read_text(),
     ),
+    Migration(
+        version=4,
+        name="analytics_indexes",
+        destructive=False,
+        script=(_MIGRATIONS_DIR / "004_analytics_indexes.sql").read_text(),
+    ),
 ]
 
 

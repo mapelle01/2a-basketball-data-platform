@@ -33,6 +33,14 @@ T = TypeVar("T")
 
 MAX_LIMIT = 500
 
+# OpenAPI documentation constants. The AUTHORITATIVE whitelist (the one that
+# actually rejects requests) lives in the domain (PlayerLeaderboardMetric.ALL /
+# TeamLeaderboardMetric.ALL, enforced by SeasonLeaderboardService); these mirrors
+# exist only so the auto-generated OpenAPI can list the allowed values. A
+# drift test (tests/api/test_hardening.py) keeps them in sync.
+_PLAYER_METRICS = ("points", "rebounds", "assists", "steals", "blocks", "turnovers", "games_played")
+_TEAM_METRICS = ("classification", "points_for", "point_difference", "win_percentage")
+
 
 # ---------------------------------------------------------------------------
 # Response schemas (documented in the auto-generated OpenAPI)
@@ -206,7 +214,11 @@ def register_analytics_routes(app: FastAPI) -> None:
     def get_season_player_leaderboard(
         season_code: str,
         request: Request,
-        metric: str = Query(..., description="Player metric to rank by."),
+        metric: str = Query(
+            ...,
+            description="Player metric to rank by.",
+            enum=list(_PLAYER_METRICS),
+        ),
         limit: _LIMIT_QUERY = None,
     ):
         try:
@@ -267,7 +279,11 @@ def register_analytics_routes(app: FastAPI) -> None:
     def get_season_team_leaderboard(
         season_code: str,
         request: Request,
-        metric: str = Query(..., description="Team metric to rank by."),
+        metric: str = Query(
+            ...,
+            description="Team metric to rank by.",
+            enum=list(_TEAM_METRICS),
+        ),
         limit: _LIMIT_QUERY = None,
     ):
         try:
