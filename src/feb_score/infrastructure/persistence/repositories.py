@@ -591,11 +591,11 @@ class SqliteMatchStatsRepository(_SqliteRepoMixin, MatchStatsRepository):
                 conn.close()
 
     def list_season_player_aggregates(
-        self, season_code: SeasonCode
+        self, season_code: SeasonCode, limit: Optional[int] = None
     ) -> Iterable[SeasonPlayerStats]:
         conn, owned = self._conn()
         try:
-            rows = conn.execute(
+            sql = (
                 "SELECT"
                 "  player_external_id,"
                 "  season_code,"
@@ -610,9 +610,13 @@ class SqliteMatchStatsRepository(_SqliteRepoMixin, MatchStatsRepository):
                 " FROM match_player_stats"
                 " WHERE season_code = ?"
                 " GROUP BY player_external_id, season_code"
-                " ORDER BY player_external_id",
-                (str(season_code),),
-            ).fetchall()
+                " ORDER BY player_external_id"
+            )
+            params: list = [str(season_code)]
+            if limit is not None:
+                sql += " LIMIT ?"
+                params.append(int(limit))
+            rows = conn.execute(sql, tuple(params)).fetchall()
             return [
                 SeasonPlayerStats(
                     player_external_id=r["player_external_id"],
@@ -633,11 +637,11 @@ class SqliteMatchStatsRepository(_SqliteRepoMixin, MatchStatsRepository):
                 conn.close()
 
     def list_season_team_aggregates(
-        self, season_code: SeasonCode
+        self, season_code: SeasonCode, limit: Optional[int] = None
     ) -> Iterable[SeasonTeamStats]:
         conn, owned = self._conn()
         try:
-            rows = conn.execute(
+            sql = (
                 "SELECT"
                 "  team_external_id,"
                 "  season_code,"
@@ -657,9 +661,13 @@ class SqliteMatchStatsRepository(_SqliteRepoMixin, MatchStatsRepository):
                 " FROM match_team_stats"
                 " WHERE season_code = ?"
                 " GROUP BY team_external_id, season_code"
-                " ORDER BY team_external_id",
-                (str(season_code),),
-            ).fetchall()
+                " ORDER BY team_external_id"
+            )
+            params: list = [str(season_code)]
+            if limit is not None:
+                sql += " LIMIT ?"
+                params.append(int(limit))
+            rows = conn.execute(sql, tuple(params)).fetchall()
             return [
                 SeasonTeamStats(
                     team_external_id=r["team_external_id"],
@@ -801,12 +809,12 @@ class SqliteMatchStatsRepository(_SqliteRepoMixin, MatchStatsRepository):
                 conn.close()
 
     def list_season_player_metrics(
-        self, season_code: SeasonCode
+        self, season_code: SeasonCode, limit: Optional[int] = None
     ) -> Iterable[SeasonPlayerMetrics]:
         """Per-game player metrics resolved in SQL (safe division, no rounding)."""
         conn, owned = self._conn()
         try:
-            rows = conn.execute(
+            sql = (
                 "WITH agg AS ("
                 " SELECT player_external_id, season_code,"
                 "  COUNT(match_external_id) AS games_played,"
@@ -832,9 +840,13 @@ class SqliteMatchStatsRepository(_SqliteRepoMixin, MatchStatsRepository):
                 "    AS turnovers_per_game,"
                 "  CASE WHEN games_played > 0 THEN CAST(minutes AS REAL) / games_played ELSE 0.0 END"
                 "    AS minutes_per_game"
-                " FROM agg ORDER BY player_external_id",
-                (str(season_code),),
-            ).fetchall()
+                " FROM agg ORDER BY player_external_id"
+            )
+            params: list = [str(season_code)]
+            if limit is not None:
+                sql += " LIMIT ?"
+                params.append(int(limit))
+            rows = conn.execute(sql, tuple(params)).fetchall()
             return [
                 SeasonPlayerMetrics(
                     player_external_id=r["player_external_id"],
@@ -862,12 +874,12 @@ class SqliteMatchStatsRepository(_SqliteRepoMixin, MatchStatsRepository):
                 conn.close()
 
     def list_season_team_metrics(
-        self, season_code: SeasonCode
+        self, season_code: SeasonCode, limit: Optional[int] = None
     ) -> Iterable[SeasonTeamMetrics]:
         """Per-game team metrics resolved in SQL (safe division, no rounding)."""
         conn, owned = self._conn()
         try:
-            rows = conn.execute(
+            sql = (
                 "WITH agg AS ("
                 " SELECT team_external_id, season_code,"
                 "  COUNT(match_external_id) AS games_played,"
@@ -910,9 +922,13 @@ class SqliteMatchStatsRepository(_SqliteRepoMixin, MatchStatsRepository):
                 "    AS turnovers_per_game,"
                 "  CASE WHEN games_played > 0 THEN CAST(rebounds AS REAL) / games_played ELSE 0.0 END"
                 "    AS rebounds_per_game"
-                " FROM agg ORDER BY team_external_id",
-                (str(season_code),),
-            ).fetchall()
+                " FROM agg ORDER BY team_external_id"
+            )
+            params: list = [str(season_code)]
+            if limit is not None:
+                sql += " LIMIT ?"
+                params.append(int(limit))
+            rows = conn.execute(sql, tuple(params)).fetchall()
             return [
                 SeasonTeamMetrics(
                     team_external_id=r["team_external_id"],

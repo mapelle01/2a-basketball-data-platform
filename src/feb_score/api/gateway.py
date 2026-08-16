@@ -79,6 +79,44 @@ class CommandGateway(ABC):
     def get_correction_proposal(self, proposal_id: str) -> Optional[Dict[str, Any]]:
         raise NotImplementedError
 
+    # FASE 23.5 — season analytics reads (list DTOs, empty list when no data).
+    # Metric validation raises ValueError (mapped to 400 by the HTTP layer).
+    @abstractmethod
+    def list_season_player_aggregates(
+        self, season_code: str, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_season_team_aggregates(
+        self, season_code: str, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_season_player_leaderboard(
+        self, season_code: str, metric: str, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_season_team_leaderboard(
+        self, season_code: str, metric: str, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_season_player_metrics(
+        self, season_code: str, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_season_team_metrics(
+        self, season_code: str, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        raise NotImplementedError
+
     @abstractmethod
     def readiness(self) -> Readiness:
         """Non-destructive dependency check (database reachable + schema version)."""

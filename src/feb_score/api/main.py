@@ -34,6 +34,7 @@ from ..infrastructure.persistence.errors import (
     StaleVersionError,
 )
 from . import errors as err
+from .analytics import register_analytics_routes
 from .auth import (
     AuthenticationProvider,
     ApiKeyAuthenticationProvider,
@@ -126,6 +127,7 @@ def create_app(
     err.register_error_handlers(app, request_logger)
 
     _register_routes(app)
+    register_analytics_routes(app)
     return app
 
 

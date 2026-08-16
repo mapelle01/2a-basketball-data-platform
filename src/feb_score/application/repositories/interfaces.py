@@ -155,13 +155,13 @@ class MatchStatsRepository(ABC):
 
     @abstractmethod
     def list_season_player_aggregates(
-        self, season_code: SeasonCode
+        self, season_code: SeasonCode, limit: Optional[int] = None
     ) -> Iterable[SeasonPlayerStats]:
         pass
 
     @abstractmethod
     def list_season_team_aggregates(
-        self, season_code: SeasonCode
+        self, season_code: SeasonCode, limit: Optional[int] = None
     ) -> Iterable[SeasonTeamStats]:
         pass
 
@@ -199,7 +199,7 @@ class MatchStatsRepository(ABC):
     # ------------------------------------------------------------------ 23.4
     @abstractmethod
     def list_season_player_metrics(
-        self, season_code: SeasonCode
+        self, season_code: SeasonCode, limit: Optional[int] = None
     ) -> Iterable[SeasonPlayerMetrics]:
         """Per-game season metrics for every player in *season_code*.
 
@@ -211,7 +211,7 @@ class MatchStatsRepository(ABC):
 
     @abstractmethod
     def list_season_team_metrics(
-        self, season_code: SeasonCode
+        self, season_code: SeasonCode, limit: Optional[int] = None
     ) -> Iterable[SeasonTeamMetrics]:
         """Per-game season metrics for every team in *season_code*.
 

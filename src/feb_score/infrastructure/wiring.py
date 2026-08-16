@@ -30,7 +30,16 @@ from ..application.use_cases.handlers import (
     RegisterPlayerToSquadHandler,
     UpsertMatchStatsHandler,
 )
-from ..domain.value_objects import Actor, CommandMeta
+from ..application.use_cases.season_analytics_service import SeasonAnalyticsService
+from ..domain.statistics.model import (
+    SeasonPlayerLeaderboardEntry,
+    SeasonPlayerMetrics,
+    SeasonPlayerStats,
+    SeasonTeamLeaderboardEntry,
+    SeasonTeamMetrics,
+    SeasonTeamStats,
+)
+from ..domain.value_objects import Actor, CommandMeta, SeasonCode
 from .config import settings_from_env
 from .application_service import CommandRunner, as_event_list
 from .logging import Logger, StdLogger
@@ -40,6 +49,119 @@ from .persistence.event_dispatcher import SyncEventDispatcher
 def _to_snake(name: str) -> str:
     s1 = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
     return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
+
+
+# ------------------------------------------------------------- FASE 23.5 DTOs
+def _player_aggregate_dto(a: SeasonPlayerStats) -> Dict[str, Any]:
+    return {
+        "player_external_id": a.player_external_id,
+        "season_code": a.season_code,
+        "games_played": a.games_played,
+        "points": a.points,
+        "rebounds": a.rebounds,
+        "assists": a.assists,
+        "steals": a.steals,
+        "blocks": a.blocks,
+        "turnovers": a.turnovers,
+        "minutes": a.minutes,
+    }
+
+
+def _team_aggregate_dto(a: SeasonTeamStats) -> Dict[str, Any]:
+    return {
+        "team_external_id": a.team_external_id,
+        "season_code": a.season_code,
+        "games_played": a.games_played,
+        "wins": a.wins,
+        "losses": a.losses,
+        "points_for": a.points_for,
+        "points_against": a.points_against,
+        "field_goals_made": a.field_goals_made,
+        "field_goals_attempted": a.field_goals_attempted,
+        "three_points_made": a.three_points_made,
+        "three_points_attempted": a.three_points_attempted,
+        "free_throws_made": a.free_throws_made,
+        "free_throws_attempted": a.free_throws_attempted,
+        "turnovers": a.turnovers,
+        "rebounds": a.rebounds,
+    }
+
+
+def _player_leaderboard_dto(e: SeasonPlayerLeaderboardEntry) -> Dict[str, Any]:
+    return {
+        "rank": e.rank,
+        "player_external_id": e.player_external_id,
+        "season_code": e.season_code,
+        "games_played": e.games_played,
+        "points": e.points,
+        "rebounds": e.rebounds,
+        "assists": e.assists,
+        "steals": e.steals,
+        "blocks": e.blocks,
+        "turnovers": e.turnovers,
+        "minutes": e.minutes,
+    }
+
+
+def _team_leaderboard_dto(e: SeasonTeamLeaderboardEntry) -> Dict[str, Any]:
+    return {
+        "rank": e.rank,
+        "team_external_id": e.team_external_id,
+        "season_code": e.season_code,
+        "games_played": e.games_played,
+        "wins": e.wins,
+        "losses": e.losses,
+        "points_for": e.points_for,
+        "points_against": e.points_against,
+        "point_difference": e.point_difference,
+        "win_percentage": e.win_percentage,
+    }
+
+
+def _player_metrics_dto(m: SeasonPlayerMetrics) -> Dict[str, Any]:
+    return {
+        "player_external_id": m.player_external_id,
+        "season_code": m.season_code,
+        "games_played": m.games_played,
+        "points": m.points,
+        "points_per_game": m.points_per_game,
+        "rebounds": m.rebounds,
+        "rebounds_per_game": m.rebounds_per_game,
+        "assists": m.assists,
+        "assists_per_game": m.assists_per_game,
+        "steals": m.steals,
+        "steals_per_game": m.steals_per_game,
+        "blocks": m.blocks,
+        "blocks_per_game": m.blocks_per_game,
+        "turnovers": m.turnovers,
+        "turnovers_per_game": m.turnovers_per_game,
+        "minutes": m.minutes,
+        "minutes_per_game": m.minutes_per_game,
+    }
+
+
+def _team_metrics_dto(m: SeasonTeamMetrics) -> Dict[str, Any]:
+    return {
+        "team_external_id": m.team_external_id,
+        "season_code": m.season_code,
+        "games_played": m.games_played,
+        "wins": m.wins,
+        "losses": m.losses,
+        "points_for": m.points_for,
+        "points_against": m.points_against,
+        "points_per_game": m.points_per_game,
+        "points_against_per_game": m.points_against_per_game,
+        "point_difference_per_game": m.point_difference_per_game,
+        "win_percentage": m.win_percentage,
+        "field_goals_made_per_game": m.field_goals_made_per_game,
+        "field_goals_attempted_per_game": m.field_goals_attempted_per_game,
+        "three_points_made_per_game": m.three_points_made_per_game,
+        "three_points_attempted_per_game": m.three_points_attempted_per_game,
+        "free_throws_made_per_game": m.free_throws_made_per_game,
+        "free_throws_attempted_per_game": m.free_throws_attempted_per_game,
+        "turnovers_per_game": m.turnovers_per_game,
+        "rebounds_per_game": m.rebounds_per_game,
+    }
 
 
 class _GatewayBase(CommandGateway):
@@ -69,6 +191,7 @@ class _GatewayBase(CommandGateway):
         self._correction_repo = repos["correction"]
         self._leaderboard_repo = repos["leaderboard"]
         self._stats_repo = repos["stats"]
+        self._analytics = SeasonAnalyticsService(self._stats_repo)
 
         self._handlers: Dict[str, Any] = {
             "create_or_update_match": lambda: CreateOrUpdateMatchHandler(repos["match"], repos["idempotency"]),
@@ -205,6 +328,59 @@ class _GatewayBase(CommandGateway):
             "reason": proposal.reason,
             "changes": proposal.changes,
         }
+
+    # ------------------------------------------------ FASE 23.5 season reads
+    def list_season_player_aggregates(
+        self, season_code: str, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        return [
+            _player_aggregate_dto(a)
+            for a in self._analytics.list_season_player_aggregates(SeasonCode(season_code), limit)
+        ]
+
+    def list_season_team_aggregates(
+        self, season_code: str, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        return [
+            _team_aggregate_dto(a)
+            for a in self._analytics.list_season_team_aggregates(SeasonCode(season_code), limit)
+        ]
+
+    def list_season_player_leaderboard(
+        self, season_code: str, metric: str, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        return [
+            _player_leaderboard_dto(e)
+            for e in self._analytics.list_season_player_leaderboard(
+                SeasonCode(season_code), metric, limit
+            )
+        ]
+
+    def list_season_team_leaderboard(
+        self, season_code: str, metric: str, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        return [
+            _team_leaderboard_dto(e)
+            for e in self._analytics.list_season_team_leaderboard(
+                SeasonCode(season_code), metric, limit
+            )
+        ]
+
+    def list_season_player_metrics(
+        self, season_code: str, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        return [
+            _player_metrics_dto(m)
+            for m in self._analytics.list_season_player_metrics(SeasonCode(season_code), limit)
+        ]
+
+    def list_season_team_metrics(
+        self, season_code: str, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        return [
+            _team_metrics_dto(m)
+            for m in self._analytics.list_season_team_metrics(SeasonCode(season_code), limit)
+        ]
 
     # ------------------------------------------------------------ readiness
     def readiness(self) -> Readiness:

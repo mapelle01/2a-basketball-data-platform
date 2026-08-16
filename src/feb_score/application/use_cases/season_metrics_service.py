@@ -8,7 +8,7 @@ Python via ``domain.statistics.metrics``). No SQL lives in Application/Domain.
 
 from __future__ import annotations
 
-from typing import List
+from typing import List, Optional
 
 from ..repositories.interfaces import MatchStatsRepository
 from ...domain.statistics.model import SeasonPlayerMetrics, SeasonTeamMetrics
@@ -22,13 +22,13 @@ class SeasonMetricsService:
         self._repo = stats_repo
 
     def list_season_player_metrics(
-        self, season_code: SeasonCode
+        self, season_code: SeasonCode, limit: Optional[int] = None
     ) -> List[SeasonPlayerMetrics]:
-        """Per-game metrics for every player of *season_code*."""
-        return list(self._repo.list_season_player_metrics(season_code))
+        """Per-game metrics for every player of *season_code* (first *limit*)."""
+        return list(self._repo.list_season_player_metrics(season_code, limit))
 
     def list_season_team_metrics(
-        self, season_code: SeasonCode
+        self, season_code: SeasonCode, limit: Optional[int] = None
     ) -> List[SeasonTeamMetrics]:
-        """Per-game metrics for every team of *season_code*."""
-        return list(self._repo.list_season_team_metrics(season_code))
+        """Per-game metrics for every team of *season_code* (first *limit*)."""
+        return list(self._repo.list_season_team_metrics(season_code, limit))

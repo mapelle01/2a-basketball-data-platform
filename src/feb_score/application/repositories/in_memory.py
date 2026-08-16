@@ -191,7 +191,7 @@ class InMemoryMatchStatsRepository(MatchStatsRepository):
         return result
 
     def list_season_player_aggregates(
-        self, season_code: SeasonCode
+        self, season_code: SeasonCode, limit: Optional[int] = None
     ) -> Iterable[SeasonPlayerStats]:
         from collections import defaultdict
 
@@ -231,10 +231,12 @@ class InMemoryMatchStatsRepository(MatchStatsRepository):
                 turnovers=aggr["turnovers"],
                 minutes=aggr["minutes"]
             ))
+        if limit is not None:
+            result = result[:limit]
         return result
 
     def list_season_team_aggregates(
-        self, season_code: SeasonCode
+        self, season_code: SeasonCode, limit: Optional[int] = None
     ) -> Iterable[SeasonTeamStats]:
         """In-memory aggregation over the team stats projection.
 
@@ -296,6 +298,8 @@ class InMemoryMatchStatsRepository(MatchStatsRepository):
                 turnovers=aggr["turnovers"],
                 rebounds=aggr["rebounds"],
             ))
+        if limit is not None:
+            result = result[:limit]
         return result
 
     def list_season_player_leaderboard(
@@ -319,11 +323,11 @@ class InMemoryMatchStatsRepository(MatchStatsRepository):
         )
 
     def list_season_player_metrics(
-        self, season_code: SeasonCode
+        self, season_code: SeasonCode, limit: Optional[int] = None
     ) -> List[SeasonPlayerMetrics]:
-        return compute_player_metrics(self.list_season_player_aggregates(season_code))
+        return compute_player_metrics(self.list_season_player_aggregates(season_code, limit))
 
     def list_season_team_metrics(
-        self, season_code: SeasonCode
+        self, season_code: SeasonCode, limit: Optional[int] = None
     ) -> List[SeasonTeamMetrics]:
-        return compute_team_metrics(self.list_season_team_aggregates(season_code))
+        return compute_team_metrics(self.list_season_team_aggregates(season_code, limit))
