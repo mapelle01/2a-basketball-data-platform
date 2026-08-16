@@ -51,14 +51,22 @@ Los casos evaluados incluyen:
 **Resultados de la Suite:** `630 passed`
 
 ## Validación con Datos Reales (Producción)
-Se generó el script read-only `validate_season_2025_2026.py` para la comprobación manual en producción.
+Se implementó y versionó el script read-only `validate_season_2025_2026.py` para la comprobación exhaustiva y cálculo de consistencia matemática de la temporada `2025-2026`.
 
-> [!WARNING]  
-> **Limitación:** El script `validate_season_2025_2026.py` y las validaciones de producción en el entorno local han fallado debido a que la instancia PostgreSQL de producción no era accesible en `localhost:5432` (*Connection Refused*). La base de datos SQLite pre-existente local está vacía y no contiene los 364 partidos.
+`PRODUCTION VALIDATION: BLOCKED — private Railway PostgreSQL not directly reachable from local environment`
 
-Por lo tanto, **los resultados sobre la temporada real no pueden afirmarse en este reporte** hasta la ejecución directa sobre el entorno operativo. El script contiene la comprobación de la consistencia matemática global garantizando que:
-`SUM(agregados.points) == SUM(match_player_stats.points)`
+**Causa técnica:** La base de datos de producción Railway utiliza red privada interna (`postgres.railway.internal`), la cual no es resoluble ni accesible directamente desde el entorno local de desarrollo (Mac) por políticas de seguridad (sin endpoint público TCP expuesto).
+
+**Mecanismo de ejecución:** El script `validate_season_2025_2026.py` queda preparado para ejecutarse de forma 100% segura en un entorno que resuelva la red privada o mediante un task/one-off container en Railway:
+```bash
+FEB_SCORE_DATABASE_URL="<dsn>" python3 validate_season_2025_2026.py
+```
+Comprueba de forma estricta:
+1. `games_played` vs `COUNT(*)` en `match_player_stats`.
+2. Igualdad de sumas exactas para `points`, `rebounds`, `assists`, `steals`, `blocks`, `turnovers` y `minutes`.
+3. Aislamiento de `season_code = '2025-2026'`.
+4. Determinación de líderes individuales de la temporada.
 
 ## Decisiones Arquitectónicas y Limitaciones
 - **Domain vs Persistence**: Se ha mantenido limpio el core; `SeasonPlayerStats` es meramente un read model. No se emiten eventos extra de actualización de temporada.
-- **Eficiencia**: La agregación SQL es altamente rápida dado el ínidice primario, pero en temporadas de miles de partidos podría requerir una tabla materializada (`MATERIALIZED VIEW`). Por el momento, la agregación on-the-fly (`GROUP BY`) es más que suficiente para validación conceptual y para 364 partidos de la actual temporada.
+- **Eficiencia**: La agregación SQL es altamente rápida dado el índice primario (`match_external_id`, `player_external_id`) e índice por temporada (`player_external_id`, `season_code`), resolviendo la consulta on-the-fly (`GROUP BY`) sin necesidad de tablas intermedias.
