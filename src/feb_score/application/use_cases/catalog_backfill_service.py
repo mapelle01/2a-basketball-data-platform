@@ -100,86 +100,75 @@ class CatalogBackfillService:
     def _backfill_players(self, season_code: SeasonCode, stats: CatalogBackfillStats) -> None:
         names = self._player_names.resolve(season_code)
         aggregates = self._stats.list_season_player_aggregates(season_code)
-        for external_id in sorted(a.player_external_id for a in aggregates):
-            try:
-                existing = self._players.get_by_external_id(ExternalId(external_id))
-                self._upsert_one(
-                    stats,
-                    repo=self._players,
-                    external_id=external_id,
-                    official=names.get(external_id, SEASON_NOT_INCLUDED),
-                    existing=existing,
-                    entity_id_factory=PlayerId,
-                    entity_factory=lambda existing_id, name: Player(
-                        external_id=ExternalId(external_id),
-                        player_id=existing_id,
-                        name=name,
-                    ),
-                )
-            except Exception as exc:  # noqa: BLE001 - per-entity isolation
-                stats.errors += 1
-                stats.warnings.append(f"player {external_id}: {exc}")
+        external_ids = sorted({a.player_external_id for a in aggregates})
+        existing = self._players.get_many_by_external_ids(external_ids)
+        writes = self._decide(
+            stats, external_ids, names, existing, PlayerId,
+            lambda eid, eid_factory, name: Player(external_id=ExternalId(eid), player_id=eid_factory, name=name),
+        )
+        self._flush(stats, self._players, writes, "player", dry_run=self._dry_run)
 
-    # ------------------------------------------------------------------ teams
+    # -------------------------------------------------- teams
     def _backfill_teams(self, season_code: SeasonCode, stats: CatalogBackfillStats) -> None:
         names = self._team_names.resolve(season_code)
         aggregates = self._stats.list_season_team_aggregates(season_code)
-        for external_id in sorted(a.team_external_id for a in aggregates):
+        external_ids = sorted({a.team_external_id for a in aggregates})
+        existing = self._teams.get_many_by_external_ids(external_ids)
+        writes = self._decide(
+            stats, external_ids, names, existing, TeamId,
+            lambda eid, eid_factory, name: Team(external_id=ExternalId(eid), team_id=eid_factory, name=name),
+        )
+        self._flush(stats, self._teams, writes, "team", dry_run=self._dry_run)
+
+    # ---------------------------------------------- decide (pure, read-only)
+    def _decide(self, stats: CatalogBackfillStats, external_ids, names, existing,
+                id_factory, entity_factory) -> List[tuple]:
+        """Classify each external_id under the documented write policy.
+
+        Returns a list of ``(external_id, entity_id, name, data)`` rows to write
+        (empty in the skipped/keep-existing cases). The actual DB write happens
+        once, in bulk, in ``_flush`` — so the policy decision is made in memory
+        against the snapshot returned by the single ``get_many_by_external_ids``
+        call (FASE 24.2: avoids one connection per entity over the tunnel).
+        """
+        writes: List[tuple] = []
+        for external_id in external_ids:
+            official = names.get(external_id, SEASON_NOT_INCLUDED)
+            official_name = None if official is SEASON_NOT_INCLUDED else official
+            cur = existing.get(external_id)
             try:
-                existing = self._teams.get_by_external_id(ExternalId(external_id))
-                self._upsert_one(
-                    stats,
-                    repo=self._teams,
-                    external_id=external_id,
-                    official=names.get(external_id, SEASON_NOT_INCLUDED),
-                    existing=existing,
-                    entity_id_factory=TeamId,
-                    entity_factory=lambda existing_id, name: Team(
-                        external_id=ExternalId(external_id),
-                        team_id=existing_id,
-                        name=name,
-                    ),
-                )
+                if cur is None:
+                    entity_id = id_factory(str(uuid.uuid4()))
+                    writes.append((external_id, str(entity_id), official_name, _serialize(entity_factory(external_id, entity_id, official_name))))
+                    stats.created += 1
+                    continue
+                if _empty_name(cur.name):
+                    if _empty_name(official_name):
+                        stats.skipped += 1
+                        continue
+                    entity = entity_factory(external_id, existing_id_of(cur), official_name)
+                    writes.append((external_id, str(existing_id_of(cur)), official_name, _serialize(entity)))
+                    stats.updated += 1
+                    continue
+                # existing valid name: never overwritten
+                if official_name is not None and official_name != cur.name:
+                    stats.warnings.append(f"{external_id}: keeping existing name {cur.name!r} (official candidate {official_name!r})")
+                stats.skipped += 1
             except Exception as exc:  # noqa: BLE001 - per-entity isolation
                 stats.errors += 1
-                stats.warnings.append(f"team {external_id}: {exc}")
+                stats.warnings.append(f"{external_id}: {exc}")
+        return writes
 
-    # ------------------------------------------------------------------ write
-    def _upsert_one(self, stats: CatalogBackfillStats, *, repo, external_id: str,
-                    official: object, existing, entity_id_factory, entity_factory) -> None:
-        official_name = None if official is SEASON_NOT_INCLUDED else official
-        if existing is None:
-            entity_id = entity_id_factory(str(uuid.uuid4()))
-            entity = entity_factory(entity_id, official_name)
-            if not self._dry_run:
-                repo.upsert_catalog(
-                    ExternalId(external_id), entity_id, official_name,
-                    _serialize(entity),
-                )
-            stats.created += 1
+    # ---------------------------------------------------- single bulk write
+    def _flush(self, stats: CatalogBackfillStats, repo, writes, label: str,
+               dry_run: bool) -> None:
+        if dry_run or not writes:
             return
-
-        existing_name = existing.name
-        if _empty_name(existing_name):
-            if _empty_name(official_name):
-                stats.skipped += 1
-                return
-            entity = entity_factory(existing_id_of(existing), official_name)
-            if not self._dry_run:
-                repo.upsert_catalog(
-                    ExternalId(external_id), existing_id_of(existing), official_name,
-                    _serialize(entity),
-                )
-            stats.updated += 1
-            return
-
-        # existing valid name: never overwritten
-        if official_name is not None and official_name != existing_name:
-            stats.warnings.append(
-                f"{external_id}: keeping existing name {existing_name!r} "
-                f"(official candidate {official_name!r})"
-            )
-        stats.skipped += 1
+        try:
+            repo.upsert_catalog_many(writes)
+        except Exception as exc:  # noqa: BLE001 - whole-batch classification
+            stats.errors += len(writes)
+            stats.warnings.append(f"{label} batch upsert failed: {exc}")
 
 
 def existing_id_of(entity):

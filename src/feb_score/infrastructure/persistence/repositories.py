@@ -126,6 +126,15 @@ def _escape_like(value: str) -> str:
     )
 
 
+def _in_clause(prefix: str, values) -> tuple:
+    """`SELECT ... {prefix} IN (?, ?, ...)` -> (sql, params)."""
+    vs = list(values)
+    if not vs:
+        return f"{prefix} IN (NULL)", ()
+    placeholders = ",".join(["?"] * len(vs))
+    return f"{prefix} IN ({placeholders})", tuple(vs)
+
+
 class _SqliteRepoMixin:
     db: SqliteDatabase
 
@@ -317,7 +326,39 @@ class SqlitePlayerRepository(_SqliteRepoMixin, PlayerRepository):
                 " ON CONFLICT (external_id) DO UPDATE SET"
                 "   name = COALESCE(players.name, excluded.name),"
                 "   data = CASE WHEN players.name IS NULL THEN excluded.data ELSE players.data END",
-                (str(player_id), str(external_id), name, data),
+                 (str(player_id), str(external_id), name, data),
+             )
+        finally:
+            if owned:
+                conn.close()
+
+    def get_many_by_external_ids(self, external_ids):
+        if not external_ids:
+            return {}
+        conn, owned = self._conn()
+        try:
+            sql, params = _in_clause("SELECT data, external_id FROM players WHERE external_id", external_ids)
+            rows = conn.execute(sql, params).fetchall()
+            out = {pid: None for pid in external_ids}
+            for r in rows:
+                out[r["external_id"]] = player_from_dict(json.loads(r["data"]))
+            return out
+        finally:
+            if owned:
+                conn.close()
+
+    def upsert_catalog_many(self, entities):
+        rows = list(entities)
+        if not rows:
+            return
+        conn, owned = self._conn()
+        try:
+            conn.executemany(
+                "INSERT INTO players (player_id, external_id, name, data) VALUES (?, ?, ?, ?)"
+                " ON CONFLICT (external_id) DO UPDATE SET"
+                "   name = COALESCE(players.name, excluded.name),"
+                "   data = CASE WHEN players.name IS NULL THEN excluded.data ELSE players.data END",
+                [(str(pid), str(eid), name, data) for (eid, pid, name, data) in rows],
             )
         finally:
             if owned:
@@ -368,7 +409,39 @@ class SqliteTeamRepository(_SqliteRepoMixin, TeamRepository):
                 " ON CONFLICT (external_id) DO UPDATE SET"
                 "   name = COALESCE(teams.name, excluded.name),"
                 "   data = CASE WHEN teams.name IS NULL THEN excluded.data ELSE teams.data END",
-                (str(team_id), str(external_id), name, data),
+                 (str(team_id), str(external_id), name, data),
+             )
+        finally:
+            if owned:
+                conn.close()
+
+    def get_many_by_external_ids(self, external_ids):
+        if not external_ids:
+            return {}
+        conn, owned = self._conn()
+        try:
+            sql, params = _in_clause("SELECT data, external_id FROM teams WHERE external_id", external_ids)
+            rows = conn.execute(sql, params).fetchall()
+            out = {tid: None for tid in external_ids}
+            for r in rows:
+                out[r["external_id"]] = team_from_dict(json.loads(r["data"]))
+            return out
+        finally:
+            if owned:
+                conn.close()
+
+    def upsert_catalog_many(self, entities):
+        rows = list(entities)
+        if not rows:
+            return
+        conn, owned = self._conn()
+        try:
+            conn.executemany(
+                "INSERT INTO teams (team_id, external_id, name, data) VALUES (?, ?, ?, ?)"
+                " ON CONFLICT (external_id) DO UPDATE SET"
+                "   name = COALESCE(teams.name, excluded.name),"
+                "   data = CASE WHEN teams.name IS NULL THEN excluded.data ELSE teams.data END",
+                [(str(tid), str(eid), name, data) for (eid, tid, name, data) in rows],
             )
         finally:
             if owned:

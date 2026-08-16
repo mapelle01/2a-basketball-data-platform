@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Iterable, Optional
+from typing import Dict, Iterable, Optional
 
 from ...domain.competition.model import Competition
 from ...domain.correction.model import CorrectionProposal
@@ -92,6 +92,26 @@ class PlayerRepository(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_many_by_external_ids(self, external_ids: Iterable[str]) -> Dict[str, Optional[Player]]:
+        """FASE 24.2 — single-shot catalog read keyed on external_id.
+
+        Returns ``{external_id: Player | None}`` for every requested id in a
+        single query (avoids one-connection-per-lookup over a tunnel).
+        """
+        pass
+
+    @abstractmethod
+    def upsert_catalog_many(self, entities: Iterable["tuple"]) -> None:
+        """FASE 24.2 — batch conservative catalog upsert (one statement).
+
+        ``entities`` is an iterable of ``(external_id, player_id, name, data)``
+        tuples. Identity is canonical on external_id; the same no-overwrite /
+        null-fill policy as ``upsert_catalog`` applies, evaluated against the row
+        current at write time. Used to avoid one round-trip per player.
+        """
+        pass
+
 
 class TeamRepository(ABC):
     @abstractmethod
@@ -120,6 +140,19 @@ class TeamRepository(ABC):
         non-null existing name are preserved; the name column (and data blob)
         are only filled when the current name is NULL/empty. Creates the row
         when the external_id is not present.
+        """
+        pass
+
+    @abstractmethod
+    def get_many_by_external_ids(self, external_ids: Iterable[str]) -> Dict[str, Optional[Team]]:
+        """FASE 24.2 — single-shot catalog read keyed on external_id."""
+        pass
+
+    @abstractmethod
+    def upsert_catalog_many(self, entities: Iterable["tuple"]) -> None:
+        """FASE 24.2 — batch conservative catalog upsert (one statement).
+
+        ``entities`` is an iterable of ``(external_id, team_id, name, data)``.
         """
         pass
 

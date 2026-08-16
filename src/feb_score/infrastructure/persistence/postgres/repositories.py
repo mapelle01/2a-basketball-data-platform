@@ -315,6 +315,48 @@ class PgPlayerRepository(_PgRepoMixin, PlayerRepository):
             if owned:
                 conn.close()
 
+    def get_many_by_external_ids(self, external_ids):
+        ids = list(external_ids)
+        if not ids:
+            return {}
+        conn, owned = self._conn()
+        try:
+            sql = ("SELECT data::text AS data, external_id FROM players WHERE external_id = ANY(%s)")
+            rows = conn.execute(sql, (ids,)).fetchall()
+            out = {pid: None for pid in ids}
+            for r in rows:
+                out[r["external_id"]] = player_from_dict(json.loads(r["data"]))
+            return out
+        except Exception as exc:  # noqa: BLE001
+            raise translate_pg_error(exc) from exc
+        finally:
+            if owned:
+                conn.close()
+
+    def upsert_catalog_many(self, entities) -> None:
+        rows = [(str(pid), str(eid), name, data) for (eid, pid, name, data) in entities]
+        if not rows:
+            return
+        conn, owned = self._conn()
+        try:
+            placeholders = ",".join(["(%s, %s, %s, %s)"] * len(rows))
+            flat: list = []
+            for _pid, _eid, _name, _data in rows:
+                flat += [_pid, _eid, _name, _data]
+            conn.execute(
+                "INSERT INTO players (player_id, external_id, name, data) VALUES "
+                + placeholders
+                + " ON CONFLICT (external_id) DO UPDATE SET"
+                "   name = COALESCE(players.name, EXCLUDED.name),"
+                "   data = CASE WHEN players.name IS NULL THEN EXCLUDED.data ELSE players.data END",
+                flat,
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise translate_pg_error(exc) from exc
+        finally:
+            if owned:
+                conn.close()
+
 
 class PgTeamRepository(_PgRepoMixin, TeamRepository):
     def __init__(self, db: PgDatabase) -> None:
@@ -362,6 +404,49 @@ class PgTeamRepository(_PgRepoMixin, TeamRepository):
                 (str(team_id), str(external_id), name, data),
             )
         except Exception as exc:  # noqa: BLE001 - classify at the boundary
+            raise translate_pg_error(exc) from exc
+        finally:
+            if owned:
+                conn.close()
+
+    def get_many_by_external_ids(self, external_ids):
+        ids = list(external_ids)
+        if not ids:
+            return {}
+        conn, owned = self._conn()
+        try:
+            rows = conn.execute(
+                "SELECT data::text AS data, external_id FROM teams WHERE external_id = ANY(%s)", (ids,)
+            ).fetchall()
+            out = {tid: None for tid in ids}
+            for r in rows:
+                out[r["external_id"]] = team_from_dict(json.loads(r["data"]))
+            return out
+        except Exception as exc:  # noqa: BLE001
+            raise translate_pg_error(exc) from exc
+        finally:
+            if owned:
+                conn.close()
+
+    def upsert_catalog_many(self, entities) -> None:
+        rows = [(str(tid), str(eid), name, data) for (eid, tid, name, data) in entities]
+        if not rows:
+            return
+        conn, owned = self._conn()
+        try:
+            placeholders = ",".join(["(%s, %s, %s, %s)"] * len(rows))
+            flat: list = []
+            for _tid, _eid, _name, _data in rows:
+                flat += [_tid, _eid, _name, _data]
+            conn.execute(
+                "INSERT INTO teams (team_id, external_id, name, data) VALUES "
+                + placeholders
+                + " ON CONFLICT (external_id) DO UPDATE SET"
+                "   name = COALESCE(teams.name, EXCLUDED.name),"
+                "   data = CASE WHEN teams.name IS NULL THEN EXCLUDED.data ELSE teams.data END",
+                flat,
+            )
+        except Exception as exc:  # noqa: BLE001
             raise translate_pg_error(exc) from exc
         finally:
             if owned:

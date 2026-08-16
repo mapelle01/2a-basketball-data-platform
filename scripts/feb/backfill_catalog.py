@@ -165,6 +165,25 @@ def _build_repos(db):
     )
 
 
+def entities_for(choice: str) -> Dict[str, bool]:
+    if choice == "players":
+        return {"players": True, "teams": False}
+    if choice == "teams":
+        return {"players": False, "teams": True}
+    return {"players": True, "teams": True}
+
+
+def _unit_of_work(db):
+    """FASE 24.2 — share a single connection for the whole backfill
+
+    (bulk read + batch upsert) so the run does NOT open one connection per
+    entity. ``unit_of_work`` exists on both ``SqliteDatabase`` and
+    ``PgDatabase`` and installs the shared connection via the context var that
+    the repository mixins read in ``_conn``.
+    """
+    return db.unit_of_work()
+
+
 class _MapResolver:
     def __init__(self, mapping: Dict[str, str]) -> None:
         self._mapping = mapping
@@ -255,36 +274,45 @@ def run() -> int:
     db = _open_database(dsn)
     match_repo, stats_repo, player_repo, team_repo = _build_repos(db)
 
-    if args.entity in ("players", "both"):
-        print("backfill players ...")
-        player_names, player_resolver = _player_name_resolver(
-            args, match_repo, stats_repo, str(season)
-        )
-        svc = CatalogBackfillService(
-            player_repo, team_repo, stats_repo,
-            player_names=player_names,
-        )
-        stats = svc.run(season, entities=("players",), dry_run=args.dry_run)
-        _print_stats("players", stats)
-        if player_resolver is not None:
-            r, u, c = player_resolver.last_stats()
-            print(f"players official-name report: resolved={r} unresolved={u} conflicts={c}")
+    entities = entities_for(args.entity)
 
-    if args.entity in ("teams", "both"):
-        print("backfill teams (official names via public FEB calendar) ...")
-        try:
-            team_names = _CalendarTeamResolver(match_repo, str(season), calendar_html or None)
+    with _unit_of_work(db) as uow:  # FASE 24.2: single shared connection for bulk read+write
+        if entities["players"]:
+            print("backfill players ...")
+            player_names, player_resolver = _player_name_resolver(
+                args, match_repo, stats_repo, str(season)
+            )
             svc = CatalogBackfillService(
                 player_repo, team_repo, stats_repo,
-                team_names=team_names,
+                player_names=player_names,
             )
-            stats = svc.run(season, entities=("teams",), dry_run=args.dry_run)
-            _print_stats("teams", stats)
-        except Exception as exc:  # noqa: BLE001 - calendar is optional (fallback NULL)
-            print(f"teams WARNING calendar resolution failed ({exc}); names left NULL")
-            svc = CatalogBackfillService(player_repo, team_repo, stats_repo)
-            stats = svc.run(season, entities=("teams",), dry_run=args.dry_run)
-            _print_stats("teams (no names)", stats)
+            stats = svc.run(season, entities=("players",), dry_run=args.dry_run)
+            _print_stats("players", stats)
+            if player_resolver is not None:
+                r, u, c = player_resolver.last_stats()
+                print(f"players official-name report: resolved={r} unresolved={u} conflicts={c}")
+
+        if entities["teams"]:
+            print("backfill teams (official names via public FEB calendar) ...")
+            try:
+                team_names = _CalendarTeamResolver(match_repo, str(season), calendar_html or None)
+                svc = CatalogBackfillService(
+                    player_repo, team_repo, stats_repo,
+                    team_names=team_names,
+                )
+                stats = svc.run(season, entities=("teams",), dry_run=args.dry_run)
+                _print_stats("teams", stats)
+            except Exception as exc:  # noqa: BLE001 - calendar is optional (fallback NULL)
+                print(f"teams WARNING calendar resolution failed ({exc}); names left NULL")
+                svc = CatalogBackfillService(player_repo, team_repo, stats_repo)
+                stats = svc.run(season, entities=("teams",), dry_run=args.dry_run)
+                _print_stats("teams (no names)", stats)
+
+    # FASE 24.2 dry-run summary (truly read-only: no writes issued)
+    if args.dry_run:
+        prefix = "DRY_RUN"
+        print(f"{prefix} entity={','.join(k for k, v in entities.items() if v)} "
+              f"season={season} database={'pg' if db.__class__.__name__ == 'PgDatabase' else 'sqlite'}")
 
     return 0
 

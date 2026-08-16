@@ -132,6 +132,14 @@ class InMemoryPlayerRepository(PlayerRepository):
             return
         self._players[str(external_id)] = player_from_dict(_loads(data))
 
+    def get_many_by_external_ids(self, external_ids):
+        return {pid: self._players.get(pid) for pid in external_ids}
+
+    def upsert_catalog_many(self, entities):
+        for external_id, player_id, name, data in entities:
+            from feb_score.domain.value_objects import ExternalId as _ExtId, PlayerId as _Pid
+            self.upsert_catalog(_ExtId(external_id), _Pid(player_id), name, data)
+
 
 class InMemoryTeamRepository(TeamRepository):
     def __init__(self) -> None:
@@ -171,6 +179,14 @@ class InMemoryTeamRepository(TeamRepository):
             )
             return
         self._teams[str(external_id)] = team_from_dict(_loads(data))
+
+    def get_many_by_external_ids(self, external_ids):
+        return {tid: self._teams.get(tid) for tid in external_ids}
+
+    def upsert_catalog_many(self, entities):
+        for external_id, team_id, name, data in entities:
+            from feb_score.domain.value_objects import ExternalId as _ExtId, TeamId as _Tid
+            self.upsert_catalog(_ExtId(external_id), _Tid(team_id), name, data)
 
 
 class InMemoryCompetitionRepository(CompetitionRepository):
