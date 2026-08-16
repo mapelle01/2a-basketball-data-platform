@@ -517,3 +517,29 @@ Detalles en `docs/FASE_24_REPORT.md`. No se reescribió contenido histórico.
   tests PG locales).
 - **Datos de producción protegidos:** solo los catálogos `players`/`teams`
   cambiaron; hashes de stats/matches idénticos a BEFORE. Sin secretos en Git.
+
+---
+
+## 19.3 — FASE 24.2 (2026-08-16): Player Identity Resolution
+
+- **Objetivo:** rellenar el `name` oficial de los 449 jugadores `2025-2026`.
+- **Auditoría:** los nombres de jugador **no están en la DB** (ni en
+  `match_player_stats`, ni en `matches.data.player_stats`); el pipeline FEB
+  (`ingest_match.parse_boxscore`) los parsea del BoxScore
+  (`BOXSCORE.TEAM[].PLAYER.id/name`) y los descarta deliberadamente (no están en el
+  contrato API). Fuente oficial reutilizable: BoxScore FEB en
+  `intrafeb.feb.es/.../BoxScore/{id}` con `FEB_TOKEN`.
+- **Implementación:** `OfficialPlayerNameResolver`
+  (`src/feb_score/.../player_name_resolver.py`) reutiliza
+  `fetch_feb_boxscore`+`parse_boxscore` y el protocolo `CatalogNameResolver`
+  de `CatalogBackfillService` (nada de arquitectura paralela). `name` es
+  atributo descriptivo: preserva existente, reporta conflicto, `NULL` si no se resuelve.
+- **CLI:** `scripts/feb/backfill_catalog.py --player-names official --dry-run`
+  (read-only real) / `--feb-token`; falla closed sin token.
+- **Token:** no disponible en este entorno (ni local, ni en vars de Railway
+  `feb-score-api`) → **el backfill a producción no se ejecutó** (gated, no invento).
+  Verificado offline con fixture: 21/21 nombres extraídos correctamente.
+- **Invariantes:** `matches`/`match_player_stats`/`match_team_stats` no se tocan;
+  el backfill solo hace `UPDATE players.name/data` preservando id/stats.
+- **Tests:** +7 (`tests/domain/test_player_name_resolver.py`); suite completa 959 PASS.
+- **Commit:** `feat(24.2): resolve player identities` (no push).

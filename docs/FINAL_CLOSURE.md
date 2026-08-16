@@ -300,3 +300,18 @@ secciones históricas.
   del validador está cubierta 8/8 en tests PG locales.
 - `docs/FASE_24_1_REPORT.md` creado. **Commit de cierre creado, sin push.**
   No se avanza a FASE 25 automáticamente.
+
+---
+
+## 13.3 — FASE 24.2 (2026-08-16): cierre de identidades de jugador
+
+- Arquitectura: `OfficialPlayerNameResolver` reutiliza `fetch_feb_boxscore` +
+  `parse_boxscore` (FASE 21.B2) y `CatalogBackfillService` (FASE 24.1).
+- Fuente oficial: BoxScore FEB (`intrafeb`, `Authorization: Bearer <FEB_TOKEN>`).
+- `player_external_id` (DB) = `BOXSCORE.TEAM[].PLAYER.id` (verificado); `name` descriptivo.
+- **Importante:** `FEB_TOKEN` no provisionado en este entorno → backfill a producción
+  no ejecutado (gated; falla closed; sin invento). Offline validado con fixture (21/21
+  nombres). Pendiente ejecución prod cuando el token exista.
+- `dry-run` read-only real; conflicto no sobrescrito; stats/matches invariantes.
+- `docs/FASE_24_2_REPORT.md` creado. Suite 959 PASS, 0 regresiones.
+- Commit `feat(24.2): resolve player identities` creado, sin push. No avanza a FASE 24.3.

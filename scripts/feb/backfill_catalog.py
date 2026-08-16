@@ -52,6 +52,10 @@ sys.path.insert(0, os.path.dirname(ROOT))  # repo root -> src importable
 from feb_score.application.use_cases.catalog_backfill_service import (  # noqa: E402
     CatalogBackfillService,
 )
+from feb_score.application.use_cases.player_name_resolver import (  # noqa: E402
+    OfficialPlayerNameResolver,
+    SourceError,
+)
 from feb_score.domain.value_objects import SeasonCode  # noqa: E402
 
 DEFAULT_SEASON = "2025-2026"
@@ -193,6 +197,28 @@ class _PlayerNullResolver:
         return {}
 
 
+def _player_name_resolver(args, match_repo, stats_repo, season_code):
+    """Return (resolver_or_none, OfficialPlayerNameResolver_or_None).
+
+    With --player-names official the resolver is fail-closed on missing FEB_TOKEN
+    (controlled SourceError; never invents names). With `none` returns the
+    legacy NULL resolver (FASE 24.1 behavior).
+    """
+    if args.player_names == "none":
+        return _PlayerNullResolver(), None
+    token = args.feb_token or _env("FEB_TOKEN")
+    if not token:
+        raise SystemExit(
+            "CONFIG_ERROR: --player-names official requires FEB_TOKEN "
+            "(env FEB_TOKEN or --feb-token); never hardcoded/logged. "
+            "Falling back without names is intentional — pass --player-names none."
+        )
+    resolver = OfficialPlayerNameResolver(
+        match_repo, stats_repo, season_code, token=token,
+    )
+    return resolver, resolver
+
+
 def _print_stats(prefix: str, stats) -> None:
     print(f"{prefix} created={stats.created} updated={stats.updated} "
           f"skipped={stats.skipped} errors={stats.errors}")
@@ -208,6 +234,10 @@ def run() -> int:
     ap.add_argument("--dry-run", action="store_true", help="report only; never write")
     ap.add_argument("--calendar", action="append", default=[], metavar="GROUP=PATH",
                     help="offline calendar HTML per group (e.g. --calendar ESTE=fixture.html); may repeat")
+    ap.add_argument("--player-names", choices=["none", "official"], default="none",
+                    help="player name source (none=NULL; official=FEB BoxScore via FEB_TOKEN)")
+    ap.add_argument("--feb-token", default=None,
+                    help="FEB BoxScore API token (intrafeb); prefer env FEB_TOKEN; never logged/printed")
     args = ap.parse_args()
 
     season = SeasonCode(args.season)
@@ -227,12 +257,18 @@ def run() -> int:
 
     if args.entity in ("players", "both"):
         print("backfill players ...")
+        player_names, player_resolver = _player_name_resolver(
+            args, match_repo, stats_repo, str(season)
+        )
         svc = CatalogBackfillService(
             player_repo, team_repo, stats_repo,
-            player_names=_PlayerNullResolver(),
+            player_names=player_names,
         )
         stats = svc.run(season, entities=("players",), dry_run=args.dry_run)
         _print_stats("players", stats)
+        if player_resolver is not None:
+            r, u, c = player_resolver.last_stats()
+            print(f"players official-name report: resolved={r} unresolved={u} conflicts={c}")
 
     if args.entity in ("teams", "both"):
         print("backfill teams (official names via public FEB calendar) ...")
