@@ -1,9 +1,9 @@
 # FINAL PROJECT AUDIT
 
 **Project:** `feb-score`  
-**Audit scope:** FASE 21.B1 → 21.B3 and production validation  
-**Status:** **PASS — TECHNICAL CLOSURE**  
-**Audit date:** 2026-08-14
+**Audit scope:** FASE 21.B1 → 21.B3 and production validation (Extended through FASE 22.6)  
+**Status:** **PASS — TECHNICAL CLOSURE (Season 2025-2026 Ingestion Complete)**  
+**Audit date:** 2026-08-16
 
 ---
 
