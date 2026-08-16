@@ -27,8 +27,8 @@ Exit codes (coherentes con discover_matches.py):
 Seguridad: nunca imprime FEB_TOKEN, FEB_API_KEY ni Authorization headers.
 Los errores se sanitizan sustituyendo el valor de token/api_key si aparecieran.
 
-Grupo: por defecto ESTE (el único alcanzable vía GET en FASE 22.1). OESTE
-requiere POST ASP.NET -> no soportado aquí (trabajo futuro), se rechaza con exit 2.
+Grupo: por defecto ESTE (GET). Desde FASE 22.5 también OESTE (POST ASP.NET
+mínimo en discover_matches); ambos grupos se resuelven en discovery.
 """
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ import discover_matches as DM  # noqa: E402  (FASE 22.1)
 import ingest_match as IM      # noqa: E402  (FASE 21.B2/B3)
 
 _OK_STATUSES = (200, 201, 204, 409)  # mismas que ingest_match._post_and_report
-SUPPORTED_GROUP = "ESTE"
+SUPPORTED_GROUPS = DM.SUPPORTED_GROUPS  # FASE 22.5: ("ESTE", "OESTE")
 
 
 class ConfigError(RuntimeError):
@@ -124,17 +124,16 @@ def _run_dry(refs: List[DM.MatchRef], season_code: str, round_number: int, group
 def run_round(
     season_code: str,
     round_number: int,
-    group: str = SUPPORTED_GROUP,
+    group: str = "ESTE",
     dry_run: bool = False,
 ) -> int:
     """Descubre la jornada y procesa todos sus partidos (o solo muestra en dry-run)."""
-    if group != SUPPORTED_GROUP:
+    if group not in SUPPORTED_GROUPS:
         raise ConfigError(
-            f"unsupported group {group!r}; only {SUPPORTED_GROUP!r} is reachable via GET "
-            f"(OESTE requires ASP.NET POST; future work)"
+            f"unsupported group {group!r}; supported groups: {', '.join(SUPPORTED_GROUPS)}"
         )
 
-    refs = DM.discover_matches(season_code, round_number)
+    refs = DM.discover_matches(season_code, round_number, group=group)
 
     if dry_run:
         return _run_dry(refs, season_code, round_number, group)
@@ -175,7 +174,7 @@ def run() -> int:
     ap = argparse.ArgumentParser(prog="feb-ingest-round")
     ap.add_argument("--season", required=True, help="season code (only 2025-2026)")
     ap.add_argument("--round", type=int, required=True, help="jornada number (1-based)")
-    ap.add_argument("--group", default=SUPPORTED_GROUP, help=f"group (default {SUPPORTED_GROUP})")
+    ap.add_argument("--group", default="ESTE", help=f"group (default ESTE): {', '.join(SUPPORTED_GROUPS)}")
     ap.add_argument("--dry-run", action="store_true", help="discover + list; NO POST")
     args = ap.parse_args()
 

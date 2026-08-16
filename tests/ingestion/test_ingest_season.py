@@ -215,7 +215,7 @@ def test_secrets_never_in_output(monkeypatch, capsys):
 
 # --- extras: CLI exit codes y aislamiento de jornada con excepción
 def test_cli_exit_2_bad_group(monkeypatch, capsys):
-    monkeypatch.setattr(_sys, "argv", ["ingest_season.py", "--season", SEASON, "--group", "OESTE"])
+    monkeypatch.setattr(_sys, "argv", ["ingest_season.py", "--season", SEASON, "--group", "SUR"])
     assert S.run() == 2
     assert "CONFIG_ERROR" in capsys.readouterr().err
 

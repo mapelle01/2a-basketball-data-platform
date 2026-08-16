@@ -32,8 +32,8 @@ Exit codes (coherentes con discover_matches/ingest_round):
 Seguridad: nunca imprime FEB_TOKEN, FEB_API_KEY ni Authorization headers.
 Los errores se sanitizan sustituyendo el valor de token/api_key si aparecieran.
 
-Grupo: solo ESTE (el único alcanzable vía GET). OESTE requiere POST ASP.NET
--> no soportado (trabajo futuro), se rechaza con exit 2.
+Grupo: por defecto ESTE. Desde FASE 22.5 también OESTE (POST ASP.NET mínimo en
+discover_matches); `discover_rounds` delega en `DM.fetch_calendar_group`.
 """
 from __future__ import annotations
 
@@ -54,6 +54,7 @@ import discover_matches as DM  # noqa: E402  (FASE 22.1)
 import ingest_round as IR      # noqa: E402  (FASE 22.2)
 
 SUPPORTED_GROUP = "ESTE"
+SUPPORTED_GROUPS = DM.SUPPORTED_GROUPS  # FASE 22.5: ("ESTE", "OESTE")
 _DEFAULT_MAX_ROUND = 40  # cota de seguridad para enumerar; el rango real lo da la fuente
 
 _ROUND_SUMMARY_RE = re.compile(r"^(discovered|match_ok|stats_ok|failed)=(\d+)$")
@@ -75,18 +76,17 @@ def _sanitize(msg: str) -> str:
 def discover_rounds(season_code: str, group: str = SUPPORTED_GROUP) -> Dict[int, List[DM.MatchRef]]:
     """Enumeración determinista de las jornadas de la temporada.
 
-    Un único GET al calendario + `parse_calendar` -> {round: [MatchRef]}.
-    Reutiliza `discover_matches.fetch_calendar` / `parse_calendar`; no asume
-    un número fijo de jornadas. Lanza DM.ConfigError (grupo/season inválidos)
-    o DM.SourceError (fuente no disponible / sin jornadas parseables).
+    Un único fetch del calendario (GET para ESTE, POST ASP.NET para OESTE en
+    `discover_matches.fetch_calendar_group`) + `parse_calendar` ->
+    {round: [MatchRef]}. Reutiliza `discover_matches.*`; no asume un número fijo
+    de jornadas. Lanza DM.ConfigError (grupo/season inválidos) o DM.SourceError
+    (fuente no disponible / sin jornadas parseables).
     """
-    if group != SUPPORTED_GROUP:
+    if group not in SUPPORTED_GROUPS:
         raise ConfigError(
-            f"unsupported group {group!r}; only {SUPPORTED_GROUP!r} is reachable via GET "
-            f"(OESTE requires ASP.NET POST; future work)"
+            f"unsupported group {group!r}; supported groups: {', '.join(SUPPORTED_GROUPS)}"
         )
-    url = DM._discovery_url(season_code)
-    html = DM.fetch_calendar(url)
+    html = DM.fetch_calendar_group(season_code, group)
     by_round = DM.parse_calendar(html)
     if not by_round:
         raise DM.SourceError("no jornadas parsed from calendar HTML")
@@ -239,7 +239,7 @@ def _print_dry_run(
 def run() -> int:
     ap = argparse.ArgumentParser(prog="feb-ingest-season")
     ap.add_argument("--season", required=True, help="season code (only 2025-2026)")
-    ap.add_argument("--group", default=SUPPORTED_GROUP, help=f"group (default {SUPPORTED_GROUP})")
+    ap.add_argument("--group", default=SUPPORTED_GROUP, help=f"group (default {SUPPORTED_GROUP}): {', '.join(SUPPORTED_GROUPS)}")
     ap.add_argument("--round-from", type=int, default=None, help="first round to process (1-based, inclusive)")
     ap.add_argument("--round-to", type=int, default=None, help="last round to process (1-based, inclusive)")
     ap.add_argument("--dry-run", action="store_true", help="discover + report volume; NO POST")

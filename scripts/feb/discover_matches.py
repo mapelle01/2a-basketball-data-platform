@@ -2,17 +2,19 @@
 """FASE 22.1 — Match Discovery (Segunda FEB 2025-2026).
 
 Descubre los partidos de una jornada de Segunda FEB desde la fuente pública
-oficial de FEB (`baloncestoenvivo.feb.es/calendario.aspx`) SIN postbacks ASP.NET,
-sin POSTs y sin tocar la API ni Production.
+oficial de FEB (`baloncestoenvivo.feb.es/calendario.aspx`).
 
-Fuente (GET único):
-    https://baloncestoenvivo.feb.es/calendario.aspx?g=2&t=2025&nm=segundafeb
+Fuentes:
+    ESTE  (grupo por defecto): GET único
+        https://baloncestoenvivo.feb.es/calendario.aspx?g=2&t=2025&nm=segundafeb
+    OESTE (FASE 22.5): el grupo NO es alcanzable por URL GET (dropdown ASP.NET);
+        se obtiene con un POST ASP.NET mínimo (stdlib, sin cookies/sesión):
+        se parsean los hidden fields + el valor del dropdown del HTML y se
+        reenvían con `_ctl0:MainContentPlaceHolderMaster:gruposDropDownList`
+        apuntando al grupo OESTE. NO se usan Selenium/Playwright/requests.
 
-El calendario publica la temporada completa del grupo seleccionado (por defecto
-"Liga Regular ESTE", 7 partidos/jornada) en una sola página, sin navegación por
-postback (a diferencia de `resultados.aspx`, que requiere `__doPostBack` para
-cambiar de jornada). El grupo OESTE no es alcanzable por URL GET (dropdown
-ASP.NET) -> queda fuera del alcance de FASE 22.1 y se documenta como trabajo futuro.
+El calendario publica la temporada completa del grupo seleccionado en una sola
+página. Grupos soportados: ESTE y OESTE (7 partidos/jornada cada uno).
 
 Decisiones de diseño (confirmadas):
   * `scheduled_at` = fecha de la jornada (del `<h1>`) a medianoche con offset
@@ -26,10 +28,11 @@ Decisiones de diseño (confirmadas):
     sin abortar la jornada.
 
 Solo stdlib (urllib + html/re): el venv no dispone de requests/bs4/lxml.
-No imprime secretos (no usa ninguno) y no POSTea.
+No imprime secretos: los hidden fields (incluido `_ctl0:token`, un JWT de la
+página) se reenvían en el POST sin loguearse jamás.
 
 Exit codes (CLI):
-    2  configuración inválida (season no soportada, argumentos inválidos)
+    2  configuración inválida (season/grupo no soportado, argumentos inválidos)
     3  error de fuente (fetch falla o página sin jornadas parseables)
     6  error inesperado
 """
@@ -41,6 +44,7 @@ import os
 import re
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from typing import Dict, List, Optional
@@ -50,6 +54,9 @@ COMP_ID = 2
 COMP_CODE = "segundafeb"
 SEASON_T = "2025"  # FEB usa el año de inicio: t=2025 -> temporada 2025-2026
 SUPPORTED_SEASON = "2025-2026"
+SUPPORTED_GROUPS = ("ESTE", "OESTE")  # FASE 22.5: OESTE vía POST ASP.NET
+GRUPO_SELECT_NAME = "_ctl0:MainContentPlaceHolderMaster:gruposDropDownList"
+GRUPO_SELECT_TARGET = "_ctl0$MainContentPlaceHolderMaster$gruposDropDownList"
 TZ_OFFSET = "+01:00"  # provisional, igual que FASE 21.B2
 USER_AGENT = "feb-score-discover/1.0"
 TIMEOUT_SECONDS = 30
@@ -60,6 +67,14 @@ _H1_JORNADA_RE = re.compile(
 _TR_RE = re.compile(r"<tr[^>]*>(.*?)</tr>", re.S)
 _PARTIDO_RE = re.compile(r"Partido\.aspx\?p=(\d+)")
 _EQUIPO_RE = re.compile(r'class="equipo (local|visitante)".*?Equipo\.aspx\?i=\d+"[^>]*>([^<]+)</a>', re.S)
+
+# --- ASP.NET postback (FASE 22.5): extracción del HTML del calendario
+_HIDDEN_INPUT_RE = re.compile(
+    r'<input[^>]*type="hidden"[^>]*name="([^"]+)"[^>]*value="([^"]*)"', re.I
+)
+_GRUPO_OPTION_RE = re.compile(r'<option[^>]*value="([^"]+)"[^>]*>([^<]*)</option>', re.S)
+_GRUPO_SELECT_RE = re.compile(r'<select[^>]*name="' + re.escape(GRUPO_SELECT_NAME) + r'"[^>]*>(.*?)</select>', re.S)
+_FORM_ACTION_RE = re.compile(r'<form[^>]*action="([^"]+)"', re.I)
 
 
 class ConfigError(RuntimeError):
@@ -112,6 +127,93 @@ def fetch_calendar(url: str) -> str:
         raise
     except (urllib.error.URLError, urllib.error.HTTPError, OSError) as exc:
         raise SourceError(f"FEB {url} fetch failed: {exc}") from exc
+
+
+def _hidden_inputs(html_text: str) -> Dict[str, str]:
+    """Hidden fields del formulario ASP.NET: `name` -> `value` (sin entidades)."""
+    return {
+        m.group(1): html.unescape(m.group(2))
+        for m in _HIDDEN_INPUT_RE.finditer(html_text)
+    }
+
+
+def _grupo_value(html_text: str, group: str) -> Optional[str]:
+    """Valor del `<option>` cuyo texto contiene `group` en el dropdown de grupos.
+
+    Ej: `Liga Regular "ESTE"` -> "88879", `Liga Regular "OESTE"` -> "88880".
+    Devuelve None si el grupo no aparece en el dropdown.
+    """
+    sel = _GRUPO_SELECT_RE.search(html_text)
+    if not sel:
+        return None
+    for value, label in _GRUPO_OPTION_RE.findall(sel.group(1)):
+        if group.upper() in html.unescape(label).upper():
+            return value
+    return None
+
+
+def _post_grupo(base_url: str, page_html: str, group: str) -> str:
+    """POST ASP.NET para cambiar el grupo del calendario (FASE 22.5).
+
+    Reenvía los hidden fields de la página + el dropdown de grupos con el valor
+    del grupo pedido. `base_url` es la URL final del GET (tras el redirect de
+    `calendario.aspx`); el action del form es relativo a ella.
+
+    No guarda cookies/sesiones persistentes (urllib sin CookieJar), no usa
+    Selenium/Playwright y jamás imprime el hidden `_ctl0:token`.
+    """
+    action = _FORM_ACTION_RE.search(page_html)
+    action = action.group(1) if action else ""
+    post_url = urllib.parse.urljoin(base_url, action)
+    data = _hidden_inputs(page_html)
+    value = _grupo_value(page_html, group)
+    if value is None:
+        raise SourceError(f"group {group!r} not present in FEB grupos dropdown")
+    data[GRUPO_SELECT_NAME] = value
+    data["__EVENTTARGET"] = GRUPO_SELECT_TARGET
+    data["__EVENTARGUMENT"] = ""
+    body = urllib.parse.urlencode(data).encode("utf-8")
+    req = urllib.request.Request(
+        post_url,
+        data=body,
+        headers={
+            "User-Agent": USER_AGENT,
+            "Accept": "text/html",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Referer": base_url,
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as resp:  # noqa: S310
+            if not (200 <= resp.status < 300):
+                raise SourceError(f"FEB POST {post_url} HTTP {resp.status}")
+            return resp.read().decode("utf-8", "replace")
+    except SourceError:
+        raise
+    except (urllib.error.URLError, urllib.error.HTTPError, OSError) as exc:
+        raise SourceError(f"FEB {post_url} POST failed: {exc}") from exc
+
+
+def fetch_calendar_group(season_code: str, group: str = "ESTE") -> str:
+    """Calendario HTML del grupo pedido (ESTE: GET; OESTE: GET + POST ASP.NET).
+
+    Para ESTE el comportamiento es idéntico al de FASE 22.1 (GET único). Para
+    OESTE hace el GET base (obtiene hidden fields + dropdown) y un POST mínimo.
+    Lanza ConfigError (grupo no soportado) o SourceError.
+    """
+    if season_code != SUPPORTED_SEASON:
+        raise ConfigError(
+            f"unsupported season {season_code!r}; only {SUPPORTED_SEASON!r}"
+        )
+    if group not in SUPPORTED_GROUPS:
+        raise ConfigError(
+            f"unsupported group {group!r}; supported groups: {', '.join(SUPPORTED_GROUPS)}"
+        )
+    base_url = _discovery_url(season_code)
+    page_html = fetch_calendar(base_url)
+    if group == "ESTE":
+        return page_html
+    return _post_grupo(base_url, page_html, group)
 
 
 def _scheduled_at(date_dmy: str) -> str:
@@ -187,6 +289,7 @@ def discover_matches(
     season_code: str,
     round_number: int,
     calendar_html: Optional[str] = None,
+    group: str = "ESTE",
 ) -> List[MatchRef]:
     """Descubre los partidos de una jornada de Segunda FEB 2025-2026.
 
@@ -194,15 +297,20 @@ def discover_matches(
         season_code: solo `2025-2026` (config inválida -> SystemExit 2).
         round_number: número de jornada (>= 1; invalid -> SystemExit 2).
         calendar_html: HTML del calendario (offline/tests). Si es None se hace
-            el GET real a la fuente FEB.
+            la obtención real a la fuente FEB para el `group` pedido.
+        group: `ESTE` (default, GET único) u `OESTE` (POST ASP.NET, FASE 22.5).
 
     Returns:
-        Lista de MatchRef de la jornada pedida (vací= si la jornada no existe),
-        ordenada por `external_id`. Sin POSTs, sin production, sin secrets.
+        Lista de MatchRef de la jornada pedida (vacía si la jornada no existe),
+        ordenada por `external_id`. Sin production, sin secrets.
     """
     if season_code != SUPPORTED_SEASON:
         raise ConfigError(
             f"unsupported season {season_code!r}; only {SUPPORTED_SEASON!r}"
+        )
+    if group not in SUPPORTED_GROUPS:
+        raise ConfigError(
+            f"unsupported group {group!r}; supported groups: {', '.join(SUPPORTED_GROUPS)}"
         )
     if not isinstance(round_number, int) or isinstance(round_number, bool) or round_number < 1:
         raise ConfigError(
@@ -210,8 +318,7 @@ def discover_matches(
         )
 
     if calendar_html is None:
-        url = _discovery_url(season_code)
-        calendar_html = fetch_calendar(url)
+        calendar_html = fetch_calendar_group(season_code, group)
 
     by_round = parse_calendar(calendar_html)
     if not by_round:
@@ -226,21 +333,25 @@ def resolve_round_for_match(
     season_code: str,
     external_id: str,
     calendar_html: Optional[str] = None,
+    group: str = "ESTE",
 ) -> Optional[int]:
     """Jornada real de un match dado (para `--match-id` manual, FASE 22.4).
 
-    Hace UN GET al calendario (o acepta HTML offline) y busca el `external_id`;
-    devuelve su round_number o None si el partido no está en el calendario.
-    Coherente con el pipeline: la jornada SIEMPRE viene del discovery (nunca se
-    inventa). Lanza ConfigError/SourceError igual que discover_matches().
+    Obtiene el calendario del grupo pedido (o acepta HTML offline) y busca el
+    `external_id`; devuelve su round_number o None si el partido no está en el
+    calendario. Coherente con el pipeline: la jornada SIEMPRE viene del discovery
+    (nunca se inventa). Lanza ConfigError/SourceError igual que discover_matches().
     """
     if season_code != SUPPORTED_SEASON:
         raise ConfigError(
             f"unsupported season {season_code!r}; only {SUPPORTED_SEASON!r}"
         )
+    if group not in SUPPORTED_GROUPS:
+        raise ConfigError(
+            f"unsupported group {group!r}; supported groups: {', '.join(SUPPORTED_GROUPS)}"
+        )
     if calendar_html is None:
-        url = _discovery_url(season_code)
-        calendar_html = fetch_calendar(url)
+        calendar_html = fetch_calendar_group(season_code, group)
 
     by_round = parse_calendar(calendar_html)
     target = str(external_id)
@@ -255,10 +366,14 @@ def run() -> int:
     ap = argparse.ArgumentParser(prog="feb-discover")
     ap.add_argument("--season", required=True, help="season code (only 2025-2026)")
     ap.add_argument("--round", type=int, required=True, help="jornada number (1-based)")
+    ap.add_argument(
+        "--group", default="ESTE", choices=list(SUPPORTED_GROUPS),
+        help=f"grupo (default ESTE): {', '.join(SUPPORTED_GROUPS)}",
+    )
     args = ap.parse_args()
 
     try:
-        refs = discover_matches(args.season, args.round)
+        refs = discover_matches(args.season, args.round, group=args.group)
     except ConfigError as exc:
         print(f"CONFIG_ERROR: {exc}", file=sys.stderr)
         return 2

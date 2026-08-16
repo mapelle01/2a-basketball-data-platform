@@ -47,7 +47,7 @@ def ok_env(monkeypatch):
 
 
 def _patch_discovery(monkeypatch, refs):
-    monkeypatch.setattr(R.DM, "discover_matches", lambda season, round_: refs)
+    monkeypatch.setattr(R.DM, "discover_matches", lambda season, round_, **kw: refs)
 
 
 def _patch_fetch(monkeypatch, box=FIXTURE):
@@ -68,8 +68,9 @@ def _patch_ok_posts(monkeypatch, status=200):
 # --- 1. discovery devuelve N partidos
 def test_discovery_returns_n_matches(monkeypatch, ok_env, capsys):
     calls = {}
-    def fake(season, round_):
+    def fake(season, round_, **kw):
         calls["season"], calls["round"] = season, round_
+        calls["group"] = kw.get("group")
         return _refs(3)
     monkeypatch.setattr(R.DM, "discover_matches", fake)
     _patch_fetch(monkeypatch)
@@ -77,6 +78,7 @@ def test_discovery_returns_n_matches(monkeypatch, ok_env, capsys):
 
     rc = R.run_round(SEASON, 1)
     assert calls["season"] == SEASON and calls["round"] == 1
+    assert calls["group"] == "ESTE"
     out = capsys.readouterr().out
     assert "discovered=3" in out
     assert rc == 0
@@ -226,7 +228,7 @@ def test_runner_reuses_existing_logic():
 
 # --- extras: exit codes de configuración/discovery (CLI run())
 def test_run_cli_exit_2_bad_group(monkeypatch, capsys):
-    monkeypatch.setattr(_sys, "argv", ["ingest_round.py", "--season", SEASON, "--round", "1", "--group", "OESTE"])
+    monkeypatch.setattr(_sys, "argv", ["ingest_round.py", "--season", SEASON, "--round", "1", "--group", "SUR"])
     assert R.run() == 2
     assert "CONFIG_ERROR" in capsys.readouterr().err
 
@@ -239,6 +241,6 @@ def test_run_cli_exit_2_bad_season(monkeypatch, capsys):
 
 def test_run_cli_exit_3_discovery_failed(monkeypatch, capsys):
     monkeypatch.setattr(_sys, "argv", ["ingest_round.py", "--season", SEASON, "--round", "1"])
-    monkeypatch.setattr(R.DM, "discover_matches", lambda season, round_: (_ for _ in ()).throw(R.DM.SourceError("no source")))
+    monkeypatch.setattr(R.DM, "discover_matches", lambda season, round_, **kw: (_ for _ in ()).throw(R.DM.SourceError("no source")))
     assert R.run() == 3
     assert "SOURCE_ERROR" in capsys.readouterr().err

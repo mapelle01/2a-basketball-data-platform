@@ -107,7 +107,7 @@ def test_ingest_round_propagates_ref_round_to_command(monkeypatch):
         away_team="LOBE HUESCA LA MAGIA",
         source_url="https://baloncestoenvivo.feb.es/Partido.aspx?p=2486864",
     )
-    monkeypatch.setattr(R.DM, "discover_matches", lambda season, round_: [ref])
+    monkeypatch.setattr(R.DM, "discover_matches", lambda season, round_, **kw: [ref])
     monkeypatch.setattr(R.IM, "fetch_feb_boxscore", lambda match_id, token, base: FIXTURE)
 
     seen = {}
@@ -142,7 +142,7 @@ def test_ingest_round_distinct_rounds_reach_command(monkeypatch):
                       source_url=f"https://baloncestoenvivo.feb.es/Partido.aspx?p={2486900 + i}")
         for i, rn in enumerate((1, 2, 3), start=0)
     ]
-    monkeypatch.setattr(R.DM, "discover_matches", lambda season, round_: refs)
+    monkeypatch.setattr(R.DM, "discover_matches", lambda season, round_, **kw: refs)
     monkeypatch.setattr(R.IM, "fetch_feb_boxscore", lambda match_id, token, base: FIXTURE)
 
     seen = {}
