@@ -13,10 +13,11 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from ..api.gateway import CommandGateway, CommandResult, EventRef, Readiness
 from ..application.commands.commands import COMMANDS
+from ..application.use_cases.exploration_service import ExplorationService
 from ..application.use_cases.handlers import (
     ApproveCorrectionHandler,
     BackfillSeasonHandler,
@@ -39,7 +40,7 @@ from ..domain.statistics.model import (
     SeasonTeamMetrics,
     SeasonTeamStats,
 )
-from ..domain.value_objects import Actor, CommandMeta, SeasonCode
+from ..domain.value_objects import Actor, CommandMeta, CompetitionId, ExternalId, SeasonCode
 from .config import settings_from_env
 from .application_service import CommandRunner, as_event_list
 from .logging import Logger, StdLogger
@@ -164,6 +165,31 @@ def _team_metrics_dto(m: SeasonTeamMetrics) -> Dict[str, Any]:
     }
 
 
+def _match_summary_dto(match) -> Dict[str, Any]:
+    """Match core fields shared by the match detail and match search reads.
+
+    ``score_summary`` is included only when the aggregate stores one (the read
+    models never infer a score from the boxscore projection).
+    """
+    dto: Dict[str, Any] = {
+        "external_id": str(match.external_id),
+        "match_id": str(match.match_id),
+        "competition_id": str(match.competition_id),
+        "season_code": str(match.season_code),
+        "round_number": match.round_number,
+        "status": match.status.value,
+        "scheduled_at": match.scheduled_at.isoformat(),
+        "home_team_id": str(match.home_team_id),
+        "away_team_id": str(match.away_team_id),
+    }
+    if match.score_summary is not None:
+        dto["score_summary"] = {
+            "home_score": match.score_summary.home_score,
+            "away_score": match.score_summary.away_score,
+        }
+    return dto
+
+
 class _GatewayBase(CommandGateway):
     """Backend-agnostic boundary: handler catalog + read DTOs + readiness."""
 
@@ -192,6 +218,9 @@ class _GatewayBase(CommandGateway):
         self._leaderboard_repo = repos["leaderboard"]
         self._stats_repo = repos["stats"]
         self._analytics = SeasonAnalyticsService(self._stats_repo)
+        self._exploration = ExplorationService(
+            repos["match"], repos["player"], repos["team"], repos["stats"]
+        )
 
         self._handlers: Dict[str, Any] = {
             "create_or_update_match": lambda: CreateOrUpdateMatchHandler(repos["match"], repos["idempotency"]),
@@ -248,27 +277,17 @@ class _GatewayBase(CommandGateway):
 
     # ---------------------------------------------------------- read side
     def get_match(self, external_id: str) -> Optional[Dict[str, Any]]:
-        match = self._match_repo.get_by_external_id(external_id)
-        if match is None:
+        detail = self._exploration.get_match_detail(ExternalId(external_id))
+        if detail is None:
             return None
-        dto: Dict[str, Any] = {
-            "external_id": str(match.external_id),
-            "match_id": str(match.match_id),
-            "competition_id": str(match.competition_id),
-            "season_code": str(match.season_code),
-            "round_number": match.round_number,
-            "status": match.status.value,
-            "scheduled_at": match.scheduled_at.isoformat(),
-            "home_team_id": str(match.home_team_id),
-            "away_team_id": str(match.away_team_id),
-            "version": match.version,
-            "correction_history_count": len(match.correction_history),
-        }
-        if match.score_summary is not None:
-            dto["score_summary"] = {
-                "home_score": match.score_summary.home_score,
-                "away_score": match.score_summary.away_score,
-            }
+        match = detail.match
+        dto = _match_summary_dto(match)
+        dto["version"] = match.version
+        dto["correction_history_count"] = len(match.correction_history)
+        # FASE 24.1 — boxscore projection (authoritative MatchStatsRepository
+        # read model; the aggregate's embedded stats are never used here).
+        dto["team_stats"] = [ts.to_dict() for ts in detail.team_stats]
+        dto["player_stats"] = [ps.to_dict() for ps in detail.player_stats]
         return dto
 
     def get_player(self, external_id: str) -> Optional[Dict[str, Any]]:
@@ -380,6 +399,101 @@ class _GatewayBase(CommandGateway):
         return [
             _team_metrics_dto(m)
             for m in self._analytics.list_season_team_metrics(SeasonCode(season_code), limit)
+        ]
+
+    # ------------------------------------------------ FASE 24 exploration
+    def get_match_detail(self, external_id: str) -> Optional[Dict[str, Any]]:
+        return self.get_match(external_id)
+
+    def get_player_profile(
+        self, season_code: str, player_external_id: str
+    ) -> Optional[Dict[str, Any]]:
+        profile = self._exploration.get_player_profile(SeasonCode(season_code), player_external_id)
+        if profile is None:
+            return None
+        dto: Dict[str, Any] = {
+            "player_external_id": str(profile.player.external_id) if profile.player else player_external_id,
+            "name": profile.player.name if profile.player else None,
+            "position": profile.player.position if profile.player else None,
+            "nationality": profile.player.nationality if profile.player else None,
+            "birth_date": (
+                profile.player.birth_date.isoformat()
+                if profile.player and profile.player.birth_date
+                else None
+            ),
+            "season_code": profile.season_code,
+            "teams": [
+                {
+                    "team_external_id": reg.team_external_id,
+                    "dorsal": reg.dorsal,
+                    "role": reg.role,
+                }
+                for reg in profile.teams
+            ],
+            "totals": _player_aggregate_dto(profile.totals) if profile.totals is not None else None,
+            "metrics": _player_metrics_dto(profile.metrics) if profile.metrics is not None else None,
+        }
+        return dto
+
+    def get_team_profile(
+        self, season_code: str, team_external_id: str
+    ) -> Optional[Dict[str, Any]]:
+        profile = self._exploration.get_team_profile(SeasonCode(season_code), team_external_id)
+        if profile is None:
+            return None
+        return {
+            "team_external_id": str(profile.team.external_id) if profile.team else team_external_id,
+            "name": profile.team.name if profile.team else None,
+            "season_code": profile.season_code,
+            "totals": _team_aggregate_dto(profile.totals) if profile.totals is not None else None,
+            "metrics": _team_metrics_dto(profile.metrics) if profile.metrics is not None else None,
+            "evolution": [
+                {
+                    "round_number": r.round_number,
+                    "games_played": r.games_played,
+                    "wins": r.wins,
+                    "losses": r.losses,
+                    "points_for": r.points_for,
+                    "points_against": r.points_against,
+                    "point_difference": r.point_difference,
+                }
+                for r in profile.rounds
+            ],
+        }
+
+    def search_players(self, q: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        return [
+            {"player_external_id": str(p.external_id), "name": p.name}
+            for p in self._exploration.search_players(q, limit)
+        ]
+
+    def search_teams(self, q: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        return [
+            {"team_external_id": str(t.external_id), "name": t.name}
+            for t in self._exploration.search_teams(q, limit)
+        ]
+
+    def search_matches(
+        self,
+        season_code: str,
+        *,
+        competition_id: Optional[str] = None,
+        round_number: Optional[int] = None,
+        team_external_id: Optional[str] = None,
+        q: Optional[str] = None,
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        competition = CompetitionId(competition_id) if competition_id is not None else None
+        return [
+            _match_summary_dto(m)
+            for m in self._exploration.search_matches(
+                SeasonCode(season_code),
+                competition_id=competition,
+                round_number=round_number,
+                team_external_id=team_external_id,
+                external_id_query=q,
+                limit=limit,
+            )
         ]
 
     # ------------------------------------------------------------ readiness

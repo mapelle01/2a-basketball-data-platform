@@ -40,6 +40,10 @@ from .auth import (
     ApiKeyAuthenticationProvider,
     is_authorized,
 )
+from .exploration import (
+    register_exploration_profile_routes,
+    register_exploration_search_routes,
+)
 from .gateway import CommandGateway
 from .middleware import DEFAULT_BODY_LIMIT, RequestContextMiddleware, RequestLogger
 
@@ -126,8 +130,13 @@ def create_app(
     )
     err.register_error_handlers(app, request_logger)
 
+    # FASE 24 route order matters: the literal /search paths must beat the
+    # {external_id} parameter routes, and the analytics /leaderboards and
+    # /metrics literals must beat the {player_external_id} profile route.
+    register_exploration_search_routes(app)
     _register_routes(app)
     register_analytics_routes(app)
+    register_exploration_profile_routes(app)
     return app
 
 

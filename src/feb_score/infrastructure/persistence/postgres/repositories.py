@@ -65,6 +65,7 @@ from ....domain.statistics.model import (
     SeasonPlayerStats,
     SeasonTeamLeaderboardEntry,
     SeasonTeamMetrics,
+    SeasonTeamRoundStats,
     SeasonTeamStats,
     TeamLeaderboardMetric,
     TeamStats,
@@ -96,6 +97,15 @@ _TEAM_LEADERBOARD_ORDER = {
         "(CASE WHEN games_played > 0 THEN CAST(wins AS REAL) / games_played ELSE 0.0 END)"
         " DESC, wins DESC, team_external_id ASC",
 }
+
+
+def _escape_like(value: str) -> str:
+    """Escape LIKE/ILIKE wildcards so a user query is matched as a literal."""
+    return (
+        value.replace("\\", "\\\\")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
+    )
 
 
 class _PgRepoMixin:
@@ -210,6 +220,49 @@ class PgMatchRepository(_PgRepoMixin, MatchRepository):
             if owned:
                 conn.close()
 
+    def search(
+        self,
+        season_code: SeasonCode,
+        *,
+        competition_id: Optional[CompetitionId] = None,
+        round_number: Optional[int] = None,
+        team_external_id: Optional[str] = None,
+        external_id_query: Optional[str] = None,
+        limit: Optional[int] = None,
+    ) -> Iterable[Match]:
+        if round_number is not None and (round_number < 1 or round_number != int(round_number)):
+            raise ValueError(f"round_number must be a positive integer, got {round_number!r}")
+        conn, owned = self._conn()
+        try:
+            sql = "SELECT data::text AS data FROM matches WHERE season_code = %s"
+            params: list = [str(season_code)]
+            if competition_id is not None:
+                sql += " AND competition_id = %s"
+                params.append(str(competition_id))
+            if round_number is not None:
+                sql += " AND CAST(data->>'round_number' AS INTEGER) = %s"
+                params.append(int(round_number))
+            if team_external_id is not None:
+                sql += (
+                    " AND (data->>'home_team_id' = %s"
+                    " OR data->>'away_team_id' = %s)"
+                )
+                params.extend([team_external_id, team_external_id])
+            if external_id_query is not None:
+                sql += " AND external_id ILIKE %s ESCAPE '\\'"
+                params.append(f"%{_escape_like(external_id_query)}%")
+            sql += " ORDER BY external_id"
+            if limit is not None:
+                sql += " LIMIT %s"
+                params.append(int(limit))
+            rows = conn.execute(sql, tuple(params)).fetchall()
+            return [match_from_dict(json.loads(r["data"])) for r in rows]
+        except Exception as exc:  # noqa: BLE001 - classify at the boundary
+            raise translate_pg_error(exc) from exc
+        finally:
+            if owned:
+                conn.close()
+
 
 class PgPlayerRepository(_PgRepoMixin, PlayerRepository):
     def __init__(self, db: PgDatabase) -> None:
@@ -229,6 +282,22 @@ class PgPlayerRepository(_PgRepoMixin, PlayerRepository):
             return None
         return self._deserialize("players", str(external_id), data, player_from_dict)
 
+    def search_by_name(self, name_query: str, limit: Optional[int] = None) -> Iterable[Player]:
+        conn, owned = self._conn()
+        try:
+            sql = "SELECT data::text AS data FROM players WHERE name ILIKE %s ESCAPE '\\' ORDER BY external_id"
+            params: list = [f"%{_escape_like(name_query)}%"]
+            if limit is not None:
+                sql += " LIMIT %s"
+                params.append(int(limit))
+            rows = conn.execute(sql, tuple(params)).fetchall()
+            return [player_from_dict(json.loads(r["data"])) for r in rows]
+        except Exception as exc:  # noqa: BLE001 - classify at the boundary
+            raise translate_pg_error(exc) from exc
+        finally:
+            if owned:
+                conn.close()
+
 
 class PgTeamRepository(_PgRepoMixin, TeamRepository):
     def __init__(self, db: PgDatabase) -> None:
@@ -247,6 +316,22 @@ class PgTeamRepository(_PgRepoMixin, TeamRepository):
         if data is None:
             return None
         return self._deserialize("teams", str(external_id), data, team_from_dict)
+
+    def search_by_name(self, name_query: str, limit: Optional[int] = None) -> Iterable[Team]:
+        conn, owned = self._conn()
+        try:
+            sql = "SELECT data::text AS data FROM teams WHERE name ILIKE %s ESCAPE '\\' ORDER BY external_id"
+            params: list = [f"%{_escape_like(name_query)}%"]
+            if limit is not None:
+                sql += " LIMIT %s"
+                params.append(int(limit))
+            rows = conn.execute(sql, tuple(params)).fetchall()
+            return [team_from_dict(json.loads(r["data"])) for r in rows]
+        except Exception as exc:  # noqa: BLE001 - classify at the boundary
+            raise translate_pg_error(exc) from exc
+        finally:
+            if owned:
+                conn.close()
 
 
 class PgCompetitionRepository(_PgRepoMixin, CompetitionRepository):
@@ -568,6 +653,24 @@ class PgMatchStatsRepository(_PgRepoMixin, MatchStatsRepository):
                 (player_external_id, str(season_code)),
             ).fetchall()
             return [_player_stats_from_blob(r["data"]) for r in rows]
+        finally:
+            if owned:
+                conn.close()
+
+    def list_player_season_teams(
+        self, player_external_id: str, season_code: SeasonCode
+    ) -> Iterable[str]:
+        conn, owned = self._conn()
+        try:
+            rows = conn.execute(
+                "SELECT DISTINCT team_external_id FROM match_player_stats"
+                " WHERE player_external_id = %s AND season_code = %s"
+                " ORDER BY team_external_id",
+                (player_external_id, str(season_code)),
+            ).fetchall()
+            return [r["team_external_id"] for r in rows]
+        except Exception as exc:  # noqa: BLE001 - classify at the boundary
+            raise translate_pg_error(exc) from exc
         finally:
             if owned:
                 conn.close()
@@ -947,6 +1050,56 @@ class PgMatchStatsRepository(_PgRepoMixin, MatchStatsRepository):
                     free_throws_attempted_per_game=float(r["free_throws_attempted_per_game"]),
                     turnovers_per_game=float(r["turnovers_per_game"]),
                     rebounds_per_game=float(r["rebounds_per_game"]),
+                )
+                for r in rows
+            ]
+        except Exception as exc:  # noqa: BLE001 - classify at the boundary
+            raise translate_pg_error(exc) from exc
+        finally:
+            if owned:
+                conn.close()
+
+    def list_season_team_rounds(
+        self, team_external_id: str, season_code: SeasonCode
+    ) -> Iterable[SeasonTeamRoundStats]:
+        """Per-round team aggregates joined with the owning match's round_number.
+
+        round_number is not a physical column: it lives in ``matches.data``
+        (``data->>'round_number'``), so the stats rows are joined with
+        ``matches`` on ``external_id``. Matches without a stored round_number
+        are excluded.
+        """
+        conn, owned = self._conn()
+        try:
+            rows = conn.execute(
+                "SELECT"
+                "  s.team_external_id,"
+                "  s.season_code,"
+                "  CAST(m.data->>'round_number' AS INTEGER) AS round_number,"
+                "  COUNT(s.match_external_id) AS games_played,"
+                "  SUM(CASE WHEN s.points_for > s.points_against THEN 1 ELSE 0 END) AS wins,"
+                "  SUM(CASE WHEN s.points_for < s.points_against THEN 1 ELSE 0 END) AS losses,"
+                "  SUM(s.points_for) AS points_for,"
+                "  SUM(s.points_against) AS points_against"
+                " FROM match_team_stats s"
+                " JOIN matches m ON m.external_id = s.match_external_id"
+                " WHERE s.team_external_id = %s AND s.season_code = %s"
+                " AND m.data->>'round_number' IS NOT NULL"
+                " GROUP BY round_number, s.team_external_id, s.season_code"
+                " ORDER BY round_number ASC",
+                (team_external_id, str(season_code)),
+            ).fetchall()
+            return [
+                SeasonTeamRoundStats(
+                    team_external_id=r["team_external_id"],
+                    season_code=r["season_code"],
+                    round_number=int(r["round_number"]),
+                    games_played=int(r["games_played"]),
+                    wins=int(r["wins"]),
+                    losses=int(r["losses"]),
+                    points_for=int(r["points_for"]),
+                    points_against=int(r["points_against"]),
+                    point_difference=int(r["points_for"]) - int(r["points_against"]),
                 )
                 for r in rows
             ]

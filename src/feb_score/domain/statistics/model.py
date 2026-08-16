@@ -241,6 +241,47 @@ class SeasonTeamLeaderboardEntry:
 
 
 # ---------------------------------------------------------------------------
+# Round-by-round evolution (FASE 24.3)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class SeasonTeamRoundStats:
+    """FASE 24.3 — per-round read model for a team's season evolution.
+
+    Aggregated from ``match_team_stats`` rows joined with the owning match's
+    ``round_number`` (stored in ``matches.data``, not as a physical column).
+    A round contributes ``games_played`` per match row; wins/losses are derived
+    from ``points_for`` vs ``points_against`` (basketball has no draws).
+    ``point_difference = points_for - points_against``. Ordered by
+    ``round_number`` ASC.
+    """
+
+    team_external_id: str
+    season_code: str
+    round_number: int
+    games_played: int
+    wins: int
+    losses: int
+    points_for: int
+    points_against: int
+    point_difference: int
+
+    def __post_init__(self) -> None:
+        for field_name in (
+            "round_number", "games_played", "wins", "losses",
+            "points_for", "points_against",
+        ):
+            value = getattr(self, field_name)
+            if value < 0:
+                raise ValueError(f"{field_name} must be non-negative")
+        if self.wins + self.losses != self.games_played:
+            raise ValueError(
+                f"wins ({self.wins}) + losses ({self.losses}) must equal games_played ({self.games_played})"
+            )
+
+
+# ---------------------------------------------------------------------------
 # Season metrics models (FASE 23.4)
 # ---------------------------------------------------------------------------
 

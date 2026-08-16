@@ -437,3 +437,58 @@ FASE 23.9:
   (schema v3).
 
 Details in `docs/FASE_23_9_REPORT.md`. Historical content unchanged.
+
+---
+
+## 18. Addendum FASE 24 — Match & player exploration API
+
+**Date:** 2026-08-16
+
+FASE 24:
+- **Exploration API shipped**: match detail boxscore (24.1), player season
+  profile (24.2), team season profile + round evolution (24.3), and
+  match/player/team search (24.4) — all public GET read-only routes.
+- **Tests**: suite at **906 passed, 0 failed** (845 baseline + 61 new), with
+  the new exploration suites green on SQLite, PostgreSQL (synthetic) and
+  InMemory; the synthetic PG validator passes all four blocks.
+- **Production (PARTIAL)**: a representative read-only smoke validated a real
+  `2025-2026` match boxscore (2 teams / 23 players), a real derived player
+  profile (`name=null`, totals == aggregate), a real team profile with
+  evolution 1..26, season isolation and determinism — all PASS. The massive
+  full validator run (449 profiles × 2 queries over the tunnel) was not
+  re-executed by decision; match detail + match search additionally carry
+  earlier full-run real evidence. Production `players`/`teams` catalogs are
+  **empty (0 rows)**, so player/team name search has no data — profiles use
+  the derived-identity fallback (`name` null) and the gap is documented.
+- **Production data touched: none**; no secrets; commit done, no push.
+
+Details in `docs/FASE_24_REPORT.md`. Historical content unchanged.
+
+---
+
+## 19. Addendum FASE 24 — Cierre del explorador de partidos y jugadores
+
+**Fecha:** 2026-08-16
+
+FASE 24:
+- **API de exploración entregada**: boxscore de detalle de partido (24.1),
+  perfil de jugador (24.2), perfil de equipo + evolución por jornada (24.3) y
+  búsqueda de partidos/jugadores/equipos (24.4), rutas GET públicas de solo
+  lectura.
+- **Tests**: suite en **906 passed, 0 failed** (845 base + 61 nuevos), con las
+  suites de exploración verdes en SQLite, PostgreSQL (sintético) e InMemory;
+  el validador sintético pasa los cuatro bloques.
+- **Producción (PARCIAL)**: un smoke representativo y read-only validó un
+  boxscore real de `2025-2026` (2 equipos / 23 jugadores), un perfil real
+  derivado de jugador (`name=null`, totals == agregado), un perfil real de
+  equipo con evolución 1..26, aislamiento de temporada y determinismo — todo
+  PASS. La corrida masiva completa (449 perfiles × 2 consultas por el túnel)
+  no se re-ejecutó por decisión; detalle de partido y búsqueda de partidos
+  además arrastran evidencia real completa de corridas anteriores. Los
+  catálogos `players`/`teams` de producción están **vacíos (0 filas)**, por lo
+  que la búsqueda por nombre no tiene datos — los perfiles usan el fallback de
+  identidad derivada (`name` null) y el gap queda documentado.
+- **Datos de producción tocados: ninguno**; sin secretos; commit realizado,
+  sin push.
+
+Detalles en `docs/FASE_24_REPORT.md`. No se reescribió contenido histórico.

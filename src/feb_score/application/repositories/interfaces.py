@@ -18,6 +18,7 @@ from ...domain.statistics.model import (
     SeasonPlayerStats,
     SeasonTeamLeaderboardEntry,
     SeasonTeamMetrics,
+    SeasonTeamRoundStats,
     SeasonTeamStats,
     TeamStats,
 )
@@ -38,6 +39,28 @@ class MatchRepository(ABC):
     def list_by_season(self, competition_id: CompetitionId, season_code: SeasonCode) -> Iterable[Match]:
         pass
 
+    @abstractmethod
+    def search(
+        self,
+        season_code: SeasonCode,
+        *,
+        competition_id: Optional[CompetitionId] = None,
+        round_number: Optional[int] = None,
+        team_external_id: Optional[str] = None,
+        external_id_query: Optional[str] = None,
+        limit: Optional[int] = None,
+    ) -> Iterable[Match]:
+        """FASE 24.4 — deterministic match search.
+
+        *season_code* is required (season isolation); every other filter is
+        optional and AND-ed. ``round_number`` is read from the match's stored
+        data blob, ``team_external_id`` matches home OR away. ``external_id_query``
+        is a case-insensitive substring of the match external_id. Ordering is
+        deterministic (external_id ASC); raises ValueError for an invalid
+        ``round_number``.
+        """
+        pass
+
 
 class PlayerRepository(ABC):
     @abstractmethod
@@ -48,6 +71,15 @@ class PlayerRepository(ABC):
     def save(self, player: Player) -> None:
         pass
 
+    @abstractmethod
+    def search_by_name(self, name_query: str, limit: Optional[int] = None) -> Iterable[Player]:
+        """FASE 24.4 — case-insensitive substring search over player names.
+
+        Ordering is deterministic (external_id ASC). The query is treated as a
+        literal: wildcards in *name_query* are escaped, never interpreted.
+        """
+        pass
+
 
 class TeamRepository(ABC):
     @abstractmethod
@@ -56,6 +88,15 @@ class TeamRepository(ABC):
 
     @abstractmethod
     def save(self, team: Team) -> None:
+        pass
+
+    @abstractmethod
+    def search_by_name(self, name_query: str, limit: Optional[int] = None) -> Iterable[Team]:
+        """FASE 24.4 — case-insensitive substring search over team names.
+
+        Ordering is deterministic (external_id ASC). The query is treated as a
+        literal: wildcards in *name_query* are escaped, never interpreted.
+        """
         pass
 
 
@@ -219,5 +260,34 @@ class MatchStatsRepository(ABC):
         NOT the 0..1 fraction of ``SeasonTeamLeaderboardEntry``) and
         ``point_difference_per_game = (points_for - points_against) /
         games_played``. Ordered deterministically by team_external_id.
+        """
+        pass
+
+    # ------------------------------------------------------------------ 24.3
+    @abstractmethod
+    def list_season_team_rounds(
+        self, team_external_id: str, season_code: SeasonCode
+    ) -> Iterable[SeasonTeamRoundStats]:
+        """FASE 24.3 — per-round aggregates for one team in *season_code*.
+
+        Rounds are read from the owning match's stored data blob (the match
+        does not carry ``round_number`` as a physical column), so the
+        implementation joins ``match_team_stats`` with the matches table.
+        Matches without a stored round_number are excluded. Ordered by
+        round_number ASC.
+        """
+        pass
+
+    # ------------------------------------------------------------------ 24.2
+    @abstractmethod
+    def list_player_season_teams(
+        self, player_external_id: str, season_code: SeasonCode
+    ) -> Iterable[str]:
+        """FASE 24.2 — distinct team external ids a player appeared for in a
+        season, derived from their BoxScore stats rows.
+
+        Used to build a player profile when the ``players`` catalog has no
+        record for the player (identity derived from the authoritative stats
+        projection). Ordered deterministically by team_external_id.
         """
         pass

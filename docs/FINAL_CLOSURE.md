@@ -256,3 +256,31 @@ FASE 23.9:
   (schema v3).
 
 Detalles en `docs/FASE_23_9_REPORT.md`. No se reescribió contenido histórico.
+
+---
+
+## 13. Addendum FASE 24 — Cierre del API de exploración (match & player)
+
+**Fecha:** 2026-08-16
+
+FASE 24 cierra con la **API de exploración de partidos y jugadores**: boxscore
+de detalle de partido (24.1), perfil de jugador (24.2), perfil de equipo con
+evolución por jornada (24.3) y búsqueda de partidos/jugadores/equipos (24.4),
+todas rutas GET públicas de solo lectura.
+
+- Suite local: **906 passed, 0 failed** (845 base + 61 nuevos); suites nuevas
+  verdes en SQLite, PostgreSQL sintético e InMemory; validador sintético PASS
+  (4/4 bloques).
+- Producción: validación **PARCIAL** — smoke read-only PASS sobre un partido
+  real (2 equipos / 23 jugadores), perfil derivado de jugador (`name=null`,
+  totals == agregado), perfil de equipo con evolución 1..26, aislamiento de
+  temporada y determinismo; detalle de partido y búsqueda de partidos con
+  evidencia real completa de corridas previas. La corrida masiva (449 perfiles)
+  no se re-ejecutó por decisión del owner. Catálogos `players`/`teams` vacíos
+  en producción → la búsqueda por nombre no tiene datos y los perfiles usan
+  identidad derivada (gap documentado).
+- Datos de producción no modificados; sin secretos; **commit de cierre creado,
+  sin push**; no se avanza a FASE 25 automáticamente.
+
+Detalles en `docs/FASE_24_REPORT.md`. Este addendum no reescribe las
+secciones históricas.

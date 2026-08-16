@@ -30,6 +30,7 @@ from ...domain.statistics.model import (
     SeasonPlayerStats,
     SeasonTeamLeaderboardEntry,
     SeasonTeamMetrics,
+    SeasonTeamRoundStats,
     SeasonTeamStats,
     TeamStats,
 )
@@ -57,6 +58,37 @@ class InMemoryMatchRepository(MatchRepository):
             and str(match.competition_id) == str(competition_id)
         ]
 
+    def search(
+        self,
+        season_code: SeasonCode,
+        *,
+        competition_id: Optional[CompetitionId] = None,
+        round_number: Optional[int] = None,
+        team_external_id: Optional[str] = None,
+        external_id_query: Optional[str] = None,
+        limit: Optional[int] = None,
+    ) -> Iterable[Match]:
+        if round_number is not None and (round_number < 1 or round_number != int(round_number)):
+            raise ValueError(f"round_number must be a positive integer, got {round_number!r}")
+        query = external_id_query.lower() if external_id_query is not None else None
+        matches = [
+            match
+            for match in self._matches.values()
+            if str(match.season_code) == str(season_code)
+            and (competition_id is None or str(match.competition_id) == str(competition_id))
+            and (round_number is None or match.round_number == round_number)
+            and (
+                team_external_id is None
+                or str(match.home_team_id) == team_external_id
+                or str(match.away_team_id) == team_external_id
+            )
+            and (query is None or query in str(match.external_id).lower())
+        ]
+        matches.sort(key=lambda m: str(m.external_id))
+        if limit is not None:
+            matches = matches[:limit]
+        return matches
+
 
 class InMemoryPlayerRepository(PlayerRepository):
     def __init__(self) -> None:
@@ -68,6 +100,18 @@ class InMemoryPlayerRepository(PlayerRepository):
     def save(self, player: Player) -> None:
         self._players[str(player.external_id)] = player
 
+    def search_by_name(self, name_query: str, limit: Optional[int] = None) -> Iterable[Player]:
+        query = name_query.lower()
+        results = [
+            player
+            for player in self._players.values()
+            if query in player.name.lower()
+        ]
+        results.sort(key=lambda p: str(p.external_id))
+        if limit is not None:
+            results = results[:limit]
+        return results
+
 
 class InMemoryTeamRepository(TeamRepository):
     def __init__(self) -> None:
@@ -78,6 +122,18 @@ class InMemoryTeamRepository(TeamRepository):
 
     def save(self, team: Team) -> None:
         self._teams[str(team.external_id)] = team
+
+    def search_by_name(self, name_query: str, limit: Optional[int] = None) -> Iterable[Team]:
+        query = name_query.lower()
+        results = [
+            team
+            for team in self._teams.values()
+            if query in team.name.lower()
+        ]
+        results.sort(key=lambda t: str(t.external_id))
+        if limit is not None:
+            results = results[:limit]
+        return results
 
 
 class InMemoryCompetitionRepository(CompetitionRepository):
@@ -156,6 +212,11 @@ class InMemoryMatchStatsRepository(MatchStatsRepository):
         self._team: Dict[str, Dict[str, TeamStats]] = {}  # match -> team_id -> stats
         self._player_season: Dict[str, str] = {}  # match -> season_code
         self._team_season: Dict[str, str] = {}  # match -> season_code
+        # FASE 24.3 — round_number per match. Not part of the public projection
+        # API: InMemory persists it when the caller provides it via
+        # save_team_stats(..., round_number=...); SQL backends read it from the
+        # owning match's data blob instead.
+        self._round: Dict[str, int] = {}  # match -> round_number
 
     def save_player_stats(
         self, match_external_id: str, season_code: SeasonCode, player_stats: Iterable[PlayerStats]
@@ -166,10 +227,17 @@ class InMemoryMatchStatsRepository(MatchStatsRepository):
             bucket[ps.player_external_id] = ps
 
     def save_team_stats(
-        self, match_external_id: str, season_code: SeasonCode, team_stats: Iterable[TeamStats]
+        self,
+        match_external_id: str,
+        season_code: SeasonCode,
+        team_stats: Iterable[TeamStats],
+        *,
+        round_number: Optional[int] = None,
     ) -> None:
         bucket = self._team.setdefault(match_external_id, {})
         self._team_season[match_external_id] = str(season_code)
+        if round_number is not None:
+            self._round[match_external_id] = int(round_number)
         for ts in team_stats:
             bucket[ts.team_external_id] = ts
 
@@ -178,6 +246,18 @@ class InMemoryMatchStatsRepository(MatchStatsRepository):
 
     def list_team_stats(self, match_external_id: str) -> Iterable[TeamStats]:
         return list(self._team.get(match_external_id, {}).values())
+
+    def list_player_season_teams(
+        self, player_external_id: str, season_code: SeasonCode
+    ) -> Iterable[str]:
+        team_ids = {
+            ps.team_external_id
+            for match_id, bucket in self._player.items()
+            if self._player_season.get(match_id) == str(season_code)
+            and player_external_id in bucket
+            for ps in [bucket[player_external_id]]
+        }
+        return sorted(team_ids)
 
     def list_player_stats_by_season(
         self, player_external_id: str, season_code: SeasonCode
@@ -331,3 +411,53 @@ class InMemoryMatchStatsRepository(MatchStatsRepository):
         self, season_code: SeasonCode, limit: Optional[int] = None
     ) -> List[SeasonTeamMetrics]:
         return compute_team_metrics(self.list_season_team_aggregates(season_code, limit))
+
+    def list_season_team_rounds(
+        self, team_external_id: str, season_code: SeasonCode
+    ) -> Iterable[SeasonTeamRoundStats]:
+        """In-memory per-round aggregation for one team.
+
+        Rounds are read from ``_round`` (populated when ``save_team_stats`` is
+        called with ``round_number=...``); matches with no recorded round are
+        excluded, mirroring the SQL backends' null-round filter.
+        """
+        from collections import defaultdict
+
+        grouped: dict = defaultdict(lambda: {
+            "games_played": 0, "wins": 0, "losses": 0,
+            "points_for": 0, "points_against": 0,
+        })
+
+        for match_id, bucket in self._team.items():
+            if self._team_season.get(match_id) != str(season_code):
+                continue
+            if team_external_id not in bucket:
+                continue
+            round_number = self._round.get(match_id)
+            if round_number is None:
+                continue
+            ts = bucket[team_external_id]
+            aggr = grouped[round_number]
+            aggr["games_played"] += 1
+            if ts.points_for > ts.points_against:
+                aggr["wins"] += 1
+            else:
+                aggr["losses"] += 1
+            aggr["points_for"] += ts.points_for
+            aggr["points_against"] += ts.points_against
+
+        result = []
+        for rn in sorted(grouped.keys()):
+            aggr = grouped[rn]
+            result.append(SeasonTeamRoundStats(
+                team_external_id=team_external_id,
+                season_code=str(season_code),
+                round_number=rn,
+                games_played=aggr["games_played"],
+                wins=aggr["wins"],
+                losses=aggr["losses"],
+                points_for=aggr["points_for"],
+                points_against=aggr["points_against"],
+                point_difference=aggr["points_for"] - aggr["points_against"],
+            ))
+        return result

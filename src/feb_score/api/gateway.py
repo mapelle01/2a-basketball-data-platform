@@ -117,6 +117,48 @@ class CommandGateway(ABC):
     ) -> List[Dict[str, Any]]:
         raise NotImplementedError
 
+    # ------------------------------------------------------------ FASE 24
+    # Match & player exploration reads (HTTP -> gateway -> ExplorationService).
+    # A None result means the referenced entity does not exist (HTTP 404);
+    # season filters never 404 on their own (they are filters, not resources).
+    @abstractmethod
+    def get_match_detail(self, external_id: str) -> Optional[Dict[str, Any]]:
+        """A match plus its boxscore projection (team/player stats)."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_player_profile(
+        self, season_code: str, player_external_id: str
+    ) -> Optional[Dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_team_profile(
+        self, season_code: str, team_external_id: str
+    ) -> Optional[Dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def search_players(self, q: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def search_teams(self, q: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def search_matches(
+        self,
+        season_code: str,
+        *,
+        competition_id: Optional[str] = None,
+        round_number: Optional[int] = None,
+        team_external_id: Optional[str] = None,
+        q: Optional[str] = None,
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        raise NotImplementedError
+
     @abstractmethod
     def readiness(self) -> Readiness:
         """Non-destructive dependency check (database reachable + schema version)."""
