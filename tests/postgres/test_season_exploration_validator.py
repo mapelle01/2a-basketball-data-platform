@@ -18,7 +18,7 @@ from uuid import uuid4
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from feb_score.application.persistence.serialization import match_to_dict
+from feb_score.application.persistence.serialization import match_to_dict, player_to_dict, team_to_dict
 from feb_score.domain.match.model import Match
 from feb_score.domain.player.model import Player
 from feb_score.domain.statistics.model import PlayerStats, TeamStats
@@ -118,7 +118,12 @@ def _seed_full(db) -> None:
                                 minutes=rng.choice([18.0, 22.0, 25.0, 28.0, 30.0, 32.0, 35.0]),
                             )
                         ])
-        # stats-only player with NO catalog record -> derived identity path
+        # stats-only player with NO official name source -> catalog record with
+        # NULL name (FASE 24.1 backfill shape): derived identity, not searchable
+        _catalog_player = Player(external_id=ExternalId("PL-099"),
+                                 player_id=PlayerId(str(uuid4())), name=None)
+        player_repo.upsert_catalog(ExternalId("PL-099"), _catalog_player.player_id,
+                                   name=None, data=json.dumps(player_to_dict(_catalog_player)))
         stats_repo.save_player_stats("M1", SEASON, [
             PlayerStats(player_external_id="PL-099", team_external_id="TEAM-01",
                         points=5, rebounds=2, assists=1, steals=0, blocks=0,
@@ -193,6 +198,47 @@ def test_validator_reports_player_name_drift(pg_db):
     code, failures = run_validations(pg_db, SEASON)
     assert code != 0
     assert any("profile name" in f for f in failures)
+
+
+def test_validator_reports_catalog_duplicate_external_id(pg_db):
+    """FASE 24.1 — duplicate external_ids break canonical identity."""
+    _seed_full(pg_db)
+    with pg_db.connect() as conn:
+        # the schema normally forbids duplicates via a unique constraint; drop it
+        # so we can prove the validator still guards the invariant
+        conn.execute("ALTER TABLE teams DROP CONSTRAINT teams_external_id_key")
+        _dup = Team(external_id=ExternalId("TEAM-01"), team_id=TeamId(str(uuid4())),
+                    name="Club duplicado")
+        conn.execute(
+            "INSERT INTO teams (team_id, external_id, name, data)"
+            " VALUES (%s, %s, %s, %s)",
+            (str(_dup.team_id), str(_dup.external_id), _dup.name,
+             json.dumps(team_to_dict(_dup))),
+        )
+    code, failures = run_validations(pg_db, SEASON)
+    assert code != 0
+    assert any("duplicates present" in f for f in failures)
+
+
+def test_validator_reports_player_without_catalog_record(pg_db):
+    """FASE 24.1 — a stats entity with no catalog record means backfill is pending."""
+    _seed_full(pg_db)
+    with pg_db.connect() as conn:
+        conn.execute("DELETE FROM players WHERE external_id = 'PL-005'")
+    code, failures = run_validations(pg_db, SEASON)
+    assert code != 0
+    assert any("no catalog record" in f for f in failures)
+
+
+def test_validator_null_name_entities_pass_and_are_skipped(pg_db):
+    """FASE 24.1 — entities with no official name (name NULL) are allowed and
+    simply skipped by name search; the validator must still PASS."""
+    _seed_full(pg_db)
+    with pg_db.connect() as conn:
+        conn.execute("UPDATE teams SET name = NULL WHERE external_id = 'TEAM-01'")
+    code, failures = run_validations(pg_db, SEASON)
+    assert code == 0
+    assert failures == []
 
 
 def test_validate_production_requires_dsn(monkeypatch):

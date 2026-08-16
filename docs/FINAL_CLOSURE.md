@@ -284,3 +284,19 @@ todas rutas GET públicas de solo lectura.
 
 Detalles en `docs/FASE_24_REPORT.md`. Este addendum no reescribe las
 secciones históricas.
+
+---
+
+## 13.2 — FASE 24.1 (2026-08-16): cierre de catálogos de producción
+
+- Catálogos `players`/`teams` de producción poblados para `2025-2026` desde
+  fuentes oficiales FEB: equipos con nombre (calendario público); jugadores con
+  `name=NULL` (sin `FEB_TOKEN` — gap documentado, rellenable futuramente).
+- **Snapshot BEFORE/AFTER:** hashes md5 idénticos para `matches`,
+  `match_player_stats`, `match_team_stats` → solo catálogos modificados
+  (449 players / 28 teams, 0 duplicados). Sin tocar stats ni eventos.
+- Backfill idempotente/reejecutable; `--dry-run` ahora real (no escribe).
+- Validación read-only parcial en producción (probes sin bloqueos); la lógica
+  del validador está cubierta 8/8 en tests PG locales.
+- `docs/FASE_24_1_REPORT.md` creado. **Commit de cierre creado, sin push.**
+  No se avanza a FASE 25 automáticamente.

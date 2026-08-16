@@ -492,3 +492,28 @@ FASE 24:
   sin push.
 
 Detalles en `docs/FASE_24_REPORT.md`. No se reescribió contenido histórico.
+
+---
+
+## 19.2 — FASE 24.1 (2026-08-16): Production Catalog Backfill
+
+- **Commit:** `feat(24.1): backfill production player and team catalogs` (no push).
+- **Snapshot BEFORE (producción):** players=0, teams=0, matches=370,
+  match_player_stats=8230 (449 jugadores distintos), match_team_stats=728
+  (28 equipos distintos). Huellas md5 grabadas.
+- **Backfill ejecutado** vía `scripts/feb/backfill_catalog.py --season 2025-2026
+  --entity both` sobre el túnel oficial Railway:
+  - **players:** 449 creados (name=NULL — gap documentado, sin FEB_TOKEN).
+  - **teams:** 28 creados con nombres oficiales del calendario público FEB
+    (política determinista: nombre más frecuente; empate → menor lexicográfico).
+  - 0 duplicados; invariantes conservadas.
+- **Snapshot AFTER (producción):** `matches`/`match_player_stats`/`match_team_stats`
+  con las mismas huellas md5 que BEFORE → **estadísticas/partidos/eventos no
+  modificados**. Catálogos poblados: 449 players / 28 teams.
+- **Validación read-only:** team name-search round-trip 28/28; 10
+  `get_match_detail` reales 2.3–5.1 s cada uno (watchdog 15 s, sin bloqueos).
+  El validador completo no concluyó sobre el túnel (conexión SSH inactiva a
+  ~22 min bloqueó una query sin `statement_timeout`; lógica validada 8/8 por
+  tests PG locales).
+- **Datos de producción protegidos:** solo los catálogos `players`/`teams`
+  cambiaron; hashes de stats/matches idénticos a BEFORE. Sin secretos en Git.

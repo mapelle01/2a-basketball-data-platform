@@ -23,7 +23,7 @@ from ...domain.statistics.model import (
     TeamStats,
 )
 from ...domain.team.model import Team
-from ...domain.value_objects import CompetitionId, ExternalId, LeaderboardId, MatchId, PlayerId, PublicationId, SeasonCode
+from ...domain.value_objects import CompetitionId, ExternalId, LeaderboardId, MatchId, PlayerId, PublicationId, SeasonCode, TeamId
 
 
 class MatchRepository(ABC):
@@ -80,6 +80,18 @@ class PlayerRepository(ABC):
         """
         pass
 
+    @abstractmethod
+    def upsert_catalog(self, external_id: ExternalId, player_id: PlayerId,
+                       name: Optional[str], data: str) -> None:
+        """FASE 24.1 — conservative catalog upsert keyed on external_id.
+
+        Identity is canonical on ``external_id``. Existing ``player_id`` and a
+        non-null existing name are preserved; the name column (and data blob)
+        are only filled when the current name is NULL/empty. Creates the row
+        when the external_id is not present.
+        """
+        pass
+
 
 class TeamRepository(ABC):
     @abstractmethod
@@ -96,6 +108,18 @@ class TeamRepository(ABC):
 
         Ordering is deterministic (external_id ASC). The query is treated as a
         literal: wildcards in *name_query* are escaped, never interpreted.
+        """
+        pass
+
+    @abstractmethod
+    def upsert_catalog(self, external_id: ExternalId, team_id: TeamId,
+                       name: Optional[str], data: str) -> None:
+        """FASE 24.1 — conservative catalog upsert keyed on external_id.
+
+        Identity is canonical on ``external_id``. Existing ``team_id`` and a
+        non-null existing name are preserved; the name column (and data blob)
+        are only filled when the current name is NULL/empty. Creates the row
+        when the external_id is not present.
         """
         pass
 

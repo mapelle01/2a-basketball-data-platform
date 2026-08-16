@@ -73,6 +73,11 @@ MIGRATIONS: List[PgMigration] = [
         name="analytics_indexes",
         script=(_MIGRATIONS_DIR / "003_analytics_indexes.sql").read_text(),
     ),
+    PgMigration(
+        version=4,
+        name="catalog_nullable_names",
+        script=(_MIGRATIONS_DIR / "004_catalog_nullable_names.sql").read_text(),
+    ),
 ]
 
 

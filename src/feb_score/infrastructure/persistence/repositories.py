@@ -72,7 +72,9 @@ from ...domain.value_objects import (
     CompetitionId,
     ExternalId,
     LeaderboardId,
+    PlayerId,
     SeasonCode,
+    TeamId,
 )
 from .connection import SqliteDatabase, active_connection
 from .errors import CorruptedRecordError, InfrastructureError, StaleVersionError
@@ -306,6 +308,21 @@ class SqlitePlayerRepository(_SqliteRepoMixin, PlayerRepository):
             if owned:
                 conn.close()
 
+    def upsert_catalog(self, external_id: ExternalId, player_id: PlayerId,
+                       name: Optional[str], data: str) -> None:
+        conn, owned = self._conn()
+        try:
+            conn.execute(
+                "INSERT INTO players (player_id, external_id, name, data) VALUES (?, ?, ?, ?)"
+                " ON CONFLICT (external_id) DO UPDATE SET"
+                "   name = COALESCE(players.name, excluded.name),"
+                "   data = CASE WHEN players.name IS NULL THEN excluded.data ELSE players.data END",
+                (str(player_id), str(external_id), name, data),
+            )
+        finally:
+            if owned:
+                conn.close()
+
 
 class SqliteTeamRepository(_SqliteRepoMixin, TeamRepository):
     def __init__(self, db: SqliteDatabase) -> None:
@@ -338,6 +355,21 @@ class SqliteTeamRepository(_SqliteRepoMixin, TeamRepository):
                 params.append(int(limit))
             rows = conn.execute(sql, tuple(params)).fetchall()
             return [team_from_dict(json.loads(r["data"])) for r in rows]
+        finally:
+            if owned:
+                conn.close()
+
+    def upsert_catalog(self, external_id: ExternalId, team_id: TeamId,
+                       name: Optional[str], data: str) -> None:
+        conn, owned = self._conn()
+        try:
+            conn.execute(
+                "INSERT INTO teams (team_id, external_id, name, data) VALUES (?, ?, ?, ?)"
+                " ON CONFLICT (external_id) DO UPDATE SET"
+                "   name = COALESCE(teams.name, excluded.name),"
+                "   data = CASE WHEN teams.name IS NULL THEN excluded.data ELSE teams.data END",
+                (str(team_id), str(external_id), name, data),
+            )
         finally:
             if owned:
                 conn.close()

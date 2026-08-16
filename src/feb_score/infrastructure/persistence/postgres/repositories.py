@@ -71,7 +71,7 @@ from ....domain.statistics.model import (
     TeamStats,
 )
 from ....domain.team.model import Team
-from ....domain.value_objects import CompetitionId, ExternalId, LeaderboardId, SeasonCode
+from ....domain.value_objects import CompetitionId, ExternalId, LeaderboardId, PlayerId, SeasonCode, TeamId
 from ..errors import CorruptedRecordError, StaleVersionError
 from .errors import translate_pg_error
 from .connection import PgDatabase, pg_active_connection
@@ -298,6 +298,23 @@ class PgPlayerRepository(_PgRepoMixin, PlayerRepository):
             if owned:
                 conn.close()
 
+    def upsert_catalog(self, external_id: ExternalId, player_id: PlayerId,
+                       name: Optional[str], data: str) -> None:
+        conn, owned = self._conn()
+        try:
+            conn.execute(
+                "INSERT INTO players (player_id, external_id, name, data) VALUES (%s, %s, %s, %s)"
+                " ON CONFLICT (external_id) DO UPDATE SET"
+                "   name = COALESCE(players.name, EXCLUDED.name),"
+                "   data = CASE WHEN players.name IS NULL THEN EXCLUDED.data ELSE players.data END",
+                (str(player_id), str(external_id), name, data),
+            )
+        except Exception as exc:  # noqa: BLE001 - classify at the boundary
+            raise translate_pg_error(exc) from exc
+        finally:
+            if owned:
+                conn.close()
+
 
 class PgTeamRepository(_PgRepoMixin, TeamRepository):
     def __init__(self, db: PgDatabase) -> None:
@@ -327,6 +344,23 @@ class PgTeamRepository(_PgRepoMixin, TeamRepository):
                 params.append(int(limit))
             rows = conn.execute(sql, tuple(params)).fetchall()
             return [team_from_dict(json.loads(r["data"])) for r in rows]
+        except Exception as exc:  # noqa: BLE001 - classify at the boundary
+            raise translate_pg_error(exc) from exc
+        finally:
+            if owned:
+                conn.close()
+
+    def upsert_catalog(self, external_id: ExternalId, team_id: TeamId,
+                       name: Optional[str], data: str) -> None:
+        conn, owned = self._conn()
+        try:
+            conn.execute(
+                "INSERT INTO teams (team_id, external_id, name, data) VALUES (%s, %s, %s, %s)"
+                " ON CONFLICT (external_id) DO UPDATE SET"
+                "   name = COALESCE(teams.name, EXCLUDED.name),"
+                "   data = CASE WHEN teams.name IS NULL THEN EXCLUDED.data ELSE teams.data END",
+                (str(team_id), str(external_id), name, data),
+            )
         except Exception as exc:  # noqa: BLE001 - classify at the boundary
             raise translate_pg_error(exc) from exc
         finally:

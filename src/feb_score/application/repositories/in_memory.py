@@ -37,7 +37,7 @@ from ...domain.statistics.model import (
 from ...domain.statistics.metrics import compute_player_metrics, compute_team_metrics
 from ...domain.statistics.ranking import rank_player_entries, rank_team_entries
 from ...domain.team.model import Team
-from ...domain.value_objects import CompetitionId, ExternalId, LeaderboardId, SeasonCode
+from ...domain.value_objects import CompetitionId, ExternalId, LeaderboardId, PlayerId, SeasonCode, TeamId
 
 
 class InMemoryMatchRepository(MatchRepository):
@@ -105,12 +105,32 @@ class InMemoryPlayerRepository(PlayerRepository):
         results = [
             player
             for player in self._players.values()
-            if query in player.name.lower()
+            if player.name is not None and query in player.name.lower()
         ]
         results.sort(key=lambda p: str(p.external_id))
         if limit is not None:
             results = results[:limit]
         return results
+
+    def upsert_catalog(self, external_id: ExternalId, player_id: PlayerId,
+                       name: Optional[str], data: str) -> None:
+        from json import loads as _loads
+        from ...application.persistence.serialization import player_from_dict
+
+        existing = self._players.get(str(external_id))
+        if existing is not None:
+            kept_name = existing.name if existing.name not in (None, "") else name
+            self._players[str(external_id)] = Player(
+                external_id=existing.external_id,
+                player_id=existing.player_id,
+                name=kept_name,
+                birth_date=existing.birth_date,
+                nationality=existing.nationality,
+                position=existing.position,
+                registrations=existing.registrations,
+            )
+            return
+        self._players[str(external_id)] = player_from_dict(_loads(data))
 
 
 class InMemoryTeamRepository(TeamRepository):
@@ -128,12 +148,29 @@ class InMemoryTeamRepository(TeamRepository):
         results = [
             team
             for team in self._teams.values()
-            if query in team.name.lower()
+            if team.name is not None and query in team.name.lower()
         ]
         results.sort(key=lambda t: str(t.external_id))
         if limit is not None:
             results = results[:limit]
         return results
+
+    def upsert_catalog(self, external_id: ExternalId, team_id: TeamId,
+                       name: Optional[str], data: str) -> None:
+        from json import loads as _loads
+        from ...application.persistence.serialization import team_from_dict
+
+        existing = self._teams.get(str(external_id))
+        if existing is not None:
+            kept_name = existing.name if existing.name not in (None, "") else name
+            self._teams[str(external_id)] = Team(
+                external_id=existing.external_id,
+                team_id=existing.team_id,
+                name=kept_name,
+                registrations=existing.registrations,
+            )
+            return
+        self._teams[str(external_id)] = team_from_dict(_loads(data))
 
 
 class InMemoryCompetitionRepository(CompetitionRepository):

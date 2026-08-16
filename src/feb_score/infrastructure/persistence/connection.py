@@ -67,6 +67,12 @@ MIGRATIONS: List[Migration] = [
         destructive=False,
         script=(_MIGRATIONS_DIR / "004_analytics_indexes.sql").read_text(),
     ),
+    Migration(
+        version=5,
+        name="catalog_nullable_names",
+        destructive=True,
+        script=(_MIGRATIONS_DIR / "005_catalog_nullable_names.sql").read_text(),
+    ),
 ]
 
 

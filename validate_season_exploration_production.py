@@ -255,18 +255,24 @@ def check_search(
     # as an informational diagnostic, documented production gap)
     player_names = _names(db, "players")
     for pid, name in sorted(player_names.items()):
+        if not name:
+            continue
         found = {str(p.external_id) for p in svc.search_players(name)}
         if pid not in found:
             failures.append(f"player search '{name}' did not return {pid}")
     team_names = _names(db, "teams")
     for tid, name in sorted(team_names.items()):
+        if not name:
+            continue
         found = {str(t.external_id) for t in svc.search_teams(name)}
         if tid not in found:
             failures.append(f"team search '{name}' did not return {tid}")
-    if not player_names or not team_names:
-        print(f"  [DIAG] catálogo players/teams vacío ({len(player_names)}/{len(team_names)}):"
-              " name search no puede matchear hasta poblarlo (gap de datos documentado)")
-    print(f"  player/team name search   = {len(player_names)}/{len(team_names)} entidades re-ubicables")
+    null_names = sum(1 for n in player_names.values() if not n) + sum(
+        1 for n in team_names.values() if not n)
+    if null_names:
+        print(f"  [DIAG] entidades con name NULL (sin fuente oficial): {null_names}")
+    print(f"  player/team name search   = {len([n for n in player_names.values() if n])}"
+          f"/{len([n for n in team_names.values() if n])} entidades re-ubicables")
 
     # external_id substring exact-hit
     sample = _league_match_ids(db, season_code)[:5]
@@ -276,6 +282,75 @@ def check_search(
             failures.append(f"match q={ext} did not return itself")
 
     return failures
+
+
+def check_catalog(
+    db: PgDatabase, svc: ExplorationService, analytics: SeasonAnalyticsService, season_code: str
+) -> List[str]:
+    """FASE 24.1 — catalog backfill invariants.
+
+    * no duplicate external_ids in players/teams (canonical identity);
+    * every catalog entity with a non-null name is re-locatable by name search;
+    * every season entity (stats projection) has a catalog record.
+    """
+    failures: List[str] = []
+
+    for table, id_column, repo_names, search in (
+        ("players", "player_external_id", "players", svc.search_players),
+        ("teams", "team_external_id", "teams", svc.search_teams),
+    ):
+        total = _count(db, table)
+        distinct = _count_distinct(db, table, "external_id")
+        print(f"  {table}: total={total} distinct_external_id={distinct}")
+        if total != distinct:
+            failures.append(f"{table}: duplicates present ({total} rows, {distinct} distinct)")
+
+    player_names = _names(db, "players")
+    team_names = _names(db, "teams")
+    players_with_stats = len(list(analytics.list_season_player_aggregates(season_code)))
+    teams_with_stats = len(list(analytics.list_season_team_aggregates(season_code)))
+    print(f"  catálogo players/teams   = {len(player_names)}/{len(team_names)} "
+          f"(stats season: {players_with_stats} jugadores / {teams_with_stats} equipos)")
+
+    for pid, name in sorted(player_names.items()):
+        if not name:
+            continue
+        if pid not in {str(p.external_id) for p in svc.search_players(name)}:
+            failures.append(f"player search '{name}' did not re-locate {pid}")
+    for tid, name in sorted(team_names.items()):
+        if not name:
+            continue
+        if tid not in {str(t.external_id) for t in svc.search_teams(name)}:
+            failures.append(f"team search '{name}' did not re-locate {tid}")
+
+    null_players = sum(1 for n in player_names.values() if not n)
+    null_teams = sum(1 for n in team_names.values() if not n)
+    if null_players or null_teams:
+        print(f"  [DIAG] entidades con name NULL (sin fuente oficial): "
+              f"jugadores={null_players} equipos={null_teams}")
+
+    # every stats-projection entity must now have a catalog record (canonical)
+    catalog_players = set(player_names)
+    catalog_teams = set(team_names)
+    stats_players = {a.player_external_id for a in analytics.list_season_player_aggregates(season_code)}
+    stats_teams = {a.team_external_id for a in analytics.list_season_team_aggregates(season_code)}
+    for pid in sorted(stats_players - catalog_players):
+        failures.append(f"player {pid} has stats but no catalog record (backfill pending)")
+    for tid in sorted(stats_teams - catalog_teams):
+        failures.append(f"team {tid} has stats but no catalog record (backfill pending)")
+    return failures
+
+
+def _count(db: PgDatabase, table: str) -> int:
+    with db.connect() as conn:
+        return conn.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()["n"]
+
+
+def _count_distinct(db: PgDatabase, table: str, column: str) -> int:
+    with db.connect() as conn:
+        return conn.execute(
+            f"SELECT COUNT(DISTINCT {column}) AS n FROM {table}"
+        ).fetchone()["n"]
 
 
 def run_validations(db: PgDatabase, season_code: str):
@@ -293,6 +368,7 @@ def run_validations(db: PgDatabase, season_code: str):
         ("2. PLAYER PROFILES (24.2)", check_player_profiles(db, svc, analytics, season_code)),
         ("3. TEAM PROFILES + EVOLUCION (24.3)", check_team_profiles(db, svc, analytics, season_code)),
         ("4. SEARCH (24.4)", check_search(db, svc, season_code)),
+        ("5. CATALOG (24.1)", check_catalog(db, svc, analytics, season_code)),
     ]
 
     all_failures: List[str] = []
@@ -313,7 +389,7 @@ def validate_production(season_code: str = SEASON) -> int:
         return 1
 
     print("=================================================================")
-    print(f"FASE 24 — Match & Player Exploration Production Validation ({season_code})")
+    print(f"FASE 24 / 24.1 — Match & Player Exploration + Catalog Production Validation ({season_code})")
     print("Mode: READ-ONLY")
     print("=================================================================")
 

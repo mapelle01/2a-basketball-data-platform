@@ -498,3 +498,64 @@ def test_openapi_documents_exploration_contract(seeded):
     assert schemas["PlayerProfileResponse"]["properties"]["teams"]["type"] == "array"
     assert schemas["TeamProfileResponse"]["properties"]["evolution"]["type"] == "array"
     assert schemas["MatchSearchResponse"]["properties"]["season_code"] is not None
+
+
+# ===========================================================================
+# FASE 24.1 — catalog backfill restores name search end-to-end
+# ===========================================================================
+
+def test_backfill_makes_name_search_and_profiles_work(seeded):
+    """After the catalog backfill, a stats-only entity with an official name
+    becomes searchable by name and its profile exposes the catalog name."""
+    app, gateway = seeded
+    from feb_score.application.use_cases.catalog_backfill_service import (
+        CatalogBackfillService,
+    )
+
+    # T5 has stats but no catalog record; backfill names it "Club Cinco"
+    svc = CatalogBackfillService(
+        gateway._player_repo, gateway._team_repo, gateway._stats_repo,
+        team_names=_MapResolver({"T5": "Club Cinco"}),
+        player_names=_MapResolver({}),
+    )
+    result = svc.run(SeasonCode(SEASON), entities=("teams",))
+    assert result.created == 1  # T5 is the only team without a catalog record
+
+    # team search by name now finds it
+    resp = _tc(app).get("/v1/teams/search?q=cinco")
+    assert resp.status_code == 200
+    hits = resp.json()["items"]
+    assert [t["team_external_id"] for t in hits] == ["T5"]
+    assert hits[0]["name"] == "Club Cinco"
+
+    # team profile now resolves via the catalog with a real name
+    profile = _tc(app).get(f"/v1/seasons/{SEASON}/teams/T5").json()
+    assert profile["name"] == "Club Cinco"
+    assert profile["totals"]["points_for"] == 41
+
+
+def test_backfill_null_name_player_not_searchable_but_profile_resolves(seeded):
+    """Players without an official name are created with name NULL: profiles
+    resolve via the catalog but name search cannot match them."""
+    app, gateway = seeded
+    from feb_score.application.use_cases.catalog_backfill_service import (
+        CatalogBackfillService,
+    )
+
+    svc = CatalogBackfillService(
+        gateway._player_repo, gateway._team_repo, gateway._stats_repo,
+        player_names=_MapResolver({}),
+    )
+    result = svc.run(SeasonCode(SEASON), entities=("players",))
+    assert result.created == 1  # PX is the only player without a catalog record
+
+    assert _tc(app).get(f"/v1/seasons/{SEASON}/players/PX").json()["name"] is None
+    assert _tc(app).get("/v1/players/search?q=px").json()["items"] == []
+
+
+class _MapResolver:
+    def __init__(self, mapping):
+        self._mapping = mapping
+
+    def resolve(self, season_code):
+        return dict(self._mapping)
