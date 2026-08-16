@@ -165,3 +165,76 @@ class SeasonTeamStats:
             raise ValueError(
                 f"wins ({self.wins}) + losses ({self.losses}) must equal games_played ({self.games_played})"
             )
+
+
+# ---------------------------------------------------------------------------
+# Leaderboard models (FASE 23.3)
+# ---------------------------------------------------------------------------
+
+class PlayerLeaderboardMetric:
+    """Valid metric names for player leaderboard ranking."""
+    POINTS = "points"
+    REBOUNDS = "rebounds"
+    ASSISTS = "assists"
+    STEALS = "steals"
+    BLOCKS = "blocks"
+    TURNOVERS = "turnovers"
+    GAMES_PLAYED = "games_played"
+    ALL: tuple = (POINTS, REBOUNDS, ASSISTS, STEALS, BLOCKS, TURNOVERS, GAMES_PLAYED)
+
+
+class TeamLeaderboardMetric:
+    """Valid metric names for team leaderboard ranking.
+
+    CLASSIFICATION orders by: wins DESC, losses ASC, point_difference DESC, team_external_id ASC.
+    """
+    CLASSIFICATION = "classification"
+    POINTS_FOR = "points_for"
+    POINT_DIFFERENCE = "point_difference"
+    WIN_PERCENTAGE = "win_percentage"
+    ALL: tuple = (CLASSIFICATION, POINTS_FOR, POINT_DIFFERENCE, WIN_PERCENTAGE)
+
+
+@dataclass(frozen=True)
+class SeasonPlayerLeaderboardEntry:
+    """A single entry in a player season leaderboard.
+
+    rank is positional (1-based), assigned after sorting by the requested metric
+    (DESC) with player_external_id ASC as tiebreaker. Two players with the same
+    metric value receive consecutive ranks (no DENSE_RANK / shared-rank semantics).
+    That simplification is documented here and deferred to a later phase if a
+    public API requires shared ranks.
+    """
+    rank: int
+    player_external_id: str
+    season_code: str
+    games_played: int
+    points: int
+    rebounds: int
+    assists: int
+    steals: int
+    blocks: int
+    turnovers: int
+    minutes: float
+
+
+@dataclass(frozen=True)
+class SeasonTeamLeaderboardEntry:
+    """A single entry in a team season leaderboard.
+
+    point_difference = points_for - points_against  (derived, not stored)
+    win_percentage   = wins / games_played           (0.0 if games_played == 0)
+
+    rank is positional (1-based) with metric-specific tiebreakers.
+    """
+    rank: int
+    team_external_id: str
+    season_code: str
+    games_played: int
+    wins: int
+    losses: int
+    points_for: int
+    points_against: int
+    point_difference: int
+    win_percentage: float
+

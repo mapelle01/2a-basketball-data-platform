@@ -11,7 +11,14 @@ from ...domain.player.model import Player
 from ...domain.publication.model import Publication
 from ...domain.ratings.model import PlayerRating
 from ...domain.standings.model import StandingSnapshot
-from ...domain.statistics.model import PlayerStats, SeasonPlayerStats, SeasonTeamStats, TeamStats
+from ...domain.statistics.model import (
+    PlayerStats,
+    SeasonPlayerLeaderboardEntry,
+    SeasonPlayerStats,
+    SeasonTeamLeaderboardEntry,
+    SeasonTeamStats,
+    TeamStats,
+)
 from ...domain.team.model import Team
 from ...domain.value_objects import CompetitionId, ExternalId, LeaderboardId, MatchId, PlayerId, PublicationId, SeasonCode
 
@@ -154,4 +161,35 @@ class MatchStatsRepository(ABC):
     def list_season_team_aggregates(
         self, season_code: SeasonCode
     ) -> Iterable[SeasonTeamStats]:
+        pass
+
+    # ------------------------------------------------------------------ 23.3
+    @abstractmethod
+    def list_season_player_leaderboard(
+        self,
+        season_code: SeasonCode,
+        metric: str,
+        limit: Optional[int] = None,
+    ) -> Iterable[SeasonPlayerLeaderboardEntry]:
+        """Ranked season player leaderboard (positional rank 1..N).
+
+        *metric* is one of ``PlayerLeaderboardMetric.ALL``; ranking is
+        deterministic (metric DESC — ASC for turnovers — then
+        player_external_id ASC).  Raises ValueError for an unknown metric.
+        """
+        pass
+
+    @abstractmethod
+    def list_season_team_leaderboard(
+        self,
+        season_code: SeasonCode,
+        metric: str,
+        limit: Optional[int] = None,
+    ) -> Iterable[SeasonTeamLeaderboardEntry]:
+        """Ranked season team leaderboard (positional rank 1..N).
+
+        *metric* is one of ``TeamLeaderboardMetric.ALL``; ranking is
+        deterministic with metric-specific tiebreakers.  Raises ValueError
+        for an unknown metric.
+        """
         pass

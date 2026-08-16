@@ -23,7 +23,15 @@ from ...domain.player.model import Player
 from ...domain.publication.model import Publication
 from ...domain.ratings.model import PlayerRating
 from ...domain.standings.model import StandingSnapshot
-from ...domain.statistics.model import PlayerStats, SeasonPlayerStats, SeasonTeamStats, TeamStats
+from ...domain.statistics.model import (
+    PlayerStats,
+    SeasonPlayerLeaderboardEntry,
+    SeasonPlayerStats,
+    SeasonTeamLeaderboardEntry,
+    SeasonTeamStats,
+    TeamStats,
+)
+from ...domain.statistics.ranking import rank_player_entries, rank_team_entries
 from ...domain.team.model import Team
 from ...domain.value_objects import CompetitionId, ExternalId, LeaderboardId, SeasonCode
 
@@ -143,11 +151,14 @@ class InMemoryMatchStatsRepository(MatchStatsRepository):
     def __init__(self) -> None:
         self._player: Dict[str, Dict[str, PlayerStats]] = {}  # match -> player_id -> stats
         self._team: Dict[str, Dict[str, TeamStats]] = {}  # match -> team_id -> stats
+        self._player_season: Dict[str, str] = {}  # match -> season_code
+        self._team_season: Dict[str, str] = {}  # match -> season_code
 
     def save_player_stats(
         self, match_external_id: str, season_code: SeasonCode, player_stats: Iterable[PlayerStats]
     ) -> None:
         bucket = self._player.setdefault(match_external_id, {})
+        self._player_season[match_external_id] = str(season_code)
         for ps in player_stats:
             bucket[ps.player_external_id] = ps
 
@@ -155,6 +166,7 @@ class InMemoryMatchStatsRepository(MatchStatsRepository):
         self, match_external_id: str, season_code: SeasonCode, team_stats: Iterable[TeamStats]
     ) -> None:
         bucket = self._team.setdefault(match_external_id, {})
+        self._team_season[match_external_id] = str(season_code)
         for ts in team_stats:
             bucket[ts.team_external_id] = ts
 
@@ -168,9 +180,10 @@ class InMemoryMatchStatsRepository(MatchStatsRepository):
         self, player_external_id: str, season_code: SeasonCode
     ) -> Iterable[PlayerStats]:
         result = []
-        for bucket in self._player.values():
+        for match_id, bucket in self._player.items():
+            if self._player_season.get(match_id) != str(season_code):
+                continue
             if player_external_id in bucket:
-                # InMemory mock: doesn't strictly filter by season_code, assumes test setup matches
                 result.append(bucket[player_external_id])
         return result
 
@@ -178,16 +191,17 @@ class InMemoryMatchStatsRepository(MatchStatsRepository):
         self, season_code: SeasonCode
     ) -> Iterable[SeasonPlayerStats]:
         from collections import defaultdict
-        
+
         # grouping by player_external_id
         grouped = defaultdict(lambda: {
             "games_played": 0, "points": 0, "rebounds": 0, "assists": 0,
             "steals": 0, "blocks": 0, "turnovers": 0, "minutes": 0.0
         })
-        
-        # in memory doesn't track season_code per bucket natively, 
-        # but player stats have it implicitly. We will just aggregate all.
-        for bucket in self._player.values():
+
+        # only buckets belonging to the requested season
+        for match_id, bucket in self._player.items():
+            if self._player_season.get(match_id) != str(season_code):
+                continue
             for player_id, ps in bucket.items():
                 aggr = grouped[player_id]
                 aggr["games_played"] += 1
@@ -198,7 +212,7 @@ class InMemoryMatchStatsRepository(MatchStatsRepository):
                 aggr["blocks"] += ps.blocks
                 aggr["turnovers"] += ps.turnovers
                 aggr["minutes"] += ps.minutes
-                
+
         result = []
         for pid in sorted(grouped.keys()):
             aggr = grouped[pid]
@@ -237,7 +251,9 @@ class InMemoryMatchStatsRepository(MatchStatsRepository):
             "turnovers": 0, "rebounds": 0,
         })
 
-        for bucket in self._team.values():  # bucket: {team_id -> TeamStats}
+        for match_id, bucket in self._team.items():  # bucket: {team_id -> TeamStats}
+            if self._team_season.get(match_id) != str(season_code):
+                continue
             for team_id, ts in bucket.items():
                 aggr = grouped[team_id]
                 aggr["games_played"] += 1
@@ -278,3 +294,23 @@ class InMemoryMatchStatsRepository(MatchStatsRepository):
                 rebounds=aggr["rebounds"],
             ))
         return result
+
+    def list_season_player_leaderboard(
+        self,
+        season_code: SeasonCode,
+        metric: str,
+        limit: Optional[int] = None,
+    ) -> List[SeasonPlayerLeaderboardEntry]:
+        return rank_player_entries(
+            self.list_season_player_aggregates(season_code), metric, limit
+        )
+
+    def list_season_team_leaderboard(
+        self,
+        season_code: SeasonCode,
+        metric: str,
+        limit: Optional[int] = None,
+    ) -> List[SeasonTeamLeaderboardEntry]:
+        return rank_team_entries(
+            self.list_season_team_aggregates(season_code), metric, limit
+        )

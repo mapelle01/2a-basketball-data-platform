@@ -54,7 +54,16 @@ from ...domain.player.model import Player
 from ...domain.publication.model import Publication
 from ...domain.ratings.model import PlayerRating
 from ...domain.standings.model import StandingSnapshot
-from ...domain.statistics.model import PlayerStats, SeasonPlayerStats, SeasonTeamStats, TeamStats
+from ...domain.statistics.model import (
+    PlayerLeaderboardMetric,
+    PlayerStats,
+    SeasonPlayerLeaderboardEntry,
+    SeasonPlayerStats,
+    SeasonTeamLeaderboardEntry,
+    SeasonTeamStats,
+    TeamLeaderboardMetric,
+    TeamStats,
+)
 from ...domain.team.model import Team
 from ...domain.value_objects import (
     CompetitionId,
@@ -74,6 +83,28 @@ def _player_stats_from_blob(data: str) -> PlayerStats:
     if played_at:
         raw["played_at"] = datetime.fromisoformat(played_at)
     return PlayerStats(**raw)
+
+
+_PLAYER_LEADERBOARD_ORDER = {
+    PlayerLeaderboardMetric.POINTS: "points DESC, player_external_id ASC",
+    PlayerLeaderboardMetric.REBOUNDS: "rebounds DESC, player_external_id ASC",
+    PlayerLeaderboardMetric.ASSISTS: "assists DESC, player_external_id ASC",
+    PlayerLeaderboardMetric.STEALS: "steals DESC, player_external_id ASC",
+    PlayerLeaderboardMetric.BLOCKS: "blocks DESC, player_external_id ASC",
+    PlayerLeaderboardMetric.TURNOVERS: "turnovers ASC, player_external_id ASC",
+    PlayerLeaderboardMetric.GAMES_PLAYED: "games_played DESC, player_external_id ASC",
+}
+
+_TEAM_LEADERBOARD_ORDER = {
+    TeamLeaderboardMetric.CLASSIFICATION:
+        "wins DESC, losses ASC, (points_for - points_against) DESC, team_external_id ASC",
+    TeamLeaderboardMetric.POINTS_FOR: "points_for DESC, team_external_id ASC",
+    TeamLeaderboardMetric.POINT_DIFFERENCE:
+        "(points_for - points_against) DESC, team_external_id ASC",
+    TeamLeaderboardMetric.WIN_PERCENTAGE:
+        "(CASE WHEN games_played > 0 THEN CAST(wins AS REAL) / games_played ELSE 0.0 END)"
+        " DESC, wins DESC, team_external_id ASC",
+}
 
 
 class _SqliteRepoMixin:
@@ -644,6 +675,122 @@ class SqliteMatchStatsRepository(_SqliteRepoMixin, MatchStatsRepository):
                     free_throws_attempted=int(r["free_throws_attempted"]),
                     turnovers=int(r["turnovers"]),
                     rebounds=int(r["rebounds"]),
+                )
+                for r in rows
+            ]
+        finally:
+            if owned:
+                conn.close()
+
+    def list_season_player_leaderboard(
+        self,
+        season_code: SeasonCode,
+        metric: str,
+        limit: Optional[int] = None,
+    ) -> Iterable[SeasonPlayerLeaderboardEntry]:
+        order_by = _PLAYER_LEADERBOARD_ORDER.get(metric)
+        if order_by is None:
+            raise ValueError(
+                f"Unknown player metric '{metric}'. "
+                f"Valid values: {PlayerLeaderboardMetric.ALL}"
+            )
+        conn, owned = self._conn()
+        try:
+            sql = (
+                "WITH agg AS ("
+                " SELECT player_external_id, season_code,"
+                "  COUNT(match_external_id) AS games_played,"
+                "  SUM(points) AS points, SUM(rebounds) AS rebounds,"
+                "  SUM(assists) AS assists, SUM(steals) AS steals,"
+                "  SUM(blocks) AS blocks, SUM(turnovers) AS turnovers,"
+                "  SUM(minutes) AS minutes"
+                " FROM match_player_stats WHERE season_code = ?"
+                " GROUP BY player_external_id, season_code)"
+                f" SELECT ROW_NUMBER() OVER (ORDER BY {order_by}) AS rank,"
+                "  player_external_id, season_code, games_played, points, rebounds,"
+                "  assists, steals, blocks, turnovers, minutes"
+                f" FROM agg ORDER BY {order_by}"
+            )
+            params: tuple = (str(season_code),)
+            if limit is not None:
+                sql += " LIMIT ?"
+                params += (limit,)
+            rows = conn.execute(sql, params).fetchall()
+            return [
+                SeasonPlayerLeaderboardEntry(
+                    rank=int(r["rank"]),
+                    player_external_id=r["player_external_id"],
+                    season_code=r["season_code"],
+                    games_played=int(r["games_played"]),
+                    points=int(r["points"]),
+                    rebounds=int(r["rebounds"]),
+                    assists=int(r["assists"]),
+                    steals=int(r["steals"]),
+                    blocks=int(r["blocks"]),
+                    turnovers=int(r["turnovers"]),
+                    minutes=float(r["minutes"]),
+                )
+                for r in rows
+            ]
+        finally:
+            if owned:
+                conn.close()
+
+    def list_season_team_leaderboard(
+        self,
+        season_code: SeasonCode,
+        metric: str,
+        limit: Optional[int] = None,
+    ) -> Iterable[SeasonTeamLeaderboardEntry]:
+        order_by = _TEAM_LEADERBOARD_ORDER.get(metric)
+        if order_by is None:
+            raise ValueError(
+                f"Unknown team metric '{metric}'. "
+                f"Valid values: {TeamLeaderboardMetric.ALL}"
+            )
+        conn, owned = self._conn()
+        try:
+            sql = (
+                "WITH agg AS ("
+                " SELECT team_external_id, season_code,"
+                "  COUNT(match_external_id) AS games_played,"
+                "  SUM(CASE WHEN points_for > points_against THEN 1 ELSE 0 END) AS wins,"
+                "  SUM(CASE WHEN points_for < points_against THEN 1 ELSE 0 END) AS losses,"
+                "  SUM(points_for) AS points_for, SUM(points_against) AS points_against,"
+                "  SUM(field_goals_made) AS field_goals_made,"
+                "  SUM(field_goals_attempted) AS field_goals_attempted,"
+                "  SUM(three_points_made) AS three_points_made,"
+                "  SUM(three_points_attempted) AS three_points_attempted,"
+                "  SUM(free_throws_made) AS free_throws_made,"
+                "  SUM(free_throws_attempted) AS free_throws_attempted,"
+                "  SUM(turnovers) AS turnovers, SUM(rebounds) AS rebounds"
+                " FROM match_team_stats WHERE season_code = ?"
+                " GROUP BY team_external_id, season_code)"
+                f" SELECT ROW_NUMBER() OVER (ORDER BY {order_by}) AS rank,"
+                "  team_external_id, season_code, games_played, wins, losses,"
+                "  points_for, points_against,"
+                "  (points_for - points_against) AS point_difference,"
+                "  CASE WHEN games_played > 0 THEN CAST(wins AS REAL) / games_played"
+                "   ELSE 0.0 END AS win_percentage"
+                f" FROM agg ORDER BY {order_by}"
+            )
+            params: tuple = (str(season_code),)
+            if limit is not None:
+                sql += " LIMIT ?"
+                params += (limit,)
+            rows = conn.execute(sql, params).fetchall()
+            return [
+                SeasonTeamLeaderboardEntry(
+                    rank=int(r["rank"]),
+                    team_external_id=r["team_external_id"],
+                    season_code=r["season_code"],
+                    games_played=int(r["games_played"]),
+                    wins=int(r["wins"]),
+                    losses=int(r["losses"]),
+                    points_for=int(r["points_for"]),
+                    points_against=int(r["points_against"]),
+                    point_difference=int(r["point_difference"]),
+                    win_percentage=float(r["win_percentage"]),
                 )
                 for r in rows
             ]
