@@ -346,3 +346,91 @@ def test_stats_command_optional_player_fields_default():
     payload = cmd["payload"]
     p = payload["player_stats"][0]
     assert p["steals"] == 0 and p["blocks"] == 0 and p["turnovers"] == 0
+
+
+# --- 10. FASE 24.2 auto-token: JWT obtenido de la página pública del partido
+FAKE_PAGE = (
+    '<html><body><div id="contentToken">'
+    '<input type="hidden" name="_ctl0:token" id="_ctl0_token" value="eyJhbGciOiJSUzI1NiJ9.fake.payload" />'
+    "</div></body></html>"
+)
+FAKE_BOXSCORE = json.dumps(FIXTURE).encode("utf-8")
+
+
+class _FakeResp:
+    def __init__(self, status, body):
+        self.status = status
+        self._body = body
+
+    def read(self):
+        return self._body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def test_fetch_feb_token_extracts_jwt_from_public_page(monkeypatch):
+    calls = []
+
+    def _urlopen(req, timeout=None):
+        calls.append(req.full_url)
+        return _FakeResp(200, FAKE_PAGE.encode("utf-8"))
+
+    monkeypatch.setattr(M.urllib.request, "urlopen", _urlopen)
+    token = M.fetch_feb_token("2486864")
+    assert token == "eyJhbGciOiJSUzI1NiJ9.fake.payload"
+    assert any("baloncestoenvivo.feb.es/partido/2486864" in u for u in calls)
+
+
+def test_fetch_feb_token_fails_closed_without_token_field(monkeypatch):
+    def _urlopen(req, timeout=None):
+        return _FakeResp(200, b"<html>no token here</html>")
+
+    monkeypatch.setattr(M.urllib.request, "urlopen", _urlopen)
+    with pytest.raises(RuntimeError):
+        M.fetch_feb_token("2486864")
+
+
+def test_fetch_feb_boxscore_auto_obtains_token_when_empty(monkeypatch):
+    """Empty token -> connector fetches the public page first, then the BoxScore
+    with the obtained JWT (never a fabricated token)."""
+    page_calls, api_calls = [], []
+
+    def _urlopen(req, timeout=None):
+        url = req.full_url
+        if "partido" in url:
+            page_calls.append(url)
+            return _FakeResp(200, FAKE_PAGE.encode("utf-8"))
+        api_calls.append((url, req.get_header("Authorization")))
+        return _FakeResp(200, FAKE_BOXSCORE)
+
+    monkeypatch.setattr(M.urllib.request, "urlopen", _urlopen)
+    M._TOKEN_CACHE["token"] = None
+    M._TOKEN_CACHE["exp"] = 0.0
+    box = M.fetch_feb_boxscore("2486864", None)
+    assert len(page_calls) == 1
+    assert len(api_calls) == 1
+    auth = api_calls[0][1]
+    assert auth == "Bearer eyJhbGciOiJSUzI1NiJ9.fake.payload"
+    assert box.get("BOXSCORE") is not None
+
+
+def test_auto_token_cache_reuses_single_fetch(monkeypatch):
+    page_calls = []
+
+    def _urlopen(req, timeout=None):
+        url = req.full_url
+        if "partido" in url:
+            page_calls.append(url)
+            return _FakeResp(200, FAKE_PAGE.encode("utf-8"))
+        return _FakeResp(200, FAKE_BOXSCORE)
+
+    monkeypatch.setattr(M.urllib.request, "urlopen", _urlopen)
+    M._TOKEN_CACHE["token"] = "cached-jwt"
+    M._TOKEN_CACHE["exp"] = __import__("time").time() + 3600
+    box = M.fetch_feb_boxscore("2486864", None)
+    assert box.get("BOXSCORE") is not None
+    assert len(page_calls) == 0  # cached token -> no public-page fetch

@@ -110,10 +110,13 @@ def test_resolve_marks_unresolved_targets_as_null_not_dropped():
     assert r == len(_fixture_names(FIXTURE)) and u == 1
 
 
-def test_fail_closed_without_token_never_invents():
+def test_fail_closed_when_connector_unavailable_never_invents(monkeypatch):
     pids = list(_fixture_names(FIXTURE).keys())
     stats = _seeded_stats(pids)
     res = OfficialPlayerNameResolver(_FixtureMatchRepo("x"), stats, str(SEASON))
+    # FASE 24.2: no explicit token + connector missing -> fail CLOSED (no names)
+    from feb_score.application.use_cases import player_name_resolver as mod
+    monkeypatch.setattr(mod, "_import_feb", lambda: (_ for _ in ()).throw(ImportError("no scripts/feb")))
     with pytest.raises(SourceError):
         res.resolve(SEASON)
     r, u, c = res.last_stats()

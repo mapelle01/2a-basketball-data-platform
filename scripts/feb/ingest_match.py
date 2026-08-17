@@ -25,6 +25,7 @@ Reglas B2:
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import re
@@ -42,6 +43,7 @@ ACTOR_ROLE = "system"
 
 DEFAULT_COMPETITION_ID = "segunda-feb"
 DEFAULT_BOXSCORE_BASE = "https://intrafeb.feb.es/LiveStats.API/api/v1/BoxScore"
+DEFAULT_PUBLIC_MATCH_BASE = "https://baloncestoenvivo.feb.es/partido"
 TZ_OFFSET_B2 = "+01:00"  # FEB no publica TZ en starttime; Spain winter/summer provisional. B3 generalization.
 
 # --- FASE 22.4: retry/backoff para HTTP 429 (FEB y nuestra API) ----------------
@@ -591,18 +593,102 @@ def post_stats_command(base_url: str, api_key: str, command: Dict[str, Any]) -> 
         return {"status": e.code, "body": e.read().decode("utf-8", "replace")}
 
 
-def fetch_feb_boxscore(match_id: str, token: str, base_url: str = DEFAULT_BOXSCORE_BASE) -> Dict[str, Any]:
-    """GET real FEB BoxScore. Token NEVER printed/stored/URLized.
+_TOKEN_INPUT_RE = re.compile(
+    r'<input[^>]*type="hidden"[^>]*name="_ctl0:token"[^>]*value="([^"]*)"', re.I
+)
 
-    FASE 22.4: HTTP 429 is retried with bounded backoff (Retry-After honored);
-    any other HTTP status propagates immediately.
+
+def fetch_feb_token(match_id: str, base_url: str = DEFAULT_PUBLIC_MATCH_BASE) -> str:
+    """Obtiene un JWT FEB válido SIN credenciales (FASE 24.2, auto-token).
+
+    La página pública del partido (`baloncestoenvivo.feb.es/partido/{id}`)
+    incrusta el mismo JWT que la web usa para autenticar contra
+    `intrafeb.feb.es/LiveStats.API` (input hidden `_ctl0:token`). Se extrae con
+    un regex local (misma semántica que `discover_matches._hidden_inputs`) y se
+    devuelve al llamador — NUNCA se imprime, guarda ni serializa.
+
+    Devuelve el token (str). Fallo cerrado: si la página no trae el campo
+    `_ctl0:token` (cambio de estructura FEB) lanza RuntimeError y el llamador
+    decide — nunca se inventa un token.
     """
     url = f"{base_url.rstrip('/')}/{match_id}"
     req = urllib.request.Request(
         url,
         headers={
+            "Accept": "text/html",
+            "User-Agent": "feb-score-connector/1.0",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as resp:  # noqa: S310 (fuente FEB pública)
+        if not (200 <= resp.status < 300):
+            raise RuntimeError(f"FEB {url} HTTP {resp.status}")
+        page_html = resp.read().decode("utf-8", "replace")
+
+    m = _TOKEN_INPUT_RE.search(page_html)
+    token = m.group(1) if m else ""
+    if not token:
+        raise RuntimeError(
+            "FEB public page has no `_ctl0:token`; auto-token unavailable (structure changed?)"
+        )
+    return token
+
+
+_TOKEN_CACHE: Dict[str, object] = {"token": None, "exp": 0.0}
+
+
+def _auto_token(match_id: str) -> str:
+    """JWT con cache en memoria y TTL hasta `exp` (con margen de seguridad).
+
+    La web FEB emite JWTs de ~24h; el mismo token vale para todos los partidos
+    de esa ventana (verificado FASE 24.2: token de un partido sirvió para otro).
+    Un único fetch por ventana. Si expira o hay fallo de red, se re-obtiene.
+    """
+    now = time.time()
+    cached = _TOKEN_CACHE.get("token")
+    exp = _TOKEN_CACHE.get("exp") or 0.0
+    if cached and exp - now > 60:  # margen de 60s contra expiraciones fronterizas
+        return str(cached)
+
+    token = fetch_feb_token(match_id)
+    exp = _jwt_exp(token)
+    if exp is not None:
+        _TOKEN_CACHE["exp"] = float(exp)
+    else:
+        _TOKEN_CACHE["exp"] = now + 3600  # no decodificable: recache ~1h, seguro
+    _TOKEN_CACHE["token"] = token
+    return token
+
+
+def _jwt_exp(token: str) -> Optional[int]:
+    """`exp` (unix) del payload del JWT, sin exponer contenido (no se imprime)."""
+    try:
+        payload = token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        decoded = json.loads(base64.urlsafe_b64decode(payload).decode("utf-8"))
+        return int(decoded["exp"])
+    except Exception:  # noqa: BLE001 — token no decodificable no bloquea el flujo
+        return None
+
+
+def fetch_feb_boxscore(match_id: str, token: Optional[str] = None,
+                       base_url: str = DEFAULT_BOXSCORE_BASE) -> Dict[str, Any]:
+    """GET real FEB BoxScore. Token NEVER printed/stored/URLized.
+
+    FASE 22.4: HTTP 429 is retried with bounded backoff (Retry-After honored);
+    any other HTTP status propagates immediately.
+
+    FASE 24.2: `token` is now optional. When empty/None, the connector obtains
+    the JWT automatically from the public match page (no `FEB_TOKEN` env, no
+    manual rotation). An explicit `token` is still honored as an override
+    (tests / operator-provided credential).
+    """
+    resolved_token = token or _auto_token(match_id)
+    url = f"{base_url.rstrip('/')}/{match_id}"
+    req = urllib.request.Request(
+        url,
+        headers={
             "Accept": "application/json",
-            "Authorization": f"Bearer {token}",  # never exposed in logs/errors by caller
+            "Authorization": f"Bearer {resolved_token}",  # never exposed in logs/errors by caller
             "User-Agent": "feb-score-connector/1.0",
         },
     )
@@ -687,8 +773,8 @@ def run() -> int:
             return _post_stats_and_report(target, api_key, parsed, stats_cmd)
         return 0
 
-    # Real FEB fetch path (needs token + match-id).
-    token = _require_env("FEB_TOKEN")
+    # Real FEB fetch path (auto-token FASE 24.2; explicit FEB_TOKEN optional).
+    token = _env("FEB_TOKEN")  # optional: empty -> auto-token from public page
     match_id = args.match_id or _require_env("FEB_MATCH_ID")
     base = _env("FEB_BOX_SCORE_BASE_URL", DEFAULT_BOXSCORE_BASE)
     box = fetch_feb_boxscore(match_id, token, base)

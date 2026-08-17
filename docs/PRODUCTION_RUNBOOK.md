@@ -143,11 +143,12 @@ Ver `docs/FASE_20_2_CLEANUP_REPORT.md` y `docs/FASE_21_B2_REPORT.md`.
 
 ### FEB Source Connector (FASE 21.B1/B2)
 
-- Fuente real FEB: `GET https://intrafeb.feb.es/LiveStats.API/api/v1/BoxScore/{match_id}` con `Authorization: Bearer <FEB_TOKEN>`.
+- Fuente real FEB: `GET https://intrafeb.feb.es/LiveStats.API/api/v1/BoxScore/{match_id}` con `Authorization: Bearer <JWT>`.
+- **FASE 24.2 (auto-token):** el JWT se obtiene automáticamente de la página pública `GET https://baloncestoenvivo.feb.es/partido/{match_id}` (input hidden `_ctl0:token`, ~24h de validez, reutilizable para todos los partidos de la ventana; cache en memoria). Ya NO hace falta provisionar/rotar `FEB_TOKEN` a mano; `FEB_TOKEN`/`--feb-token` sigue como override opcional. El token nunca se imprime, almacena ni serializa.
 - `external_id` = match_id FEB. `competition_id` domain = `segunda-feb` (Feb `CompID` preservado en `source`).
 - `scheduled_at` parseado de `dd-mm-yyyy - HH:MM` → ISO `+01:00` (offset B2 provisional; TZ real → B3).
 - Idempotent: `command_id` UUIDv5(`season_code|competition_id|external_id`); `POST create_or_update_match` → 200/409.
-- CLI: `python3 scripts/feb/ingest_match.py --fixture <json> --dry-run` (offline, NO exige token/API key); `--match-id` con `FEB_TOKEN`+`FEB_API_KEY` para POST real.
+- CLI: `python3 scripts/feb/ingest_match.py --fixture <json> --dry-run` (offline, NO exige token/API key); `--match-id` con auto-token (FASE 24.2) + `FEB_API_KEY` para POST real; `FEB_TOKEN` opcional como override.
 - `scripts/feb/smoke_fetch_feb.py` (manual), no CI. Env: `FEB_TOKEN, FEB_MATCH_ID, FEB_SEASON_CODE` (req), `FEB_COMPETITION_ID`, `FEB_API_KEY`, `FEB_TARGET_API`.
 - **Contract constraint:** `raw` sólo `boxscore_ref`/`teamstats_ref`; player stats NO se embeden (FASE 21.B3 persistence).
 

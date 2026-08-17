@@ -23,10 +23,14 @@ BoxScore, which IS the ``player_external_id`` already stored in
 descriptive attributes only — they never select/replace an identity.
 
 Security:
-    * ``FEB_TOKEN`` is read from env and passed straight to the FEB client; it
-      is never logged, never stored, never serialized, never surfaced in
-      exceptions (the FEB client masks headers itself).
-    * Absent token: fails CLOSED with ``SourceError`` (never invents names).
+    * ``FEB_TOKEN`` (optional since FASE 24.2) is read from env and passed
+      straight to the FEB client; it is never logged, never stored, never
+      serialized, never surfaced in exceptions (the FEB client masks headers
+      itself).
+    * Since FASE 24.2 the JWT is auto-obtained from the public match page when
+      no explicit token is given (no manual rotation). The resolver still fails
+      CLOSED with ``SourceError`` when the source is unreachable (never invents
+      names).
 """
 from __future__ import annotations
 
@@ -105,14 +109,20 @@ class OfficialPlayerNameResolver(CatalogNameResolver):
             return {}
 
         if not self._token and self._boxscore_loader is None:
-            # fail closed: without a token we cannot reach the official source;
-            # record the diagnostic so callers can report unresolved without a raise
-            self._resolved = 0
-            self._unresolved = len(targets)
-            raise SourceError(
-                "FEB_TOKEN is not available; official player names cannot be "
-                "resolved (set FEB_TOKEN or inject a boxscore_loader)"
-            )
+            # FASE 24.2: without an explicit token the live loader auto-obtains
+            # the JWT from the public match page; if the FEB client isn't
+            # available the resolver fails closed (SourceError, no invented names)
+            try:
+                ingest = _import_feb()
+                if not hasattr(ingest, "fetch_feb_boxscore"):
+                    raise SourceError("FEB connector unavailable")
+            except Exception as exc:  # noqa: BLE001 - controlled source failure
+                self._resolved = 0
+                self._unresolved = len(targets)
+                raise SourceError(
+                    "FEB connector unavailable; official player names cannot be "
+                    "resolved (install scripts/feb or inject a boxscore_loader)"
+                ) from exc
 
         loader = self._boxscore_loader or self._live_loader()
         match_ids = [str(m.external_id) for m in self._match_repo.search(season_code)]

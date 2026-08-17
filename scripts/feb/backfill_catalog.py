@@ -219,19 +219,14 @@ class _PlayerNullResolver:
 def _player_name_resolver(args, match_repo, stats_repo, season_code):
     """Return (resolver_or_none, OfficialPlayerNameResolver_or_None).
 
-    With --player-names official the resolver is fail-closed on missing FEB_TOKEN
-    (controlled SourceError; never invents names). With `none` returns the
-    legacy NULL resolver (FASE 24.1 behavior).
+    With --player-names official the resolver auto-obtains the FEB JWT from the
+    public match page (FASE 24.2: no manual FEB_TOKEN rotation); an explicit
+    --feb-token/env FEB_TOKEN is still honored as an override. With `none`
+    returns the legacy NULL resolver (FASE 24.1 behavior).
     """
     if args.player_names == "none":
         return _PlayerNullResolver(), None
-    token = args.feb_token or _env("FEB_TOKEN")
-    if not token:
-        raise SystemExit(
-            "CONFIG_ERROR: --player-names official requires FEB_TOKEN "
-            "(env FEB_TOKEN or --feb-token); never hardcoded/logged. "
-            "Falling back without names is intentional — pass --player-names none."
-        )
+    token = args.feb_token or _env("FEB_TOKEN")  # optional override (auto-token otherwise)
     resolver = OfficialPlayerNameResolver(
         match_repo, stats_repo, season_code, token=token,
     )
