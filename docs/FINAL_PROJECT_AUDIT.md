@@ -543,3 +543,42 @@ Detalles en `docs/FASE_24_REPORT.md`. No se reescribió contenido histórico.
   el backfill solo hace `UPDATE players.name/data` preservando id/stats.
 - **Tests:** +7 (`tests/domain/test_player_name_resolver.py`); suite completa 959 PASS.
 - **Commit:** `feat(24.2): resolve player identities` (no push).
+
+---
+
+## 19.4 — FASE 24.2 (2026-08-17): Resolución de identidades de jugador — PRODUCTION PASS
+
+**Addenda/hito FASE 24.2 — cierre administrativo.** No reescribe los históricos
+de las secciones anteriores; solo registra el hito de producción de FASE 24.2.
+
+**PRODUCTION VALIDATION: PASS** (producción `2025-2026`).
+
+Backfill real ejecutado vía
+`scripts/feb/backfill_catalog.py --season 2025-2026 --entity players
+--player-names official` sobre el túnel oficial Railway con `FEB_TOKEN`
+proporcionado operacionalmente (nunca almacenado, impreso ni incluido en
+documentación/Git):
+
+| Métrica | Valor |
+|---|---|
+| `created` | 0 |
+| `updated` | 449 |
+| `skipped` | 0 |
+| `errors` | 0 |
+| `official-name report` | resolved=449 |
+| `unresolved` | 0 |
+| `conflicts` | 0 |
+
+- **449/449** identidades resueltas con el nombre oficial FEB (BoxScore).
+- **0** unresolved, **0** conflicts, **0** errors.
+- Backfill real ejecutado; operación **idempotente** (re-run → 0 cambios).
+- Dry-run previo también PASS (read-only real).
+- `matches` / `match_player_stats` / `match_team_stats` **no modificados**
+  (solo se rellenó `players.name`/`players.data`).
+- **Problema inicial de conexiones resuelto** mediante:
+  - **bulk lookup** (`get_many_by_external_ids`, un `ANY(...)`/`IN (...)`)
+  - **bulk upsert** (`upsert_catalog_many`, un solo `INSERT … ON CONFLICT` por lote)
+  - **una única Unit of Work / conexión** (`with db.unit_of_work():` compartida)
+  - **statement_timeout** en la conexión de la transacción
+- Suite: **959 passed**, 0 regresiones (validación de código de la fase).
+- Commit de cierre: `feat(24.2): resolve production player identities`, **no push**.

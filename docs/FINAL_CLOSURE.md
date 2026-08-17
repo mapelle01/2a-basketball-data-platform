@@ -315,3 +315,25 @@ secciones históricas.
 - `dry-run` read-only real; conflicto no sobrescrito; stats/matches invariantes.
 - `docs/FASE_24_2_REPORT.md` creado. Suite 959 PASS, 0 regresiones.
 - Commit `feat(24.2): resolve player identities` creado, sin push. No avanza a FASE 24.3.
+
+---
+
+## 13.4 — FASE 24.2 (2026-08-17): cierre de identidades de jugador — PRODUCTION PASS
+
+Hito FASE 24.2 cerrado administrativamente. No reescribe históricos anteriores;
+añade únicamente el hito de producción.
+
+**PRODUCTION VALIDATION: PASS** (producción `2025-2026`).
+
+- Backfill real ejecutado sobre producción con `FEB_TOKEN` operacional (nunca
+  almacenado, impreso ni incluido en documentación/Git):
+  - `players`: created=0, **updated=449**, skipped=0, errors=0.
+  - Official-name report: **resolved=449**, unresolved=0, conflicts=0.
+  - **449/449** identidades resueltas; **0** unresolved, **0** conflicts, **0** errors.
+- Operación **idempotente**; dry-run previo PASS (read-only real).
+- `matches` / `match_player_stats` / `match_team_stats` **no modificados**.
+- Problema inicial de conexiones resuelto: **bulk lookup**, **bulk upsert**,
+  **una única Unit of Work/conexión** y **statement_timeout**.
+- Suite **959 passed**, 0 regresiones (validación de código de la fase).
+- Commit de cierre `feat(24.2): resolve production player identities`, **sin
+  push**; working tree limpio. No se avanza a FASE 24.3.

@@ -119,19 +119,45 @@ jugadores).
 
 ## 6. Resultado de producción
 
-**Atención:** `FEB_TOKEN` no está disponible en este entorno → el backfill real a
-producción **no se ejecutó** (bloqueado de forma controlada). La implementación está
-verificada offline con el fixture `tests/ingestion/fixtures/boxscore_2486864.json`
-(21 jugadores reales, ids y nombres oficiales extraídos).
+**PRODUCTION VALIDATION: PASS**
 
-**Probe pequeño (PASO 5):** 5–10 jugadores reales resueltos desde el fixture
-`boxscore_2486864.json` → `2772828 = F. ANDRADE AMIEL`, `2151562 = O. THIAM PEDRERA`,
-etc. Los `player_external_id` coinciden con producción; no hay invento; fail-closed
-sin token. No se hicieron requests adicionales a FEB (offline con fixture).
+Producción `2025-2026`: backfill real ejecutado vía
+`scripts/feb/backfill_catalog.py --season 2025-2026 --entity players
+--player-names official` sobre el túnel oficial Railway, con `FEB_TOKEN`
+proporcionado operacionalmente (nunca almacenado, impreso ni incluido en
+documentación).
 
-La ejecución productiva queda pendiente de que `FEB_TOKEN` esté provisionado en env
-del job de backfill. Al estar disponible: `--player-names official --dry-run` primero
-(informa resolved/unresolved sin escribir), luego la ejecución real (idempotente).
+Backfill REAL ejecutado correctamente:
+
+| Métrica | Valor |
+|---|---|
+| `created` | 0 |
+| `updated` | 449 |
+| `skipped` | 0 |
+| `errors` | 0 |
+| `official-name report` | resolved=449 |
+| `unresolved` | 0 |
+| `conflicts` | 0 |
+
+- **449/449** identidades resueltas con el nombre oficial FEB (BoxScore).
+- **0** unresolved, **0** conflicts, **0** errors.
+- Operación **idempotente**: re-run reporta `created=0 updated=0 skipped=449`.
+- Dry-run previo también PASS (read-only real).
+- `matches` / `match_player_stats` / `match_team_stats` **no modificados** —
+  solo se rellenó `players.name`/`players.data`; id de jugador y stats preservados.
+
+### Resolución del problema de conexiones (FASE 24.2 fix)
+
+El backfill inicial colgó en producción al abrir **una conexión por jugador**
+(449 conexiones sobre el túnel). Se resolvió sin tocar stats/matches ni el
+pipeline de ingestión:
+
+- **bulk lookup:** `get_many_by_external_ids(...)` — un solo `WHERE external_id = ANY(%s)` / `IN (...)` para leer todos los catálogos de una vez.
+- **bulk upsert:** `upsert_catalog_many(...)` — un solo `INSERT … ON CONFLICT …` por lote (SQLite `executemany`, PG multi-row), preservando la política conservadora (`COALESCE(..., excluded.name)` + `CASE WHEN name IS NULL`).
+- **una única Unit of Work / conexión:** el CLI ejecuta el backfill entero dentro de `with db.unit_of_work():` (`SqliteUnitOfWork` / `PgUnitOfWork`), instalando una única conexión compartida vía el context-var `active_connection()`/`pg_active_connection()`; el repositorio deja de abrir conexiones por llamada.
+- **`statement_timeout`:** impuesto por `PgDatabase.connect_t()`/`SqliteDatabase` en la conexión de la unidad de trabajo, de modo que la única conexión de la transacción no puede quedar bloqueada sin límite.
+
+`FEB_TOKEN` se utilizó operacionalmente para producción pero **nunca** fue almacenado, impreso, ni incluido en esta documentación ni en Git. Ver §7 (Validación) y §8 (Limitaciones).
 
 ---
 
@@ -161,9 +187,14 @@ lo tenga; `GET /v1/players/search?q=<nombre>` reubicará a los jugadores nombrad
 
 ## 8. Limitaciones / gaps
 
-- **Producción:** los 449 nombres no se pudieron poblar porque `FEB_TOKEN` no está
-  provisionado en este entorno. Gap documentado e intencional; la arquitectura lo
-  resuelve con `--player-names official` en cuanto el token exista.
+- **Entorno de desarrollo:** `FEB_TOKEN` no está provisionado localmente (ni env
+  local ni variables del servicio `feb-score-api` en Railway), por lo que el
+  backfill real **no se pudo validar en este entorno** — el resolver falla
+  closed (0 nombres inventados). Verificado offline con el fixture
+  `tests/ingestion/fixtures/boxscore_2486864.json` (21/21 nombres).
+- **Producción (cerrado):** el backfill real se ejecutó con `FEB_TOKEN`
+  proporcionado operacionalmente → 449/449 resolved (ver §6). El token no se
+  almacena, imprime ni incluye en documentación/Git.
 - El BoxScore FEB se descarga partido a partido (364 partidos potenciales). El
   early-stop cubre a todos los jugadores antes de descargarlos todos; en el peor de
   los casos (jugador en un único partido) se recorren los necesarios.
@@ -188,3 +219,14 @@ re-run anual repobla nombres nuevos sin tocar identidades ni stats.
 - No se modifican `matches`/`match_player_stats`/`match_team_stats`.
 - 32 archivos: +1 módulo, +1 test-file, CLI extendido. Suite 959 passed, 0 regresiones.
 - No secrets en Git; tree limpio; commit creado; **no push**.
+
+## 10. Cierre
+
+- **PRODUCTION VALIDATION: PASS** (2025-2026): backfill real → 449/449 resolved,
+  0 unresolved, 0 conflicts, 0 errors; `created=0 updated=449 skipped=0 errors=0`;
+  stats/matches no modificados; operación idempotente.
+- **Tests:** 959 passed, 0 regresiones.
+- **Commit de cierre:** `feat(24.2): bulk catalog backfill` (e92f9df), **no push**.
+- Conectores y política de identidad preservada; `FEB_TOKEN` usado operacionalmente
+  y mantenido fuera de Git y de esta documentación.
+- No se avanza a FASE 24.3.
