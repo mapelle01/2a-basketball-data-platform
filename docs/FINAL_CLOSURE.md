@@ -337,3 +337,31 @@ añade únicamente el hito de producción.
 - Suite **959 passed**, 0 regresiones (validación de código de la fase).
 - Commit de cierre `feat(24.2): resolve production player identities`, **sin
   push**; working tree limpio. No se avanza a FASE 24.3.
+
+---
+
+## 13.5 — FASE 24.2 (2026-08-17): limpieza de las 6 filas ajenas de `matches`
+
+Cierre del hallazgo registrado en el addendum 11 (6 filas ajenas bajo
+`2025-2026`). No reescribe históricos anteriores; registra la limpieza.
+
+**Diagnóstico (read-only sobre el túnel oficial Railway):**
+
+- 5 filas `smoke-comp` (`smoke-1786656288`, `smoke-1786656740`,
+  `smoke-1786657661`, `smoke-1786658003`, `smoke-1786693216`) + 1 fila
+  `feb-comp` (`pitr-write-prod-1`): datos sintéticos de smoke tests y de un
+  test de escritura PITR. No pertenecen a `segunda-feb 2025-2026`.
+- Sin dependencias: `match_player_stats` = 0, `match_team_stats` = 0,
+  `publications` = 0, `correction_proposals` = 0. `idempotency` (734 filas) solo
+  guarda `command_id` + `processed_at` (histórico de replay, sin FK a matches).
+
+**Limpieza (transacción única, solo esas 6 external_id):**
+
+- `DELETE 6` → `matches` queda con **364 filas, todas `segunda-feb`**.
+- Integridad confirmada: `match_player_stats` = 8.230, `match_team_stats` = 728
+  (sin cambios); **0** rastros de smoke/pitr en ninguna tabla.
+
+**Validator post-limpieza: PASS** — `validate_season_analytics_production.py`
+(`2025-2026`) íntegro: MATCHES=364 (0 dups, 26×14, 28 equipos), PLAYER
+AGGREGATES (449 jugadores/8.230 filas), TEAM AGGREGATES (28 equipos/728 filas,
+wins=losses=364), LEADERBOARDS, METRICS e INTEGRIDAD, todos en verde.
