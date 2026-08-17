@@ -20,6 +20,7 @@ from ..application.commands.commands import COMMANDS
 from ..application.use_cases.exploration_service import ExplorationService
 from ..application.use_cases.handlers import (
     ApproveCorrectionHandler,
+    BackfillCatalogHandler,
     BackfillSeasonHandler,
     ComputePlayerRatingHandler,
     CreateOrUpdateMatchHandler,
@@ -243,6 +244,9 @@ class _GatewayBase(CommandGateway):
             "backfill_season": lambda: BackfillSeasonHandler(repos["competition"]),
             "upsert_match_stats": lambda: UpsertMatchStatsHandler(
                 repos["match"], repos["stats"], repos["idempotency"]
+            ),
+            "backfill_catalog": lambda: BackfillCatalogHandler(
+                repos["match"], repos["stats"], repos["player"], repos["team"]
             ),
         }
         assert set(self._handlers) == set(COMMANDS), "handler catalog must match command catalog"

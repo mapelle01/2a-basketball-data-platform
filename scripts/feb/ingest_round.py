@@ -138,7 +138,7 @@ def run_round(
     if dry_run:
         return _run_dry(refs, season_code, round_number, group)
 
-    token = IM._require_env("FEB_TOKEN")
+    token = IM._env("FEB_TOKEN")  # FASE 24.2: optional (auto-token from public page); explicit override
     target = IM._require_env("FEB_TARGET_API")
     api_key = IM._require_env("FEB_API_KEY")
     competition_id = IM._env("FEB_COMPETITION_ID", IM.DEFAULT_COMPETITION_ID)
@@ -172,7 +172,7 @@ def run_round(
 
 def run() -> int:
     ap = argparse.ArgumentParser(prog="feb-ingest-round")
-    ap.add_argument("--season", required=True, help="season code (only 2025-2026)")
+    ap.add_argument("--season", required=True, help="season code (default env FEB_SEASON_CODE or 2025-2026)")
     ap.add_argument("--round", type=int, required=True, help="jornada number (1-based)")
     ap.add_argument("--group", default="ESTE", help=f"group (default ESTE): {', '.join(SUPPORTED_GROUPS)}")
     ap.add_argument("--dry-run", action="store_true", help="discover + list; NO POST")

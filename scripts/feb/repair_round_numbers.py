@@ -88,7 +88,7 @@ def _report_pending(mapping: Dict[str, int], reported: set) -> None:
 
 def run() -> int:
     ap = argparse.ArgumentParser(prog="feb-repair-rounds")
-    ap.add_argument("--season", required=True, help="season code (only 2025-2026)")
+    ap.add_argument("--season", required=True, help="season code (default env FEB_SEASON_CODE or 2025-2026)")
     ap.add_argument("--group", default=DEFAULT_GROUP, help=f"group (default {DEFAULT_GROUP})")
     ap.add_argument("--dry-run", action="store_true",
                     help="mostrar el mapeo external_id->round (sin SQL)")

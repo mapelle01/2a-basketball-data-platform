@@ -159,3 +159,45 @@ Ver `docs/FASE_20_2_CLEANUP_REPORT.md` y `docs/FASE_21_B2_REPORT.md`.
 - Sources no-secret: API key via env `FEB_API_KEY` (raw 64-hex); nunca impresa. `FEB_SOURCE_URL`, `FEB_TARGET_API`, `FEB_COMPETITION_ID` vía env.
 - No toca dominio/staging/prod ni la imagen API (es script standalone; no redeploy necesario).
 - Estado: **merged `main`** (PR #2 → `92fa4a2`), CI 488 tests PASS. Ingesta real en vivo **PENDING** fuente FEB real (ver `docs/FASE_21_B1_REPORT.md`).
+
+## 17. Auto-ingesta de temporada (FASE 25)
+
+Para que el sistema siga ingiriendo solo cuando arranque la temporada **2026-2027**:
+
+### Parámetros de temporada
+- `FEB_SEASON_CODE` (env, no requerido): temporada activa; default `2025-2026`. En el
+  calendario FEB se deriva el año `t` del código (`2026-2027` -> `t=2026`) y la URL
+  del calendario se construye sola (`discover_matches._discovery_url`).
+- El resto del pipeline (discover/ingest/backfill) valida contra `FEB_SEASON_CODE`.
+
+### Orquestador `scripts/feb/run_auto_ingest.py`
+- `--season` (o env `FEB_SEASON_CODE`), `--weekly` (sweep completo) o default
+  **daily** (solo rondas activas = última jugada + siguientes 14 días).
+- Ingiere vía `ingest_round.run_round` (BoxScore FEB auto-token -> POST
+  `create_or_update_match` + `upsert_match_stats`, idempotente UUIDv5).
+- Al final dispara el command server-side `backfill_catalog` (POST
+  `/v1/commands/backfill_catalog`, rol `admin`) para refrescar nombres oficiales
+  de jugadores/equipos sin exponer credenciales DB al runner.
+- Stdlib only; corre en cualquier runner con python3. No requiere pip install.
+- Env: `FEB_TARGET_API`, `FEB_API_KEY` (raw 64-hex, rol admin), `FEB_SEASON_CODE`,
+  `FEB_GROUPS` (default ESTE,OESTE), `FEB_INGEST_MODE` (daily|weekly).
+
+### Workflow `.github/workflows/auto-ingest.yml`
+- `on: schedule`: daily 06:00 UTC (rondas activas) + weekly Sun 06:30 UTC (sweep completo).
+- `workflow_dispatch` con inputs `mode` (daily|weekly) y `season`.
+- **Secret nuevo requerido**: `FEB_TARGET_API` (URL pública del API, ej.
+  `https://feb-score-api-production.up.railway.app`). La key de API REUTILIZA el
+  secret ya existente `FEB_SCORE_PROD_SMOKE_KEY` (raw 64-hex `prod:admin`).
+  Guard fail-fast: falla si `FEB_TARGET_API` falta o si la key no está configurada.
+
+### Command `backfill_catalog` (server-side, FASE 25)
+- `POST /v1/commands/backfill_catalog`, rol `admin`, contract
+  `contracts/commands/backfill_catalog.v1.json`; payload `{season_code, entity:
+  players|teams|both, dry_run}`.
+- Reutiliza `CatalogBackfillService` (política determinista e idempotente, FASE 24.1)
+  + resolvers oficiales: jugadores = FEB BoxScore (auto-token, FASE 24.2), equipos =
+  calendario público FEB. Names nunca se inventan: sin conector FEB los jugadores se
+  crean con `name NULL` (gap documentado).
+- Corre dentro de la Unit of Work del CommandRunner (1 conexión compartida).
+- El Dockerfile ahora incluye `scripts/feb` (los resolvers los importan en runtime).
+- Autenticado con rol `admin`: la key de producción es `prod:admin` (válida).

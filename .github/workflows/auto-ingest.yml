@@ -1,0 +1,52 @@
+name: auto-ingest
+
+on:
+  schedule:
+    # Daily: active rounds only (económico). UTC.
+    - cron: "0 6 * * *"
+    # Weekly: full-season sweep. Sunday 06:30 UTC.
+    - cron: "30 6 * * 0"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "daily (active rounds) | weekly (full sweep)"
+        required: false
+        default: daily
+      season:
+        description: "season code (default env FEB_SEASON_CODE / 2025-2026)"
+        required: false
+        default: ""
+
+jobs:
+  ingest:
+    name: auto-ingest
+    runs-on: ubuntu-latest
+    env:
+      FEB_SEASON_CODE: ${{ inputs.season || '2025-2026' }}
+      FEB_TARGET_API: ${{ secrets.FEB_TARGET_API }}
+      FEB_API_KEY: ${{ secrets.FEB_SCORE_PROD_SMOKE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Guard (fail-fast config)
+        run: |
+          [ -n "$FEB_TARGET_API" ] || { echo "::error::FEB_TARGET_API secret not configured"; exit 1; }
+          [ -n "$FEB_API_KEY" ] || { echo "::error::FEB_SCORE_PROD_SMOKE_KEY secret not configured"; exit 1; }
+      - name: Resolve mode
+        id: mode
+        env:
+          CRON: ${{ github.event.schedule }}
+          DISPATCH_MODE: ${{ github.event.inputs.mode }}
+        run: |
+          if [ "$CRON" = "30 6 * * 0" ]; then echo "mode=weekly" >> "$GITHUB_OUTPUT";
+          elif [ -n "$DISPATCH_MODE" ]; then echo "mode=$DISPATCH_MODE" >> "$GITHUB_OUTPUT";
+          else echo "mode=daily" >> "$GITHUB_OUTPUT"; fi
+      - name: Auto-ingest
+        run: |
+          if [ "${{ steps.mode.outputs.mode }}" = "weekly" ]; then
+            python3 scripts/feb/run_auto_ingest.py --season "$FEB_SEASON_CODE" --weekly
+          else
+            python3 scripts/feb/run_auto_ingest.py --season "$FEB_SEASON_CODE"
+          fi

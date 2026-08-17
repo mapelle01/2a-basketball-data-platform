@@ -44,6 +44,7 @@ COMMAND_ROLES: Dict[str, str] = {
     "create_publication": "admin",
     "backfill_season": "admin",
     "upsert_match_stats": "editor",
+    "backfill_catalog": "admin",
 }
 
 VALID_ROLES = tuple(ROLE_LEVELS)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import datetime
 from typing import Dict, Iterable, List, Optional
@@ -12,6 +13,7 @@ def parse_iso_datetime(value: str) -> datetime:
 
 from ..commands.commands import (
     ApproveCorrectionCommand,
+    BackfillCatalogCommand,
     BackfillSeasonCommand,
     ComputePlayerRatingCommand,
     CreateOrUpdateMatchCommand,
@@ -681,3 +683,106 @@ class BackfillSeasonHandler:
             payload=completed_payload,
         )
         return [started, completed]
+
+
+class _ServerTeamNameResolver:
+    """Official team names via the public FEB calendar.
+
+    Reuses the standalone backfill script policy (``resolve_team_names_from_calendar``:
+    most frequent name per team, ties broken by the lexicographically smallest name)
+    so the name policy stays in ONE place. The calendar is public (no token).
+    """
+
+    def __init__(self, match_repo, season_code: str) -> None:
+        self._match_repo = match_repo
+        self._season = season_code
+
+    def resolve(self, season_code):
+        from .player_name_resolver import _import_feb  # noqa: PLC0415 (lazy, script sibling)
+
+        _import_feb()  # puts scripts/feb on sys.path
+        import backfill_catalog as BC  # noqa: PLC0415 (sibling script)
+        import discover_matches as DM  # noqa: PLC0415 (calendar fetch)
+
+        matches = [
+            (str(m.external_id), str(m.home_team_id), str(m.away_team_id))
+            for m in self._match_repo.search(SeasonCode(self._season))
+        ]
+        html: Optional[Dict[str, str]] = None
+        if os.environ.get("FEB_CALENDAR_HTML") == "offline":
+            html = {}  # deterministic empty (tests / no network)
+        return BC.resolve_team_names_from_calendar(self._season, matches, html)
+
+
+class BackfillCatalogHandler:
+    """FASE 25 — Admin command to backfill the players/teams catalog for a season.
+
+    Runs ``CatalogBackfillService`` (canonical entity set = distinct external_ids
+    in the season stats projection; deterministic write policy; idempotent). Player
+    names come from the official FEB BoxScore (auto-token, no manual rotation);
+    team names from the public FEB calendar. Resolvers are injectable for tests;
+    when the FEB connector is unavailable the backfill still runs with NULL names
+    (documented gap), never inventing names.
+
+    The command runs inside the CommandRunner's single unit of work, so the bulk
+    read + batch upsert share one connection (FASE 24.2 semantics).
+    """
+
+    def __init__(
+        self,
+        match_repo,
+        stats_repo,
+        player_repo,
+        team_repo,
+        *,
+        player_names=None,
+        team_names=None,
+    ) -> None:
+        self._match_repo = match_repo
+        self._stats_repo = stats_repo
+        self._player_repo = player_repo
+        self._team_repo = team_repo
+        self._player_names = player_names
+        self._team_names = team_names
+
+    @contract_validated("commands/backfill_catalog.v1.json")
+    def handle(self, command: BackfillCatalogCommand) -> List[object]:
+        payload = command.payload
+        season = SeasonCode(payload["season_code"])
+        entity = payload.get("entity", "both")
+        dry_run = bool(payload.get("dry_run", False))
+
+        do_players = entity in ("players", "both")
+        do_teams = entity in ("teams", "both")
+        entities = tuple(
+            name for name, on in (("players", do_players), ("teams", do_teams)) if on
+        )
+
+        player_names = self._player_names
+        if player_names is None and do_players:
+            from .player_name_resolver import (  # noqa: PLC0415 (lazy, connector may be absent)
+                OfficialPlayerNameResolver,
+            )
+
+            token = os.environ.get("FEB_TOKEN") or None  # optional override; auto-token otherwise
+            player_names = OfficialPlayerNameResolver(
+                self._match_repo, self._stats_repo, str(season), token=token
+            )
+
+        team_names = self._team_names
+        if team_names is None and do_teams:
+            team_names = _ServerTeamNameResolver(self._match_repo, str(season))
+
+        from .catalog_backfill_service import (  # noqa: PLC0415
+            CatalogBackfillService,
+        )
+
+        svc = CatalogBackfillService(
+            self._player_repo,
+            self._team_repo,
+            self._stats_repo,
+            player_names=player_names,
+            team_names=team_names,
+        )
+        stats = svc.run(season, entities=entities, dry_run=dry_run)
+        return []  # no domain events; results are reported via the response/logs

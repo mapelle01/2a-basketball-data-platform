@@ -70,6 +70,11 @@ class UpsertMatchStatsCommand(BaseCommand):
     pass
 
 
+@dataclass(frozen=True)
+class BackfillCatalogCommand(BaseCommand):
+    pass
+
+
 # Versioned command catalog (FASE 11): the stable public surface exposed by the
 # HTTP API. The keys are the URL-safe command types; each maps to its Command
 # class, which carries the versioned contract name for validation.
@@ -85,4 +90,5 @@ COMMANDS: Dict[str, type] = {
     "create_publication": CreatePublicationCommand,
     "backfill_season": BackfillSeasonCommand,
     "upsert_match_stats": UpsertMatchStatsCommand,
+    "backfill_catalog": BackfillCatalogCommand,
 }

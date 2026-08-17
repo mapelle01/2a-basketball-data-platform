@@ -238,7 +238,7 @@ def _print_dry_run(
 
 def run() -> int:
     ap = argparse.ArgumentParser(prog="feb-ingest-season")
-    ap.add_argument("--season", required=True, help="season code (only 2025-2026)")
+    ap.add_argument("--season", required=True, help="season code (default env FEB_SEASON_CODE or 2025-2026)")
     ap.add_argument("--group", default=SUPPORTED_GROUP, help=f"group (default {SUPPORTED_GROUP}): {', '.join(SUPPORTED_GROUPS)}")
     ap.add_argument("--round-from", type=int, default=None, help="first round to process (1-based, inclusive)")
     ap.add_argument("--round-to", type=int, default=None, help="last round to process (1-based, inclusive)")

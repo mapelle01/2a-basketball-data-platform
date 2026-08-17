@@ -24,6 +24,10 @@ COPY src ./src
 # (CONTRACTS_ROOT = parents[3] / "contracts" from validation.py), so they must be
 # shipped in the image, not just present in the build context.
 COPY contracts ./contracts
+# FASE 25 — server-side catalog backfill (backfill_catalog command): the official
+# name resolvers late-import scripts/feb (ingest_match/discover_matches/
+# backfill_catalog) at runtime, so the scripts must be shipped in the image.
+COPY scripts ./scripts
 
 # Non-root: the container runs as an unprivileged user.
 RUN useradd --create-home --uid 1000 feb

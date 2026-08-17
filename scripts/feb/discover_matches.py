@@ -53,7 +53,7 @@ DEFAULT_DISCOVERY_BASE = "https://baloncestoenvivo.feb.es/calendario.aspx"
 COMP_ID = 2
 COMP_CODE = "segundafeb"
 SEASON_T = "2025"  # FEB usa el año de inicio: t=2025 -> temporada 2025-2026
-SUPPORTED_SEASON = "2025-2026"
+SUPPORTED_SEASON = "2025-2026"  # FASE 25: override via env FEB_SEASON_CODE (e.g. 2026-2027)
 SUPPORTED_GROUPS = ("ESTE", "OESTE")  # FASE 22.5: OESTE vía POST ASP.NET
 GRUPO_SELECT_NAME = "_ctl0:MainContentPlaceHolderMaster:gruposDropDownList"
 GRUPO_SELECT_TARGET = "_ctl0$MainContentPlaceHolderMaster$gruposDropDownList"
@@ -102,14 +102,28 @@ def _env(name: str, default: Optional[str] = None) -> Optional[str]:
     return v
 
 
+def _configured_season() -> str:
+    """Temporada activa: env ``FEB_SEASON_CODE`` o default ``2025-2026``.
+
+    FASE 25 (auto-ingesta): cuando arranque 2026-2027 se settea
+    ``FEB_SEASON_CODE=2026-2027`` y el resto del pipeline la usa sin cambios.
+    """
+    return _env("FEB_SEASON_CODE", SUPPORTED_SEASON) or SUPPORTED_SEASON
+
+
+def _season_t(season_code: str) -> str:
+    """Año de inicio de la temporada: `2026-2027` -> `2026` (param ``t`` de FEB)."""
+    return season_code.split("-")[0]
+
+
 def _discovery_url(season_code: str) -> str:
     """URL GET del calendario para la temporada soportada (sin postbacks)."""
-    if season_code != SUPPORTED_SEASON:
+    if season_code != _configured_season():
         raise ConfigError(
-            f"unsupported season {season_code!r}; only {SUPPORTED_SEASON!r}"
+            f"unsupported season {season_code!r}; only {_configured_season()!r}"
         )
     base = _env("FEB_DISCOVERY_BASE_URL", DEFAULT_DISCOVERY_BASE) or DEFAULT_DISCOVERY_BASE
-    return f"{base}?g={COMP_ID}&t={SEASON_T}&nm={COMP_CODE}"
+    return f"{base}?g={COMP_ID}&t={_season_t(season_code)}&nm={COMP_CODE}"
 
 
 def fetch_calendar(url: str) -> str:
@@ -201,9 +215,9 @@ def fetch_calendar_group(season_code: str, group: str = "ESTE") -> str:
     OESTE hace el GET base (obtiene hidden fields + dropdown) y un POST mínimo.
     Lanza ConfigError (grupo no soportado) o SourceError.
     """
-    if season_code != SUPPORTED_SEASON:
+    if season_code != _configured_season():
         raise ConfigError(
-            f"unsupported season {season_code!r}; only {SUPPORTED_SEASON!r}"
+            f"unsupported season {season_code!r}; only {_configured_season()!r}"
         )
     if group not in SUPPORTED_GROUPS:
         raise ConfigError(
@@ -304,9 +318,9 @@ def discover_matches(
         Lista de MatchRef de la jornada pedida (vacía si la jornada no existe),
         ordenada por `external_id`. Sin production, sin secrets.
     """
-    if season_code != SUPPORTED_SEASON:
+    if season_code != _configured_season():
         raise ConfigError(
-            f"unsupported season {season_code!r}; only {SUPPORTED_SEASON!r}"
+            f"unsupported season {season_code!r}; only {_configured_season()!r}"
         )
     if group not in SUPPORTED_GROUPS:
         raise ConfigError(
@@ -342,9 +356,9 @@ def resolve_round_for_match(
     calendario. Coherente con el pipeline: la jornada SIEMPRE viene del discovery
     (nunca se inventa). Lanza ConfigError/SourceError igual que discover_matches().
     """
-    if season_code != SUPPORTED_SEASON:
+    if season_code != _configured_season():
         raise ConfigError(
-            f"unsupported season {season_code!r}; only {SUPPORTED_SEASON!r}"
+            f"unsupported season {season_code!r}; only {_configured_season()!r}"
         )
     if group not in SUPPORTED_GROUPS:
         raise ConfigError(
@@ -364,7 +378,7 @@ def resolve_round_for_match(
 
 def run() -> int:
     ap = argparse.ArgumentParser(prog="feb-discover")
-    ap.add_argument("--season", required=True, help="season code (only 2025-2026)")
+    ap.add_argument("--season", required=True, help="season code (default env FEB_SEASON_CODE or 2025-2026)")
     ap.add_argument("--round", type=int, required=True, help="jornada number (1-based)")
     ap.add_argument(
         "--group", default="ESTE", choices=list(SUPPORTED_GROUPS),

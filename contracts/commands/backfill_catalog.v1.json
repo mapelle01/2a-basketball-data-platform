@@ -1,0 +1,27 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://example.com/contracts/commands/backfill_catalog.v1.json",
+  "title":"BackfillCatalog Command v1",
+  "description":"FASE 25 — Admin command to populate the players/teams catalog for a season from the canonical entity set (external_ids present in the season stats projection) plus official name resolvers. Player names come from the FEB BoxScore (auto-token from the public match page); team names from the public FEB calendar. Idempotent and re-runnable. Heavy operation; intended for admin-level principals (admin or system) only.",
+  "type":"object",
+  "required":["command_id","meta","actor","payload"],
+  "additionalProperties":false,
+  "$defs":{
+    "uuid":{"type":"string","format":"uuid"},
+    "actor":{"type":"object","required":["id","role"],"properties":{"id":{"type":"string"},"role":{"type":"string","enum":["admin","editor","system"]}},"additionalProperties":false}
+  },
+  "properties":{
+    "command_id":{"$ref":"#/$defs/uuid"},
+    "meta":{"type":"object","required":["version","issued_at"],"properties":{"version":{"type":"string","pattern":"^\\d+\\.\\d+$"},"issued_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
+    "actor":{"$ref":"#/$defs/actor"},
+    "payload":{"type":"object","required":["season_code"],"properties":{"season_code":{"type":"string"},"entity":{"type":"string","enum":["players","teams","both"]},"dry_run":{"type":"boolean"}},"additionalProperties":false}
+  },
+  "examples":[
+    {
+      "command_id":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "meta":{"version":"1.0","issued_at":"2026-02-03T00:00:00Z"},
+      "actor":{"id":"admin-1","role":"admin"},
+      "payload":{"season_code":"2025-2026","entity":"both","dry_run":false}
+    }
+  ]
+}
