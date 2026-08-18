@@ -500,6 +500,29 @@ class _GatewayBase(CommandGateway):
             )
         ]
 
+    # ----------------------------------------------------- FASE 27 analytics
+    def list_power_ranking(
+        self, season_code: str, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        entries = self._analytics.list_power_ranking(SeasonCode(season_code), limit)
+        return [e.to_dict() for e in entries]
+
+    def get_player_form_index(
+        self, season_code: str, player_external_id: str, window: int = 5
+    ) -> Optional[Dict[str, Any]]:
+        fi = self._analytics.get_player_form_index(
+            SeasonCode(season_code), player_external_id, window
+        )
+        return fi.to_dict() if fi is not None else None
+
+    def get_team_form_index(
+        self, season_code: str, team_external_id: str, window: int = 5
+    ) -> Optional[Dict[str, Any]]:
+        fi = self._analytics.get_team_form_index(
+            SeasonCode(season_code), team_external_id, window
+        )
+        return fi.to_dict() if fi is not None else None
+
     # ------------------------------------------------------------ system status
     def system_status(self) -> Dict[str, Any]:
         try:

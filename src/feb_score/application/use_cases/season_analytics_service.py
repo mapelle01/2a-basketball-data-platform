@@ -16,6 +16,12 @@ from __future__ import annotations
 from typing import List, Optional
 
 from ..repositories.interfaces import MatchStatsRepository
+from ...domain.ratings.model import (
+    FormIndex,
+    TeamRating,
+    compute_power_ranking,
+    PowerRankingEntry,
+)
 from ...domain.statistics.model import (
     SeasonPlayerLeaderboardEntry,
     SeasonPlayerMetrics,
@@ -92,3 +98,37 @@ class SeasonAnalyticsService:
         self, season_code: SeasonCode, limit: Optional[int] = None
     ) -> List[SeasonTeamMetrics]:
         return self._metrics.list_season_team_metrics(season_code, limit)
+
+    # ------------------------------------------------------------------
+    # Power Ranking (27.1)
+    # ------------------------------------------------------------------
+
+    def list_power_ranking(
+        self, season_code: SeasonCode, limit: Optional[int] = None
+    ) -> List[PowerRankingEntry]:
+        team_aggregates = list(self._repo.list_season_team_aggregates(season_code))
+        if not team_aggregates:
+            return []
+        ratings = [TeamRating.compute(s) for s in team_aggregates if s.games_played > 0]
+        return compute_power_ranking(ratings, limit)
+
+    # ------------------------------------------------------------------
+    # Form Index (27.2)
+    # ------------------------------------------------------------------
+
+    def get_player_form_index(
+        self, season_code: SeasonCode, player_external_id: str, window: int = 5
+    ) -> Optional[FormIndex]:
+        stats = list(self._repo.list_player_stats_by_season(player_external_id, season_code))
+        if len(stats) < 2:
+            return None
+        return FormIndex.compute_player(player_external_id, str(season_code), stats, window)
+
+    def get_team_form_index(
+        self, season_code: SeasonCode, team_external_id: str, window: int = 5
+    ) -> Optional[FormIndex]:
+        rounds = list(self._repo.list_season_team_rounds(team_external_id, season_code))
+        if len(rounds) < 2:
+            return None
+        diffs = [r.point_difference for r in rounds]
+        return FormIndex.compute_team(team_external_id, str(season_code), diffs, window)

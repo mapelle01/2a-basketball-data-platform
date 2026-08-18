@@ -295,6 +295,72 @@ def register_analytics_routes(app: FastAPI) -> None:
             return _invalid(str(exc))
         return _envelope(season_code, items)
 
+    # --------------------------------------------------------- power ranking
+    @app.get(
+        "/v1/seasons/{season_code}/power-ranking",
+        tags=["analytics"],
+        summary="Season power ranking",
+        description="Teams ranked by composite rating (offensive + defensive "
+        "+ net + win factor). Each entry includes the four rating pillars.",
+    )
+    def get_power_ranking(
+        season_code: str, request: Request, limit: _LIMIT_QUERY = None
+    ):
+        try:
+            _validated_limit(limit)
+            items = request.app.state.gateway.list_power_ranking(season_code, limit)
+        except ValueError as exc:
+            return _invalid(str(exc))
+        return _envelope(season_code, items)
+
+    # ------------------------------------------------------------ form index
+    @app.get(
+        "/v1/seasons/{season_code}/players/{player_external_id}/form",
+        tags=["analytics"],
+        summary="Player form index",
+        description="Recent-form indicator comparing last N games to the "
+        "season average. Returns trend (rising/stable/falling) and form_index "
+        "(>1.0 = improving, <1.0 = declining). Returns 404 if insufficient data.",
+    )
+    def get_player_form(
+        season_code: str,
+        player_external_id: str,
+        request: Request,
+        window: int = Query(default=5, ge=2, le=20, description="Number of recent games"),
+    ):
+        fi = request.app.state.gateway.get_player_form_index(
+            season_code, player_external_id, window
+        )
+        if fi is None:
+            return err.error_response(
+                404, "INSUFFICIENT_DATA", "not enough games for form index"
+            )
+        return fi
+
+    @app.get(
+        "/v1/seasons/{season_code}/teams/{team_external_id}/form",
+        tags=["analytics"],
+        summary="Team form index",
+        description="Recent-form indicator comparing last N rounds to the "
+        "season average. Returns trend (rising/stable/falling) and form_index. "
+        "Returns 404 if insufficient data.",
+    )
+    def get_team_form(
+        season_code: str,
+        team_external_id: str,
+        request: Request,
+        window: int = Query(default=5, ge=2, le=20, description="Number of recent rounds"),
+    ):
+        fi = request.app.state.gateway.get_team_form_index(
+            season_code, team_external_id, window
+        )
+        if fi is None:
+            return err.error_response(
+                404, "INSUFFICIENT_DATA", "not enough rounds for form index"
+            )
+        return fi
+
+    # --------------------------------------------------------- team metrics
     @app.get(
         "/v1/seasons/{season_code}/teams/metrics",
         tags=["analytics"],

@@ -160,6 +160,24 @@ class CommandGateway(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def list_power_ranking(
+        self, season_code: str, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_player_form_index(
+        self, season_code: str, player_external_id: str, window: int = 5
+    ) -> Optional[Dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_team_form_index(
+        self, season_code: str, team_external_id: str, window: int = 5
+    ) -> Optional[Dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
     def system_status(self) -> Dict[str, Any]:
         """Operational metrics: entity counts, data freshness, pending events."""
         raise NotImplementedError
