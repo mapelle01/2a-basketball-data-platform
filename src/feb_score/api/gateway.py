@@ -186,3 +186,52 @@ class CommandGateway(ABC):
     def readiness(self) -> Readiness:
         """Non-destructive dependency check (database reachable + schema version)."""
         raise NotImplementedError
+
+    @abstractmethod
+    def generate_match_result_content(
+        self, match_external_id: str
+    ) -> Optional[Dict[str, Any]]:
+        raise NotImplementedError
+
+    # ------------------------------------------------ Content Engine pipeline
+    @abstractmethod
+    def run_content_pipeline(
+        self, season_code: str, round_number: int, top_n: int = 5
+    ) -> Dict[str, Any]:
+        """Run the Content Engine over a finalized round; returns a summary of
+        the queued content items (no rendered SVG in the summary)."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def list_content_queue(
+        self, status: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_content_item(self, content_id: str) -> Optional[Dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def render_content_item(self, content_id: str) -> Optional[str]:
+        """Return the rendered SVG string for a content item, or None if unknown."""
+        raise NotImplementedError
+
+    # ----------------------------------------------- content lifecycle actions
+    # Each returns the updated item dict, or None if the content_id is unknown.
+    # Illegal transitions raise a DomainError the HTTP layer maps to 409.
+    @abstractmethod
+    def approve_content(self, content_id: str) -> Optional[Dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def reject_content(self, content_id: str, reason: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def schedule_content(self, content_id: str) -> Optional[Dict[str, Any]]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def publish_content(self, content_id: str) -> Optional[Dict[str, Any]]:
+        raise NotImplementedError

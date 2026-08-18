@@ -35,6 +35,7 @@ from ..infrastructure.persistence.errors import (
 )
 from . import errors as err
 from .analytics import register_analytics_routes
+from .content import register_content_routes
 from .auth import (
     AuthenticationProvider,
     ApiKeyAuthenticationProvider,
@@ -137,6 +138,7 @@ def create_app(
     _register_routes(app)
     register_analytics_routes(app)
     register_exploration_profile_routes(app)
+    register_content_routes(app)
     return app
 
 

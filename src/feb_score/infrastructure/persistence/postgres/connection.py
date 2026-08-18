@@ -78,6 +78,11 @@ MIGRATIONS: List[PgMigration] = [
         name="catalog_nullable_names",
         script=(_MIGRATIONS_DIR / "004_catalog_nullable_names.sql").read_text(),
     ),
+    PgMigration(
+        version=5,
+        name="content_queue",
+        script=(_MIGRATIONS_DIR / "005_content_queue.sql").read_text(),
+    ),
 ]
 
 

@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1350" width="1080" height="1350" font-family="Inter, -apple-system, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0b0d13"/>
+      <stop offset="100%" stop-color="#141821"/>
+    </linearGradient>
+    <linearGradient id="scoreBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a1f2b"/>
+      <stop offset="100%" stop-color="#141821"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1080" height="1350" fill="url(#bg)"/>
+
+  <!-- Eyebrow -->
+  <g transform="translate(60, 60)">
+    <rect x="0" y="8" width="48" height="4" fill="#3b82f6"/>
+    <text x="64" y="18" fill="#94a3b8" font-size="16" font-weight="700" letter-spacing="4">
+      SEGUNDA FEB · JORNADA 12
+    </text>
+    <text x="960" y="18" fill="#475569" font-size="14" font-weight="500" text-anchor="end" letter-spacing="2">
+      MATCH FINAL · v1
+    </text>
+  </g>
+
+  <!-- Headline -->
+  <g transform="translate(60, 160)">
+    <text x="0" y="0" fill="#f8fafc" font-size="42" font-weight="700" letter-spacing="-0.5">
+      Alicante Cimarrones 104-72 Melilla Baloncesto
+    </text>
+    <text x="0" y="46" fill="#94a3b8" font-size="22" font-weight="500">
+      Alicante Cimarrones se lleva el partido de forma contundente · Jornada 12
+    </text>
+  </g>
+
+  <!-- Scoreboard hero -->
+  <g transform="translate(60, 310)">
+    <rect x="0" y="0" width="960" height="540" rx="24" fill="url(#scoreBg)"/>
+
+    <!-- Home team block -->
+    <g transform="translate(60, 100)">
+      <circle cx="60" cy="60" r="60" fill="#06b6d4"/>
+      <text x="60" y="76" fill="#ffffff" font-size="36" font-weight="800" text-anchor="middle" font-family="'JetBrains Mono', monospace">
+        02
+      </text>
+      <text x="140" y="40" fill="#94a3b8" font-size="16" font-weight="700" letter-spacing="3">LOCAL</text>
+      <text x="140" y="78" fill="#f8fafc" font-size="32" font-weight="800">
+        Alicante Cimarrones
+      </text>
+    </g>
+
+    <!-- Score -->
+    <g transform="translate(480, 240)">
+      <text x="0" y="0" fill="#f8fafc" font-size="140" font-weight="800" text-anchor="middle" font-family="'JetBrains Mono', monospace" letter-spacing="-4">
+        104
+      </text>
+      <text x="0" y="90" fill="#475569" font-size="24" font-weight="600" text-anchor="middle" letter-spacing="4">FINAL</text>
+      <text x="0" y="220" fill="#f8fafc" font-size="140" font-weight="800" text-anchor="middle" font-family="'JetBrains Mono', monospace" letter-spacing="-4">
+        72
+      </text>
+    </g>
+
+    <!-- Away team block (bottom) -->
+    <g transform="translate(60, 400)">
+      <circle cx="60" cy="60" r="60" fill="#84cc16"/>
+      <text x="60" y="76" fill="#ffffff" font-size="36" font-weight="800" text-anchor="middle" font-family="'JetBrains Mono', monospace">
+        21
+      </text>
+      <text x="140" y="40" fill="#94a3b8" font-size="16" font-weight="700" letter-spacing="3">VISITANTE</text>
+      <text x="140" y="78" fill="#f8fafc" font-size="32" font-weight="800">
+        Melilla Baloncesto
+      </text>
+    </g>
+  </g>
+
+  <!-- Metadata strip -->
+  <g transform="translate(60, 920)">
+    <text x="0" y="0" fill="#cbd5e1" font-size="18" font-weight="700" letter-spacing="3">MARGEN</text>
+    <text x="0" y="50" fill="#f8fafc" font-size="56" font-weight="800" font-family="'JetBrains Mono', monospace">
+      32
+    </text>
+    <text x="0" y="80" fill="#94a3b8" font-size="16" font-weight="500">puntos</text>
+
+    <text x="340" y="0" fill="#cbd5e1" font-size="18" font-weight="700" letter-spacing="3">JORNADA</text>
+    <text x="340" y="50" fill="#f8fafc" font-size="56" font-weight="800" font-family="'JetBrains Mono', monospace">
+      12
+    </text>
+    <text x="340" y="80" fill="#94a3b8" font-size="16" font-weight="500">Segunda FEB</text>
+
+    <text x="680" y="0" fill="#cbd5e1" font-size="18" font-weight="700" letter-spacing="3">TEMPORADA</text>
+    <text x="680" y="50" fill="#f8fafc" font-size="34" font-weight="800" font-family="'JetBrains Mono', monospace">
+      2025-2026
+    </text>
+    <text x="680" y="80" fill="#94a3b8" font-size="16" font-weight="500">2ª FEB</text>
+  </g>
+
+  <!-- Footer -->
+  <g transform="translate(60, 1260)">
+    <rect x="0" y="0" width="4" height="30" fill="#3b82f6"/>
+    <text x="18" y="24" fill="#f8fafc" font-size="20" font-weight="800" letter-spacing="1">2aFEB SCORE</text>
+    <text x="960" y="24" fill="#475569" font-size="14" font-weight="500" text-anchor="end" letter-spacing="2">
+      1.0 · match_final v1.0
+    </text>
+  </g>
+</svg>

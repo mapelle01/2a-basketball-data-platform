@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1350" width="1080" height="1350" font-family="Inter, -apple-system, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0b0d13"/>
+      <stop offset="100%" stop-color="#141821"/>
+    </linearGradient>
+    <linearGradient id="heroGlow" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="{{ assets.team_color : #3b82f6 }}" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="{{ assets.team_color : #3b82f6 }}" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="portraitGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="{{ assets.team_color : #3b82f6 }}" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="{{ assets.team_color : #3b82f6 }}" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1080" height="1350" fill="url(#bg)"/>
+  <rect x="0" y="150" width="1080" height="720" fill="url(#heroGlow)"/>
+
+  <!-- Eyebrow -->
+  <g transform="translate(60, 60)">
+    <rect x="0" y="8" width="48" height="4" fill="#3b82f6"/>
+    <text x="64" y="18" fill="#94a3b8" font-size="16" font-weight="700" letter-spacing="4">
+      JUGADOR DE LA JORNADA · JORNADA {{ story.round_number : ? }}
+    </text>
+    <text x="960" y="18" fill="#475569" font-size="14" font-weight="500" text-anchor="end" letter-spacing="2">
+      PLAYER OF ROUND · v1
+    </text>
+  </g>
+
+  <!-- Portrait (Level C: circle disc + initials) -->
+  <g transform="translate(540, 460)">
+    <circle cx="0" cy="0" r="240" fill="url(#portraitGlow)"/>
+    <circle cx="0" cy="0" r="180" fill="#0f1219" stroke="{{ assets.team_color : #3b82f6 }}" stroke-width="6"/>
+    <text x="0" y="46" fill="#f8fafc" font-size="128" font-weight="900" text-anchor="middle" font-family="'JetBrains Mono', monospace" letter-spacing="-4">
+      {{ assets.player_initials : ?? }}
+    </text>
+  </g>
+
+  <!-- Impact badge -->
+  <g transform="translate(880, 300)">
+    <rect x="-80" y="-40" width="160" height="80" rx="12" fill="#3b82f6"/>
+    <text x="0" y="-8" fill="#ffffff" font-size="14" font-weight="700" text-anchor="middle" letter-spacing="3">IMPACTO</text>
+    <text x="0" y="28" fill="#ffffff" font-size="32" font-weight="800" text-anchor="middle" font-family="'JetBrains Mono', monospace">
+      {{ story.facts.impact_score : 0 }}
+    </text>
+  </g>
+
+  <!-- Player identity -->
+  <g transform="translate(540, 780)">
+    <text x="0" y="0" fill="#f8fafc" font-size="64" font-weight="800" text-anchor="middle" letter-spacing="-1">
+      {{ display.player : Jugador }}
+    </text>
+    <text x="0" y="46" fill="#94a3b8" font-size="24" font-weight="600" text-anchor="middle" letter-spacing="1">
+      {{ display.team : Equipo }}
+    </text>
+  </g>
+
+  <!-- Stat grid — 3 columns -->
+  <g transform="translate(60, 900)">
+    <rect x="0" y="0" width="960" height="220" rx="16" fill="#141821"/>
+
+    <g transform="translate(160, 110)">
+      <text x="0" y="-42" fill="#94a3b8" font-size="16" font-weight="700" text-anchor="middle" letter-spacing="3">PUNTOS</text>
+      <text x="0" y="18" fill="#f8fafc" font-size="88" font-weight="900" text-anchor="middle" font-family="'JetBrains Mono', monospace" letter-spacing="-4">
+        {{ story.facts.points : 0 }}
+      </text>
+    </g>
+
+    <line x1="320" y1="40" x2="320" y2="180" stroke="#1e293b" stroke-width="1"/>
+
+    <g transform="translate(480, 110)">
+      <text x="0" y="-42" fill="#94a3b8" font-size="16" font-weight="700" text-anchor="middle" letter-spacing="3">REBOTES</text>
+      <text x="0" y="18" fill="#f8fafc" font-size="88" font-weight="900" text-anchor="middle" font-family="'JetBrains Mono', monospace" letter-spacing="-4">
+        {{ story.facts.rebounds : 0 }}
+      </text>
+    </g>
+
+    <line x1="640" y1="40" x2="640" y2="180" stroke="#1e293b" stroke-width="1"/>
+
+    <g transform="translate(800, 110)">
+      <text x="0" y="-42" fill="#94a3b8" font-size="16" font-weight="700" text-anchor="middle" letter-spacing="3">ASISTENCIAS</text>
+      <text x="0" y="18" fill="#f8fafc" font-size="88" font-weight="900" text-anchor="middle" font-family="'JetBrains Mono', monospace" letter-spacing="-4">
+        {{ story.facts.assists : 0 }}
+      </text>
+    </g>
+  </g>
+
+  <!-- Meta line -->
+  <g transform="translate(60, 1180)">
+    <text x="0" y="0" fill="#cbd5e1" font-size="18" font-weight="700" letter-spacing="3">
+      TEMPORADA {{ story.season_code : 2025-2026 }}
+    </text>
+    <text x="960" y="0" fill="#94a3b8" font-size="16" font-weight="500" text-anchor="end" letter-spacing="1">
+      Partido {{ story.facts.match_external_id :   }}
+    </text>
+  </g>
+
+  <!-- Footer -->
+  <g transform="translate(60, 1260)">
+    <rect x="0" y="0" width="4" height="30" fill="#3b82f6"/>
+    <text x="18" y="24" fill="#f8fafc" font-size="20" font-weight="800" letter-spacing="1">2aFEB SCORE</text>
+    <text x="960" y="24" fill="#475569" font-size="14" font-weight="500" text-anchor="end" letter-spacing="2">
+      {{ meta.design_system_version : 1.0 }} · player_of_round v{{ meta.template_version : 1.0 }}
+    </text>
+  </g>
+</svg>

@@ -73,6 +73,12 @@ MIGRATIONS: List[Migration] = [
         destructive=True,
         script=(_MIGRATIONS_DIR / "005_catalog_nullable_names.sql").read_text(),
     ),
+    Migration(
+        version=6,
+        name="content_queue",
+        destructive=False,
+        script=(_MIGRATIONS_DIR / "006_content_queue.sql").read_text(),
+    ),
 ]
 
 

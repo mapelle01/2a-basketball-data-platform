@@ -17,7 +17,10 @@ from typing import Any, Dict, List, Optional
 
 from ..api.gateway import CommandGateway, CommandResult, EventRef, Readiness
 from ..application.commands.commands import COMMANDS
+from ..application.use_cases.content_service import ContentService
 from ..application.use_cases.exploration_service import ExplorationService
+from ..application.use_cases.live_content_adapter import LiveContentAdapter
+from ..application.use_cases.round_pipeline import RoundPipeline
 from ..application.use_cases.handlers import (
     ApproveCorrectionHandler,
     BackfillCatalogHandler,
@@ -222,6 +225,16 @@ class _GatewayBase(CommandGateway):
         self._exploration = ExplorationService(
             repos["match"], repos["player"], repos["team"], repos["stats"]
         )
+        self._content = ContentService(repos["match"], repos["stats"])
+
+        # Content Engine pipeline (live data). Lazily constructed on first use
+        # so gateways that never touch content don't pay the renderer setup.
+        self._content_adapter = LiveContentAdapter(
+            repos["match"], repos["stats"], repos["player"], repos["team"]
+        )
+        self._content_queue_repo = repos["content_queue"]
+        self._content_pipeline: Optional[RoundPipeline] = None
+        self._content_lifecycle = None  # lazily built alongside the pipeline
 
         self._handlers: Dict[str, Any] = {
             "create_or_update_match": lambda: CreateOrUpdateMatchHandler(repos["match"], repos["idempotency"]),
@@ -523,6 +536,124 @@ class _GatewayBase(CommandGateway):
         )
         return fi.to_dict() if fi is not None else None
 
+    # ---------------------------------------------------- content engine
+    def generate_match_result_content(
+        self, match_external_id: str
+    ) -> Optional[Dict[str, Any]]:
+        from ..domain.errors import ContentGenerationError, MatchNotFound
+
+        try:
+            content = self._content.generate_match_result(match_external_id)
+            return content.to_dict()
+        except (MatchNotFound, ContentGenerationError):
+            return None
+
+    def _pipeline(self) -> RoundPipeline:
+        if self._content_pipeline is None:
+            from pathlib import Path
+
+            from .rendering.asset_provider import StatisticalAssetProvider
+            from .rendering.design_system import DESIGN_SYSTEM_VERSION
+            from .rendering.svg_renderer import SvgTemplateRenderer
+
+            templates_dir = Path(settings_from_env().content_templates_dir)
+            self._content_pipeline = RoundPipeline(
+                renderer=SvgTemplateRenderer(templates_dir),
+                assets=StatisticalAssetProvider(),
+                queue=self._content_queue_repo,
+                design_system_version=DESIGN_SYSTEM_VERSION,
+            )
+        return self._content_pipeline
+
+    def run_content_pipeline(
+        self, season_code: str, round_number: int, top_n: int = 5
+    ) -> Dict[str, Any]:
+        inputs = self._content_adapter.build_round_inputs(season_code, round_number)
+        season_context = self._content_adapter.build_season_context(
+            season_code, round_number, inputs
+        )
+        pipeline = self._pipeline()
+        result = pipeline.run(
+            inputs.season_code,
+            inputs.round_number,
+            inputs.matches,
+            inputs.player_lines,
+            top_n=top_n,
+            season_context=season_context,
+        )
+        return {
+            "season_code": season_code,
+            "round_number": round_number,
+            "matches_considered": len(inputs.matches),
+            "content_generated": len(result.items),
+            "metrics": result.metrics.to_dict(),
+            "items": [i.to_dict() for i in result.items],
+            "pending_template": [s.to_dict() for s in result.pending_template],
+        }
+
+    def list_content_queue(
+        self, status: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        from ..domain.content.queue import ContentStatus
+
+        queue = self._pipeline().queue
+        if status is not None:
+            try:
+                items = queue.list_by_status(ContentStatus(status))
+            except ValueError:
+                raise ValueError(f"invalid status {status!r}")
+        else:
+            items = sorted(
+                queue.all(), key=lambda i: (-i.story.priority, i.created_at)
+            )
+        return [i.to_dict() for i in items]
+
+    def get_content_item(self, content_id: str) -> Optional[Dict[str, Any]]:
+        item = self._pipeline().queue.get(content_id)
+        return item.to_dict() if item is not None else None
+
+    def render_content_item(self, content_id: str) -> Optional[str]:
+        item = self._pipeline().queue.get(content_id)
+        if item is None:
+            return None
+        return item.rendered_svg
+
+    # ----------------------------------------------- content lifecycle actions
+    def _lifecycle(self):
+        if self._content_lifecycle is None:
+            from ..application.use_cases.content_lifecycle import ContentLifecycleService
+            from .publishing.dry_run import DryRunPublisher
+
+            # Ensure the pipeline (and its queue) exist, then share the queue.
+            self._pipeline()
+            self._content_lifecycle = ContentLifecycleService(
+                queue=self._content_queue_repo,
+                publisher=DryRunPublisher(),
+            )
+        return self._content_lifecycle
+
+    def approve_content(self, content_id: str) -> Optional[Dict[str, Any]]:
+        if self._content_queue_repo.get(content_id) is None:
+            return None
+        return self._lifecycle().approve_review(content_id).to_dict()
+
+    def reject_content(
+        self, content_id: str, reason: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        if self._content_queue_repo.get(content_id) is None:
+            return None
+        return self._lifecycle().reject_review(content_id, reason).to_dict()
+
+    def schedule_content(self, content_id: str) -> Optional[Dict[str, Any]]:
+        if self._content_queue_repo.get(content_id) is None:
+            return None
+        return self._lifecycle().schedule(content_id).to_dict()
+
+    def publish_content(self, content_id: str) -> Optional[Dict[str, Any]]:
+        if self._content_queue_repo.get(content_id) is None:
+            return None
+        return self._lifecycle().publish(content_id).to_dict()
+
     # ------------------------------------------------------------ system status
     def system_status(self) -> Dict[str, Any]:
         try:
@@ -605,6 +736,8 @@ class SqliteGateway(_GatewayBase):
             SqliteTeamRepository,
         )
 
+        from .persistence.content_queue_repo import SqliteContentQueueRepository
+
         return {
             "idempotency": SqliteIdempotencyRepository(self.db),
             "match": SqliteMatchRepository(self.db),
@@ -617,6 +750,7 @@ class SqliteGateway(_GatewayBase):
             "leaderboard": SqliteLeaderboardRepository(self.db),
             "rating": SqliteRatingRepository(self.db),
             "publication": SqlitePublicationRepository(self.db),
+            "content_queue": SqliteContentQueueRepository(self.db),
         }
 
     def _entity_counts(self) -> Dict[str, int]:
@@ -690,6 +824,8 @@ class PgGateway(_GatewayBase):
             PgTeamRepository,
         )
 
+        from .persistence.content_queue_repo import PgContentQueueRepository
+
         return {
             "idempotency": PgIdempotencyRepository(self.db),
             "match": PgMatchRepository(self.db),
@@ -702,6 +838,7 @@ class PgGateway(_GatewayBase):
             "leaderboard": PgLeaderboardRepository(self.db),
             "rating": PgRatingRepository(self.db),
             "publication": PgPublicationRepository(self.db),
+            "content_queue": PgContentQueueRepository(self.db),
         }
 
     def _entity_counts(self) -> Dict[str, int]:
