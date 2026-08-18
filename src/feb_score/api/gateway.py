@@ -160,6 +160,11 @@ class CommandGateway(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def system_status(self) -> Dict[str, Any]:
+        """Operational metrics: entity counts, data freshness, pending events."""
+        raise NotImplementedError
+
+    @abstractmethod
     def readiness(self) -> Readiness:
         """Non-destructive dependency check (database reachable + schema version)."""
         raise NotImplementedError

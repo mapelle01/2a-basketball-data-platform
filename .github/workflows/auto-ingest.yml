@@ -44,9 +44,46 @@ jobs:
           elif [ -n "$DISPATCH_MODE" ]; then echo "mode=$DISPATCH_MODE" >> "$GITHUB_OUTPUT";
           else echo "mode=daily" >> "$GITHUB_OUTPUT"; fi
       - name: Auto-ingest
+        id: ingest
         run: |
+          set -o pipefail
           if [ "${{ steps.mode.outputs.mode }}" = "weekly" ]; then
-            python3 scripts/feb/run_auto_ingest.py --season "$FEB_SEASON_CODE" --weekly
+            python3 scripts/feb/run_auto_ingest.py --season "$FEB_SEASON_CODE" --weekly 2>&1 | tee /tmp/ingest.log
           else
-            python3 scripts/feb/run_auto_ingest.py --season "$FEB_SEASON_CODE"
+            python3 scripts/feb/run_auto_ingest.py --season "$FEB_SEASON_CODE" 2>&1 | tee /tmp/ingest.log
+          fi
+      - name: Job summary
+        if: always()
+        run: |
+          MODE="${{ steps.mode.outputs.mode }}"
+          EXIT="${{ steps.ingest.outcome }}"
+          echo "## Auto-Ingest Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Season | \`$FEB_SEASON_CODE\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Mode | $MODE |" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$EXIT" = "success" ]; then
+            echo "| Result | OK |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "| Result | **FAILED** |" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f /tmp/ingest.log ]; then
+            # Extract key metrics from the log
+            MATCHES=$(grep -oP 'matches_discovered=\K[0-9]+' /tmp/ingest.log || echo "?")
+            FAILED=$(grep -oP 'failed_rounds=\K[0-9]+' /tmp/ingest.log || echo "?")
+            BACKFILL=$(grep -oP 'backfill_catalog HTTP \K[0-9]+' /tmp/ingest.log || echo "skipped")
+            echo "| Matches discovered | $MATCHES |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Failed rounds | $FAILED |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Catalog backfill | $BACKFILL |" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            # Show errors if any
+            ERRORS=$(grep -iE 'ERROR|FAIL|Traceback' /tmp/ingest.log || true)
+            if [ -n "$ERRORS" ]; then
+              echo "### Errors" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              echo "$ERRORS" | head -30 >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+            fi
           fi

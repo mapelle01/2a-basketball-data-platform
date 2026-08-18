@@ -274,6 +274,21 @@ def _register_routes(app: FastAPI) -> None:
             return err.error_response(404, "UNKNOWN_CONTRACT", f"unknown contract: {command_type}")
 
     # ------------------------------------------------------------- system
+    @app.get(
+        "/v1/system/status",
+        tags=["system"],
+        summary="Operational status: entity counts, data freshness, pending events",
+        description="Authenticated endpoint returning operational metrics. Requires a "
+        "valid API key.",
+    )
+    def system_status(request: Request):
+        auth: AuthenticationProvider = request.app.state.auth
+        principal = auth.authenticate(request)
+        if principal is None:
+            return err.error_response(401, "UNAUTHENTICATED", "API key required")
+        gateway: CommandGateway = request.app.state.gateway
+        return gateway.system_status()
+
     @app.get("/health", tags=["system"], summary="Liveness: the process is alive")
     def health():
         return {"status": "ok"}

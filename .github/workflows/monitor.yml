@@ -1,0 +1,117 @@
+name: monitor
+
+on:
+  schedule:
+    # Every 6 hours: check production is alive and data is fresh.
+    - cron: "0 */6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  health:
+    name: production health check
+    runs-on: ubuntu-latest
+    env:
+      PROD_DOMAIN: ${{ vars.RAILWAY_PROD_DOMAIN || 'feb-score-api-production.up.railway.app' }}
+      API_KEY: ${{ secrets.FEB_SCORE_PROD_SMOKE_KEY }}
+    steps:
+      - name: "Check /health"
+        run: |
+          code=$(curl -s -o /tmp/health.json -w "%{http_code}" "https://$PROD_DOMAIN/health")
+          cat /tmp/health.json
+          [ "$code" = "200" ] || { echo "::error::/health returned $code"; exit 1; }
+
+      - name: "Check /ready"
+        run: |
+          code=$(curl -s -o /tmp/ready.json -w "%{http_code}" "https://$PROD_DOMAIN/ready")
+          cat /tmp/ready.json
+          [ "$code" = "200" ] || { echo "::error::/ready returned $code"; exit 1; }
+          echo "$(</tmp/ready.json)" | python3 -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          if data.get('status') != 'ready':
+              print(f'::error::readiness status: {data}', file=sys.stderr)
+              sys.exit(1)
+          print('readiness=OK')
+          "
+
+      - name: "Check /v1/system/status"
+        if: ${{ env.API_KEY != '' }}
+        run: |
+          code=$(curl -s -o /tmp/status.json -w "%{http_code}" \
+            -H "Authorization: Bearer $API_KEY" \
+            "https://$PROD_DOMAIN/v1/system/status")
+          cat /tmp/status.json
+          [ "$code" = "200" ] || { echo "::error::/v1/system/status returned $code"; exit 1; }
+
+      - name: "Validate data freshness"
+        if: ${{ env.API_KEY != '' }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, sys
+          from datetime import datetime, timedelta
+
+          with open("/tmp/status.json") as f:
+              status = json.load(f)
+
+          if status.get("status") != "ok":
+              print(f"::error::system status not ok: {status}", file=sys.stderr)
+              sys.exit(1)
+
+          counts = status.get("counts", {})
+          freshness = status.get("freshness", {})
+          pending = status.get("pending_events", 0)
+
+          # Entity counts sanity (at least some data should exist in production)
+          matches = counts.get("matches", 0)
+          if matches == 0:
+              print("::warning::no matches in production database")
+
+          # Pending events alert (outbox backup)
+          if pending > 50:
+              print(f"::error::outbox has {pending} pending events (possible dispatch failure)")
+              sys.exit(1)
+          elif pending > 10:
+              print(f"::warning::outbox has {pending} pending events")
+
+          # Data freshness: warn if latest match is >30 days old (season may be over)
+          latest = freshness.get("latest_match_scheduled_at")
+          if latest:
+              try:
+                  ts = datetime.fromisoformat(latest.replace("Z", "+00:00")).replace(tzinfo=None)
+                  age_days = (datetime.utcnow() - ts).days
+                  if age_days > 90:
+                      print(f"::warning::latest match is {age_days} days old — season may be over or ingestion stalled")
+                  print(f"latest_match_age_days={age_days}")
+              except ValueError:
+                  print(f"::warning::could not parse latest_match_scheduled_at: {latest}")
+
+          # Summary
+          print(f"matches={matches} players={counts.get('players', '?')} teams={counts.get('teams', '?')}")
+          print(f"pending_events={pending}")
+          print(f"latest_match={latest}")
+          PYEOF
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Production Monitor" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| /health | $([ -f /tmp/health.json ] && echo 'OK' || echo 'FAIL') |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| /ready | $([ -f /tmp/ready.json ] && echo 'OK' || echo 'FAIL') |" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f /tmp/status.json ]; then
+            echo "| /v1/system/status | OK |" >> "$GITHUB_STEP_SUMMARY"
+            python3 -c "
+          import json
+          with open('/tmp/status.json') as f:
+              s = json.load(f)
+          c = s.get('counts', {})
+          f = s.get('freshness', {})
+          print(f'| Matches | {c.get(\"matches\", \"?\")} |')
+          print(f'| Players | {c.get(\"players\", \"?\")} |')
+          print(f'| Teams | {c.get(\"teams\", \"?\")} |')
+          print(f'| Pending events | {s.get(\"pending_events\", \"?\")} |')
+          print(f'| Latest match | {f.get(\"latest_match_scheduled_at\", \"?\")} |')
+          " >> "$GITHUB_STEP_SUMMARY"
+          fi

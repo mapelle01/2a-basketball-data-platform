@@ -500,6 +500,30 @@ class _GatewayBase(CommandGateway):
             )
         ]
 
+    # ------------------------------------------------------------ system status
+    def system_status(self) -> Dict[str, Any]:
+        try:
+            counts = self._entity_counts()
+            freshness = self._data_freshness()
+            pending = self._pending_events()
+            return {
+                "status": "ok",
+                "counts": counts,
+                "freshness": freshness,
+                "pending_events": pending,
+            }
+        except Exception as exc:  # noqa: BLE001 - status must never raise
+            return {"status": "error", "error": f"{type(exc).__name__}: {exc}"}
+
+    def _entity_counts(self) -> Dict[str, int]:
+        raise NotImplementedError
+
+    def _data_freshness(self) -> Dict[str, Any]:
+        raise NotImplementedError
+
+    def _pending_events(self) -> int:
+        raise NotImplementedError
+
     # ------------------------------------------------------------ readiness
     def readiness(self) -> Readiness:
         """Non-destructive dependency check.
@@ -572,6 +596,40 @@ class SqliteGateway(_GatewayBase):
             "publication": SqlitePublicationRepository(self.db),
         }
 
+    def _entity_counts(self) -> Dict[str, int]:
+        conn = self.db.connect()
+        try:
+            counts = {}
+            for table in ("matches", "players", "teams", "player_stats", "team_stats"):
+                row = conn.execute(f"SELECT COUNT(*) AS c FROM {table}").fetchone()  # noqa: S608
+                counts[table] = row[0] if isinstance(row, (list, tuple)) else row["c"]
+            return counts
+        finally:
+            conn.close()
+
+    def _data_freshness(self) -> Dict[str, Any]:
+        conn = self.db.connect()
+        try:
+            row = conn.execute(
+                "SELECT data FROM matches ORDER BY json_extract(data, '$.scheduled_at') DESC LIMIT 1"
+            ).fetchone()
+            if row is None:
+                return {"latest_match_scheduled_at": None, "total_seasons": 0}
+            import json as _json
+            data = _json.loads(row[0] if isinstance(row, (list, tuple)) else row["data"])
+            seasons = conn.execute("SELECT COUNT(DISTINCT season_code) AS c FROM matches").fetchone()
+            season_count = seasons[0] if isinstance(seasons, (list, tuple)) else seasons["c"]
+            return {
+                "latest_match_scheduled_at": data.get("scheduled_at"),
+                "total_seasons": season_count,
+            }
+        finally:
+            conn.close()
+
+    def _pending_events(self) -> int:
+        store = self.db.event_store()
+        return store.pending_count()
+
     def _db_checks(self) -> Dict[str, str]:
         from .persistence.connection import SqliteDatabase
 
@@ -622,6 +680,40 @@ class PgGateway(_GatewayBase):
             "rating": PgRatingRepository(self.db),
             "publication": PgPublicationRepository(self.db),
         }
+
+    def _entity_counts(self) -> Dict[str, int]:
+        conn = self.db.connect()
+        try:
+            counts = {}
+            for table in ("matches", "players", "teams", "player_stats", "team_stats"):
+                row = conn.execute(f"SELECT COUNT(*) AS c FROM {table}").fetchone()  # noqa: S608
+                counts[table] = row["c"]
+            return counts
+        finally:
+            conn.close()
+
+    def _data_freshness(self) -> Dict[str, Any]:
+        conn = self.db.connect()
+        try:
+            row = conn.execute(
+                "SELECT data::text AS data FROM matches"
+                " ORDER BY (data->>'scheduled_at') DESC NULLS LAST LIMIT 1"
+            ).fetchone()
+            if row is None:
+                return {"latest_match_scheduled_at": None, "total_seasons": 0}
+            import json as _json
+            data = _json.loads(row["data"])
+            seasons = conn.execute("SELECT COUNT(DISTINCT season_code) AS c FROM matches").fetchone()
+            return {
+                "latest_match_scheduled_at": data.get("scheduled_at"),
+                "total_seasons": seasons["c"],
+            }
+        finally:
+            conn.close()
+
+    def _pending_events(self) -> int:
+        store = self.db.event_store()
+        return store.pending_count()
 
     def _db_checks(self) -> Dict[str, str]:
         from .persistence.postgres.connection import PgDatabase
