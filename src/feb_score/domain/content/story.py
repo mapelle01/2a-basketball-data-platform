@@ -52,6 +52,7 @@ class StoryType(str, Enum):
 
     # Round-level
     ROUND_RECAP = "round_recap"
+    STAT_LEADERBOARD = "stat_leaderboard"
 
     # Editorial
     MILESTONE = "milestone"
@@ -72,6 +73,7 @@ STORY_TO_TEMPLATE: Dict[StoryType, str] = {
     StoryType.MATCH_FINAL: "match_final",
     StoryType.PLAYER_OF_ROUND: "player_of_round",
     StoryType.ROUND_RECAP: "round_recap",
+    StoryType.STAT_LEADERBOARD: "stat_leaderboard",
     # Reuse existing templates for related story shapes (visual work deferred):
     StoryType.BIGGEST_WIN: "match_final",       # a scoreboard, framed as the rout
     StoryType.DOUBLE_DOUBLE: "player_of_round",  # a player card with their line

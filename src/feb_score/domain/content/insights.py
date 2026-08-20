@@ -315,6 +315,51 @@ def detect_notable_performances(
     return stories
 
 
+def detect_stat_leaderboard(
+    season_code: str,
+    round_number: int,
+    player_lines: Sequence[PlayerLineInput],
+    top_n: int = 5,
+) -> Optional[StoryObject]:
+    """The round's top scorers as a ranking (name, team, points, FEB Rating).
+    Needs at least 3 players so a ranking is meaningful."""
+    from .rating import FEB_RATING_VERSION, feb_rating
+
+    if len(player_lines) < 3:
+        return None
+    ordered = sorted(player_lines, key=lambda p: (-p.points, p.player_external_id))[:top_n]
+    leaders = [
+        {
+            "rank": i,
+            "player_external_id": p.player_external_id,
+            "player_name": p.player_name,
+            "team_external_id": p.team_external_id,
+            "team_name": p.team_name,
+            "points": p.points,
+            "rebounds": p.rebounds,
+            "assists": p.assists,
+            "rating": feb_rating(p.points, p.rebounds, p.assists, p.steals, p.blocks, p.turnovers),
+        }
+        for i, p in enumerate(ordered, start=1)
+    ]
+    return StoryObject(
+        story_type=StoryType.STAT_LEADERBOARD,
+        season_code=season_code,
+        round_number=round_number,
+        entities=StoryEntities(),
+        facts={
+            "leaders": leaders,
+            "count": len(leaders),
+            "rating_version": FEB_RATING_VERSION,
+        },
+        source_refs={
+            "player_stats": (
+                f"2afeb_score://seasons/{season_code}/rounds/{round_number}/player_stats"
+            ),
+        },
+    )
+
+
 # ---------------------------------------------------------------------------
 # Round-level convenience entry point
 # ---------------------------------------------------------------------------
@@ -344,4 +389,9 @@ def detect_all_for_round(
         stories.append(biggest)
 
     stories.extend(detect_notable_performances(season_code, round_number, player_lines))
+
+    leaderboard = detect_stat_leaderboard(season_code, round_number, player_lines)
+    if leaderboard is not None:
+        stories.append(leaderboard)
+
     return stories

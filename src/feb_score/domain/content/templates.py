@@ -89,4 +89,16 @@ TEMPLATES: Dict[str, TemplateContract] = {
             "display.biggest_win_team",
         ),
     ),
+    "stat_leaderboard": TemplateContract(
+        template_id="stat_leaderboard",
+        version=TEMPLATE_VERSION,
+        canvas="IG_PORTRAIT",
+        required_slots=(
+            "story.round_number",
+            "story.facts.leaders",
+            "copy.headline",
+            "copy.subtitle",
+        ),
+        optional_slots=(),
+    ),
 }

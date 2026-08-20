@@ -27,6 +27,7 @@ from .story import StoryObject, StoryStatus, StoryType
 # ---------------------------------------------------------------------------
 TYPE_IMPORTANCE = {
     StoryType.ROUND_RECAP: 90,
+    StoryType.STAT_LEADERBOARD: 80,
     StoryType.PLAYER_OF_ROUND: 88,
     StoryType.TEAM_OF_ROUND: 82,
     StoryType.TRIPLE_DOUBLE: 95,

@@ -357,6 +357,56 @@ def render_round_recap(data: Dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Template: STAT LEADERBOARD (top scorers ranking, with FEB Rating chips)
+# ---------------------------------------------------------------------------
+
+
+def render_stat_leaderboard(data: Dict[str, Any]) -> str:
+    facts = data["story"]["facts"]
+    season = data["story"].get("season_code")
+    round_number = data["story"].get("round_number")
+    leaders = facts.get("leaders", [])
+
+    body: List[str] = []
+    # Title + subtitle
+    body.append(C.text(CONTENT_X, 180, "Máximos anotadores", size=FontSize.H1,
+                       weight=FontWeight.DISPLAY, fill=Color.WHITE, tracking=LetterSpacing.HEADLINE))
+    body.append(C.text(CONTENT_X, 232, "LA JORNADA EN CIFRAS", size=FontSize.LABEL,
+                       weight=FontWeight.LABEL, fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True))
+
+    # Context tab with the competition mark (the subtle "filter" pattern).
+    tab, _ = context_tab(CONTENT_X, 288, f"Segunda FEB · Jornada {round_number}", chevron=True)
+    body.append(tab)
+
+    # Ranking rows: rank · name/team · points · FEB Rating chip.
+    ry = 430
+    n = max(1, len(leaders))
+    step = min(132, (FOOTER_Y - 60 - ry) // n)
+    chip = 88
+    for row in leaders:
+        name = row.get("player_name") or row.get("player_external_id", "—")
+        team = row.get("team_name") or row.get("team_external_id", "")
+        body.append(C.hline(CONTENT_X, ry - 24, CONTENT_W, weight=Line.THIN, color=Color.GREY, opacity=0.22))
+        body.append(C.text(CONTENT_X, ry + 20, str(row.get("rank", "")), size=FontSize.H3,
+                           weight=FontWeight.HERO, fill=Color.GREY))
+        body.append(C.text(CONTENT_X + 60, ry + 16, name.upper(), size=FontSize.H3,
+                           weight=FontWeight.TITLE, fill=Color.WHITE, upper=True))
+        if team:
+            body.append(C.text(CONTENT_X + 60, ry + 46, team.upper(), size=FontSize.MICRO,
+                               weight=FontWeight.LABEL, fill=Color.GREY, tracking=LetterSpacing.LABEL, upper=True))
+        body.append(C.text(CONTENT_X + CONTENT_W - chip - 40, ry + 22, str(row.get("points", 0)),
+                           size=FontSize.H2, weight=FontWeight.HERO, fill=Color.WHITE, anchor="end"))
+        rating_svg, _ = C.rating_badge(CONTENT_X + CONTENT_W - chip, ry - 24, float(row.get("rating", 0)),
+                                       variant="chip")
+        body.append(rating_svg)
+        ry += step
+
+    ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB", season=season)
+    body.append(ft)
+    return _svg_document("".join(body), IMAGE_BACKGROUND)
+
+
+# ---------------------------------------------------------------------------
 # Dispatcher
 # ---------------------------------------------------------------------------
 
@@ -364,6 +414,7 @@ _RENDERERS: Dict[str, Callable[[Dict[str, Any]], str]] = {
     "match_final": render_match_final,
     "player_of_round": render_player_of_round,
     "round_recap": render_round_recap,
+    "stat_leaderboard": render_stat_leaderboard,
 }
 
 

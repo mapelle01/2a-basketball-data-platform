@@ -1,13 +1,13 @@
 {
   "season_code": "2025-2026",
   "round_number": 12,
-  "generated_at": "2026-08-20T20:16:12.205342",
+  "generated_at": "2026-08-20T20:28:38.292182",
   "design_system_version": "2.0",
   "items": [
     {
       "story_type": "match_final",
       "filename": "match_final_2025-2026_R12.svg",
-      "content_id": "e0b93ff5-29a4-413a-8c88-d8e7a141e7cc",
+      "content_id": "2b3639ea-6fb4-4adb-8b99-e8c053ed7e8c",
       "status": "approved",
       "priority": 61,
       "fact_validation_ok": true,
@@ -56,7 +56,7 @@
         "source_refs": {
           "match": "2afeb_score://matches/feb_match_2025_2026_R12_M04"
         },
-        "detected_at": "2026-08-20T20:16:12.139964",
+        "detected_at": "2026-08-20T20:28:38.225754",
         "status": "selected",
         "priority": 61,
         "template_id": "match_final",
@@ -67,7 +67,7 @@
     {
       "story_type": "player_of_round",
       "filename": "player_of_round_2025-2026_R12.svg",
-      "content_id": "c1947379-da8f-41bf-a44f-941373a149d7",
+      "content_id": "a8439389-35ba-4e81-816d-7373a4ef3ec0",
       "status": "pending_review",
       "priority": 84,
       "fact_validation_ok": true,
@@ -123,7 +123,7 @@
         "source_refs": {
           "player_stats": "2afeb_score://match_player_stats/feb_match_2025_2026_R12_M04/2812203"
         },
-        "detected_at": "2026-08-20T20:16:12.139973",
+        "detected_at": "2026-08-20T20:28:38.225771",
         "status": "selected",
         "priority": 84,
         "template_id": "player_of_round",
@@ -134,7 +134,7 @@
     {
       "story_type": "round_recap",
       "filename": "round_recap_2025-2026_R12.svg",
-      "content_id": "149dcdda-3a1a-4c6e-9cd1-2c145eaf9f1a",
+      "content_id": "a2f91f71-f9b5-478e-b0c9-da0a0d3f1ad1",
       "status": "pending_review",
       "priority": 72,
       "fact_validation_ok": true,
@@ -185,7 +185,7 @@
           "biggest_win_match": "2afeb_score://matches/feb_match_2025_2026_R12_M04",
           "closest_game_match": "2afeb_score://matches/feb_match_2025_2026_R12_M03"
         },
-        "detected_at": "2026-08-20T20:16:12.139979",
+        "detected_at": "2026-08-20T20:28:38.225780",
         "status": "selected",
         "priority": 72,
         "template_id": "round_recap",

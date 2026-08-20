@@ -271,6 +271,30 @@ def generate_copy_upset(story: Dict[str, Any]) -> CopyContract:
     )
 
 
+def generate_copy_stat_leaderboard(story: Dict[str, Any]) -> CopyContract:
+    f = story["facts"]
+    round_number = story.get("round_number")
+    leaders = f.get("leaders", [])
+    top = leaders[0] if leaders else {}
+    top_name = top.get("player_name") or top.get("player_external_id", "—")
+    top_points = top.get("points", 0)
+
+    headline = "Máximos anotadores"
+    subtitle = f"Jornada {round_number} · el top de la jornada"
+    caption = (
+        f"Los máximos anotadores de la jornada {round_number} de Segunda FEB. "
+        f"{top_name} lidera con {top_points} puntos."
+    )
+    return CopyContract(
+        headline=headline,
+        subtitle=subtitle,
+        caption=caption,
+        hashtags=BASE_HASHTAGS + ("TopScorers",),
+        # The number in the caption traces to the leader's points.
+        facts_used=("round_number",),
+    )
+
+
 def generate_copy_streak(story: Dict[str, Any]) -> CopyContract:
     f = story["facts"]
     team = f.get("team_name") or f.get("team_external_id", "El equipo")
@@ -310,6 +334,7 @@ _GENERATORS = {
     "upset": generate_copy_upset,
     "win_streak": generate_copy_streak,
     "loss_streak": generate_copy_streak,
+    "stat_leaderboard": generate_copy_stat_leaderboard,
 }
 
 
