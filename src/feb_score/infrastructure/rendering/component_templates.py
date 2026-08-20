@@ -81,18 +81,26 @@ def competition_mark(x: float, y: float, height: float) -> str:
 
 
 def context_tab(x: float, y: float, label: str, *, with_mark: bool = True,
-                chevron: bool = False, height: float = 60):
-    """A subtle filter/context tab: [competition mark] label [▾], boxed with a
-    hairline border. The editorial way to carry the league mark inside a
-    ranking/criteria header (vs. the loose seal used on result posts).
+                badge: Any = None, chevron: bool = False, height: float = 60):
+    """A subtle filter/context tab: [lead] label [▾], boxed with a hairline
+    border. The lead is EITHER a small red value chip (``badge``, e.g. "10" or
+    "TOP 5" — a criteria) OR the competition mark (``with_mark`` — a scope). The
+    editorial way to carry filters/criteria inside a ranking header.
     Returns (svg, width)."""
     pad = C.Spacing.MD
-    mark_h = height - 24
-    mark_w = mark_h * (_MARK_BBOX[2] / _MARK_BBOX[3]) if with_mark else 0
-    gap = 14 if with_mark else 0
+    lead_h = height - 28
+    gap = 12
+    if badge is not None:
+        b_pad = 10
+        badge_w = b_pad * 2 + len(str(badge)) * (C.FontSize.LABEL * 0.62)
+        lead_w = badge_w
+    elif with_mark:
+        lead_w = lead_h * (_MARK_BBOX[2] / _MARK_BBOX[3])
+    else:
+        lead_w, gap = 0, 0
     text_w = len(label) * (C.FontSize.LABEL * 0.54)
     chev_w = 30 if chevron else 0
-    w = pad * 2 + mark_w + gap + text_w + chev_w
+    w = pad * 2 + lead_w + gap + text_w + chev_w
 
     parts = [
         C.rect(x, y, w, height, C.Color.INK, radius=C.Radius.MD),
@@ -101,9 +109,17 @@ def context_tab(x: float, y: float, label: str, *, with_mark: bool = True,
         f' rx="{C.Radius.MD}"/>',
     ]
     cx = x + pad
-    if with_mark:
-        parts.append(competition_mark(cx, y + 12, mark_h))
-        cx += mark_w + gap
+    ly = y + (height - lead_h) / 2
+    if badge is not None:
+        # A small red brand chip carrying the criteria value (not semantic).
+        parts.append(C.rect(cx, ly, lead_w, lead_h, C.Color.RED, radius=C.Radius.SM))
+        parts.append(C.text(cx + lead_w / 2, ly + lead_h / 2 + 7, str(badge),
+                            size=C.FontSize.LABEL, weight=C.FontWeight.DISPLAY,
+                            fill=C.Color.WHITE, anchor="middle"))
+        cx += lead_w + gap
+    elif with_mark:
+        parts.append(competition_mark(cx, ly, lead_h))
+        cx += lead_w + gap
     parts.append(C.text(cx, y + height / 2 + 8, label, size=C.FontSize.LABEL,
                         weight=C.FontWeight.LABEL, fill=C.Color.WHITE))
     if chevron:
@@ -114,6 +130,20 @@ def context_tab(x: float, y: float, label: str, *, with_mark: bool = True,
             f' stroke-linecap="round" stroke-linejoin="round"/>'
         )
     return "".join(parts), w
+
+
+def filter_bar(x: float, y: float, tabs: List[Dict[str, Any]], *,
+               gap: float = Spacing.SM, height: float = 60):
+    """A row of context/filter tabs (criteria + scope), laid left to right — the
+    SofaScore-style two-tab filter, in the FEB SCORE! identity. Each entry is the
+    kwargs of one ``context_tab``. Returns (svg, total_width)."""
+    parts: List[str] = []
+    cx = x
+    for tab in tabs:
+        svg, w = context_tab(cx, y, height=height, **tab)
+        parts.append(svg)
+        cx += w + gap
+    return "".join(parts), (cx - gap - x)
 
 
 def _background(name: str) -> str:
@@ -401,9 +431,12 @@ def render_stat_leaderboard(data: Dict[str, Any]) -> str:
     body.append(C.text(CONTENT_X, 232, "LA JORNADA EN CIFRAS", size=FontSize.LABEL,
                        weight=FontWeight.LABEL, fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True))
 
-    # Context tab with the competition mark (the subtle "filter" pattern).
-    tab, _ = context_tab(CONTENT_X, 288, f"Segunda FEB · Jornada {round_number}", chevron=True)
-    body.append(tab)
+    # Two-tab filter bar: criteria (a red count chip) + scope (competition mark).
+    bar, _ = filter_bar(CONTENT_X, 288, [
+        {"label": f"Top {len(leaders)}", "badge": len(leaders), "with_mark": False, "chevron": True},
+        {"label": f"Jornada {round_number}", "with_mark": True, "chevron": True},
+    ])
+    body.append(bar)
 
     # Ranking rows: rank · avatar · name/team · points · FEB Rating chip.
     # The avatar is a SLOT — initials today, a real cutout when photos land.

@@ -72,6 +72,37 @@ class TestFramesAndSlots:
         ET.fromstring(_wrap(svg))
         assert "<image" in svg  # the cutout fills the frame
 
+    def test_context_tab_badge_lead_is_red_chip(self):
+        svg, w = T.context_tab(0, 0, "Top 5", badge=5, with_mark=False, chevron=True)
+        ET.fromstring(_wrap(svg))
+        assert w > 0
+        assert Color.RED in svg and ">5<" in svg
+        assert "<image" not in svg  # badge lead ⇒ no competition mark image
+
+    def test_filter_bar_lays_two_tabs(self):
+        svg, w = T.filter_bar(0, 0, [
+            {"label": "Top 5", "badge": 5, "with_mark": False, "chevron": True},
+            {"label": "Jornada 12", "with_mark": True, "chevron": True},
+        ])
+        ET.fromstring(_wrap(svg))
+        assert w > 0
+        assert ">5<" in svg and "Jornada 12" in svg
+
+    def test_leaderboard_uses_only_official_palette(self):
+        data = {
+            "story": {"round_number": 12, "season_code": "2025-2026",
+                      "facts": {"leaders": [
+                          {"rank": 1, "player_name": "C. Sáez", "team_name": "Alicante",
+                           "points": 31, "rating": 8.4},
+                          {"rank": 2, "player_name": "J. Nuñez", "team_name": "Melilla",
+                           "points": 28, "rating": 6.4},
+                      ]}},
+            "copy": {}, "display": {}, "assets": {}, "meta": {},
+        }
+        svg = T.render_template("stat_leaderboard", data)
+        ET.fromstring(svg)
+        assert not (_colors_in(svg) - _ALLOWED_COLORS)
+
     def test_compose_orders_layers_and_skips_empty(self):
         svg = T.compose(
             T.IMAGE_BACKGROUND,
