@@ -295,6 +295,111 @@ def generate_copy_stat_leaderboard(story: Dict[str, Any]) -> CopyContract:
     )
 
 
+def generate_copy_iron_man(story: Dict[str, Any]) -> CopyContract:
+    f = story["facts"]
+    name = f.get("player_name") or f.get("player_external_id", "El jugador")
+    team = f.get("team_name") or f.get("team_external_id", "")
+    round_number = story.get("round_number")
+    minutes = f["minutes_played"]
+    points = f["points"]
+
+    headline = f"{name}"
+    subtitle = f"El que no se sienta · {minutes} minutos"
+    caption = (
+        f"{name} firma {minutes} minutos en la jornada {round_number}: el que "
+        f"más tiempo aguantó en pista, con {points} puntos."
+    )
+    hashtags = BASE_HASHTAGS + ("Maraton",)
+    if team:
+        hashtags = hashtags + (_slugify(team),)
+    return CopyContract(
+        headline=headline,
+        subtitle=subtitle,
+        caption=caption,
+        hashtags=hashtags,
+        facts_used=("player_name", "team_name", "minutes_played", "points", "round_number"),
+    )
+
+
+def generate_copy_playmaker(story: Dict[str, Any]) -> CopyContract:
+    f = story["facts"]
+    name = f.get("player_name") or f.get("player_external_id", "El jugador")
+    team = f.get("team_name") or f.get("team_external_id", "")
+    round_number = story.get("round_number")
+    assists = f["assists"]
+    points = f["points"]
+
+    headline = f"{name}"
+    subtitle = f"El director · {assists} asistencias"
+    caption = (
+        f"{name} reparte {assists} asistencias en la jornada {round_number}, "
+        f"el que más, sumando además {points} puntos."
+    )
+    hashtags = BASE_HASHTAGS + ("Asistencias",)
+    if team:
+        hashtags = hashtags + (_slugify(team),)
+    return CopyContract(
+        headline=headline,
+        subtitle=subtitle,
+        caption=caption,
+        hashtags=hashtags,
+        facts_used=("player_name", "team_name", "assists", "points", "round_number"),
+    )
+
+
+def generate_copy_sharpshooter(story: Dict[str, Any]) -> CopyContract:
+    f = story["facts"]
+    name = f.get("player_name") or f.get("player_external_id", "El jugador")
+    team = f.get("team_name") or f.get("team_external_id", "")
+    round_number = story.get("round_number")
+    made = f["three_points_made"]
+    attempted = f["three_points_attempted"]
+
+    headline = f"{name}"
+    subtitle = f"Puntería de la jornada · {made} triples"
+    caption = (
+        f"{name} anota {made} triples ({made}/{attempted}) en la jornada "
+        f"{round_number}: el más certero desde el perímetro."
+    )
+    hashtags = BASE_HASHTAGS + ("Triples",)
+    if team:
+        hashtags = hashtags + (_slugify(team),)
+    return CopyContract(
+        headline=headline,
+        subtitle=subtitle,
+        caption=caption,
+        hashtags=hashtags,
+        facts_used=("player_name", "team_name", "three_points_made",
+                    "three_points_attempted", "round_number"),
+    )
+
+
+def generate_copy_perfect_night(story: Dict[str, Any]) -> CopyContract:
+    f = story["facts"]
+    name = f.get("player_name") or f.get("player_external_id", "El jugador")
+    team = f.get("team_name") or f.get("team_external_id", "")
+    round_number = story.get("round_number")
+    made = f["field_goals_made"]
+    points = f["points"]
+
+    headline = f"{name}"
+    subtitle = f"Sin fallar · {made}/{made} en tiros de campo"
+    caption = (
+        f"Noche perfecta de {name} en la jornada {round_number}: {made} de {made} "
+        f"en tiros de campo para {points} puntos, sin un solo fallo."
+    )
+    hashtags = BASE_HASHTAGS + ("SinFallo",)
+    if team:
+        hashtags = hashtags + (_slugify(team),)
+    return CopyContract(
+        headline=headline,
+        subtitle=subtitle,
+        caption=caption,
+        hashtags=hashtags,
+        facts_used=("player_name", "team_name", "field_goals_made", "points", "round_number"),
+    )
+
+
 def generate_copy_streak(story: Dict[str, Any]) -> CopyContract:
     f = story["facts"]
     team = f.get("team_name") or f.get("team_external_id", "El equipo")
@@ -335,6 +440,10 @@ _GENERATORS = {
     "win_streak": generate_copy_streak,
     "loss_streak": generate_copy_streak,
     "stat_leaderboard": generate_copy_stat_leaderboard,
+    "iron_man": generate_copy_iron_man,
+    "top_assist_provider": generate_copy_playmaker,
+    "sharpshooter": generate_copy_sharpshooter,
+    "perfect_night": generate_copy_perfect_night,
 }
 
 

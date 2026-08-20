@@ -48,6 +48,9 @@ TYPE_IMPORTANCE = {
     StoryType.LEADERBOARD_CHANGE: 55,
     StoryType.MILESTONE: 80,
     StoryType.DID_YOU_KNOW: 45,
+    StoryType.IRON_MAN: 58,
+    StoryType.SHARPSHOOTER: 74,
+    StoryType.PERFECT_NIGHT: 80,
 }
 
 

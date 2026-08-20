@@ -327,23 +327,30 @@ def render_player_of_round(data: Dict[str, Any]) -> str:
     round_number = data["story"].get("round_number")
 
     body: List[str] = []
+    section = facts.get("section_label", "Jugador de la jornada")
     hdr, _ = C.match_header(
         CONTENT_X, MARGIN, CONTENT_W,
-        competition="Jugador de la jornada", round_label=f"Jornada {round_number}",
+        competition=section, round_label=f"Jornada {round_number}",
     )
     body.append(hdr)
 
-    secondary = [
-        (str(facts.get("rebounds", 0)), "REB"),
-        (str(facts.get("assists", 0)), "AST"),
+    # The hero stat is chosen by the detector (points by default, but assists /
+    # minutes / threes for the curious & shooting angles) via facts hints, so the
+    # same card frames a different story.
+    hero_value = facts.get("hero_value", facts.get("points", 0))
+    hero_label = facts.get("hero_label", "PTS")
+    sec_hint = facts.get("secondary") or [
+        [facts.get("rebounds", 0), "REB"], [facts.get("assists", 0), "AST"]
     ]
+    secondary = [(str(v), str(lab)) for v, lab in sec_hint]
     hero_kwargs = dict(
         name=display.get("player", "Jugador"),
         team=display.get("team", ""),
-        primary_stat=str(facts.get("points", 0)), primary_label="PTS",
+        primary_stat=str(hero_value), primary_label=hero_label,
         secondary_stats=secondary,
         initials=assets.get("player_initials"),
-        badge="MVP",
+        photo_uri=assets.get("player_photo"),
+        badge=facts.get("badge_label", "MVP"),
     )
     # Center the player hero in the space between header and footer.
     _, hero_h = C.player_hero(CONTENT_X, 0, CONTENT_W, **hero_kwargs)

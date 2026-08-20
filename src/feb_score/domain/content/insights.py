@@ -63,6 +63,17 @@ class PlayerLineInput:
     blocks: int = 0
     turnovers: int = 0
     minutes: float = 0.0
+    # Shooting / fouls — OPTIONAL. The domain PlayerStats does not carry these
+    # per player yet (only TeamStats does), so they arrive as None today and the
+    # shooting detectors self-skip. When the boxscore ingestion plumbs per-player
+    # shooting through, these fill in and the detectors light up — no rewrite.
+    field_goals_made: Optional[int] = None
+    field_goals_attempted: Optional[int] = None
+    three_points_made: Optional[int] = None
+    three_points_attempted: Optional[int] = None
+    free_throws_made: Optional[int] = None
+    free_throws_attempted: Optional[int] = None
+    fouls: Optional[int] = None
 
     @property
     def impact_score(self) -> float:
@@ -74,6 +85,25 @@ class PlayerLineInput:
             + self.blocks * 1.5
             - self.turnovers
         )
+
+    @property
+    def has_shooting(self) -> bool:
+        """True when per-player shooting data is present (attempts recorded)."""
+        return self.field_goals_attempted is not None
+
+    @staticmethod
+    def _pct(made: Optional[int], att: Optional[int]) -> Optional[float]:
+        if made is None or att is None or att == 0:
+            return None
+        return round(100.0 * made / att, 1)
+
+    @property
+    def field_goal_pct(self) -> Optional[float]:
+        return self._pct(self.field_goals_made, self.field_goals_attempted)
+
+    @property
+    def three_point_pct(self) -> Optional[float]:
+        return self._pct(self.three_points_made, self.three_points_attempted)
 
 
 # ---------------------------------------------------------------------------
@@ -361,6 +391,139 @@ def detect_stat_leaderboard(
 
 
 # ---------------------------------------------------------------------------
+# Curious & shooting player angles (single-player, framed by a chosen hero stat)
+# ---------------------------------------------------------------------------
+# These reuse the player card but pick their OWN hero stat (assists, minutes,
+# threes…) via display hints in the facts, so the same template tells a
+# different story. Shooting detectors self-skip when per-player shooting data is
+# absent (``has_shooting``), so they stay dormant until the ingestion carries it.
+
+MINUTES_HEAVY = 35.0        # a 35'+ night on a 40' game = a real workhorse
+PLAYMAKER_MIN_ASSISTS = 8   # 8+ assists = a genuine facilitator night
+SHARP_MIN_THREES = 5        # 5+ made threes = a shooting show
+PERFECT_MIN_FG_ATT = 5      # 5+ attempts, no misses = a perfect night
+
+
+def _player_facts(p: PlayerLineInput) -> Dict[str, Any]:
+    return {
+        "player_external_id": p.player_external_id,
+        "player_name": p.player_name,
+        "team_external_id": p.team_external_id,
+        "team_name": p.team_name,
+        "points": p.points,
+        "rebounds": p.rebounds,
+        "assists": p.assists,
+        "steals": p.steals,
+        "blocks": p.blocks,
+        "turnovers": p.turnovers,
+        "minutes": p.minutes,
+        "minutes_played": int(round(p.minutes)),
+        "impact_score": round(p.impact_score, 1),
+        "match_external_id": p.match_external_id,
+    }
+
+
+def _player_story(story_type: StoryType, season_code: str, round_number: int,
+                  p: PlayerLineInput, extra: Dict[str, Any]) -> StoryObject:
+    facts = _player_facts(p)
+    facts.update(extra)
+    return StoryObject(
+        story_type=story_type,
+        season_code=season_code,
+        round_number=round_number,
+        entities=StoryEntities(
+            player_external_id=p.player_external_id,
+            team_external_id=p.team_external_id,
+            match_external_id=p.match_external_id,
+        ),
+        facts=facts,
+        source_refs={
+            "player_stats": (
+                f"2afeb_score://match_player_stats/{p.match_external_id}/"
+                f"{p.player_external_id}"
+            ),
+        },
+    )
+
+
+def detect_iron_man(
+    season_code: str, round_number: int, player_lines: Sequence[PlayerLineInput],
+) -> Optional[StoryObject]:
+    """The workhorse of the round — most minutes, when it clears a heavy load.
+    Skips silently when minutes aren't recorded (all 0)."""
+    heavy = [p for p in player_lines if p.minutes >= MINUTES_HEAVY]
+    if not heavy:
+        return None
+    p = max(heavy, key=lambda x: (x.minutes, x.points))
+    return _player_story(StoryType.IRON_MAN, season_code, round_number, p, {
+        "hero_value": int(round(p.minutes)), "hero_label": "MIN",
+        "secondary": [[p.points, "PTS"], [p.rebounds, "REB"]],
+        "badge_label": "MARATÓN", "section_label": "El más trabajador",
+    })
+
+
+def detect_playmaker(
+    season_code: str, round_number: int, player_lines: Sequence[PlayerLineInput],
+) -> Optional[StoryObject]:
+    """The round's chief facilitator — the assist leader, when assists reach a
+    real playmaking night (frames a card by assists, not points)."""
+    eligible = [p for p in player_lines if p.assists >= PLAYMAKER_MIN_ASSISTS]
+    if not eligible:
+        return None
+    p = max(eligible, key=lambda x: (x.assists, x.points))
+    return _player_story(StoryType.TOP_ASSIST_PROVIDER, season_code, round_number, p, {
+        "hero_value": p.assists, "hero_label": "AST",
+        "secondary": [[p.points, "PTS"], [p.rebounds, "REB"]],
+        "badge_label": "DIRECTOR", "section_label": "El director de juego",
+    })
+
+
+def detect_sharpshooter(
+    season_code: str, round_number: int, player_lines: Sequence[PlayerLineInput],
+) -> Optional[StoryObject]:
+    """The best 3-point game of the round (most made, then best %). Needs
+    per-player shooting data — dormant until the ingestion carries it."""
+    eligible = [
+        p for p in player_lines
+        if p.has_shooting and (p.three_points_made or 0) >= SHARP_MIN_THREES
+    ]
+    if not eligible:
+        return None
+    p = max(eligible, key=lambda x: (x.three_points_made, x.three_point_pct or 0.0, x.points))
+    return _player_story(StoryType.SHARPSHOOTER, season_code, round_number, p, {
+        "three_points_made": p.three_points_made,
+        "three_points_attempted": p.three_points_attempted,
+        "three_point_pct": p.three_point_pct,
+        "hero_value": p.three_points_made, "hero_label": "TRIPLES",
+        "secondary": [[p.points, "PTS"], [p.three_points_attempted, "INT"]],
+        "badge_label": "SNIPER", "section_label": "El tirador de la jornada",
+    })
+
+
+def detect_perfect_night(
+    season_code: str, round_number: int, player_lines: Sequence[PlayerLineInput],
+) -> Optional[StoryObject]:
+    """A player who didn't miss from the field, with real volume. Needs
+    per-player shooting data — dormant until the ingestion carries it."""
+    eligible = [
+        p for p in player_lines
+        if p.has_shooting and (p.field_goals_attempted or 0) >= PERFECT_MIN_FG_ATT
+        and p.field_goals_made == p.field_goals_attempted
+    ]
+    if not eligible:
+        return None
+    p = max(eligible, key=lambda x: (x.field_goals_attempted, x.points))
+    return _player_story(StoryType.PERFECT_NIGHT, season_code, round_number, p, {
+        "field_goals_made": p.field_goals_made,
+        "field_goals_attempted": p.field_goals_attempted,
+        "field_goal_pct": p.field_goal_pct,
+        "hero_value": p.points, "hero_label": "PTS",
+        "secondary": [[p.field_goals_made, "TC"], [p.rebounds, "REB"]],
+        "badge_label": "SIN FALLO", "section_label": "Noche perfecta",
+    })
+
+
+# ---------------------------------------------------------------------------
 # Round-level convenience entry point
 # ---------------------------------------------------------------------------
 
@@ -393,5 +556,13 @@ def detect_all_for_round(
     leaderboard = detect_stat_leaderboard(season_code, round_number, player_lines)
     if leaderboard is not None:
         stories.append(leaderboard)
+
+    # Curious (live) + shooting (dormant until per-player shooting is ingested).
+    for detector in (
+        detect_iron_man, detect_playmaker, detect_sharpshooter, detect_perfect_night,
+    ):
+        story = detector(season_code, round_number, player_lines)
+        if story is not None:
+            stories.append(story)
 
     return stories

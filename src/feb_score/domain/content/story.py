@@ -42,6 +42,9 @@ class StoryType(str, Enum):
     SEASON_HIGH = "season_high"
     DOUBLE_DOUBLE = "double_double"
     TRIPLE_DOUBLE = "triple_double"
+    IRON_MAN = "iron_man"              # most minutes played (curious)
+    SHARPSHOOTER = "sharpshooter"      # best 3-point game (shooting)
+    PERFECT_NIGHT = "perfect_night"    # no misses from the field (shooting)
 
     # Team-level
     TEAM_OF_ROUND = "team_of_round"
@@ -80,6 +83,12 @@ STORY_TO_TEMPLATE: Dict[StoryType, str] = {
     StoryType.TRIPLE_DOUBLE: "player_of_round",
     StoryType.SEASON_HIGH: "player_of_round",    # a player card, framed as the high
     StoryType.UPSET: "match_final",              # a scoreboard, framed as the upset
+    # Curious / shooting player angles — a player card framed by the hero stat
+    # each detector chooses (assists, minutes, threes…), not always points.
+    StoryType.TOP_ASSIST_PROVIDER: "player_of_round",
+    StoryType.IRON_MAN: "player_of_round",
+    StoryType.SHARPSHOOTER: "player_of_round",
+    StoryType.PERFECT_NIGHT: "player_of_round",
     # WIN_STREAK / LOSS_STREAK have no team-shaped template yet: they are
     # detected and scored, and surfaced in the pipeline summary, but not
     # rendered until a dedicated team template exists (deferred visual work).
