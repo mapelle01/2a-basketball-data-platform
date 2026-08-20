@@ -103,6 +103,33 @@ class TestFramesAndSlots:
         ET.fromstring(svg)
         assert not (_colors_in(svg) - _ALLOWED_COLORS)
 
+    def test_best_five_renders_on_court(self):
+        data = {
+            "story": {"round_number": 12, "season_code": "2025-2026",
+                      "facts": {"lineup": [
+                          {"player_name": "C. Sáez", "team_name": "Alicante", "rating": 8.6},
+                          {"player_name": "J. Nuñez", "team_name": "Melilla", "rating": 7.5},
+                          {"player_name": "A. Martín", "team_name": "Cáceres", "rating": 7.1},
+                          {"player_name": "P. Ortega", "team_name": "Palencia", "rating": 6.8},
+                          {"player_name": "L. Romero", "team_name": "Zamora", "rating": 6.2},
+                      ]}},
+            "copy": {}, "display": {}, "assets": {}, "meta": {},
+        }
+        svg = T.render_template("best_five", data)
+        ET.fromstring(svg)  # valid
+        assert not (_colors_in(svg) - _ALLOWED_COLORS)  # identity restraint
+        for ini in ("CS", "JN", "AM", "PO", "LR"):  # five avatar fallbacks placed
+            assert f">{ini}<" in svg
+
+    def test_best_five_valid_with_partial_lineup(self):
+        # Fewer than five players (imperfect feed) must still render.
+        data = {
+            "story": {"round_number": 3, "season_code": "2025-2026",
+                      "facts": {"lineup": [{"player_name": "A. Uno", "rating": 7.0}]}},
+            "copy": {}, "display": {}, "assets": {}, "meta": {},
+        }
+        ET.fromstring(T.render_template("best_five", data))
+
     def test_compose_orders_layers_and_skips_empty(self):
         svg = T.compose(
             T.IMAGE_BACKGROUND,

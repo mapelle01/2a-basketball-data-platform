@@ -473,6 +473,83 @@ def render_stat_leaderboard(data: Dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Template: BEST FIVE (the round's ideal lineup, on a court diagram)
+# ---------------------------------------------------------------------------
+
+
+def _court_diagram(x: float, y: float, w: float, h: float, *, opacity: float = 0.22) -> str:
+    """A clean half-court drawn as thin lines — both the GEOMETRY layer and the
+    coordinate system the five players are placed on. Basket at top. Procedural,
+    no asset: the court is code, so positions always align to it."""
+    cx = x + w / 2
+    key_w, key_h = w * 0.30, h * 0.32
+    ft_r = key_w * 0.5
+    three_r = w * 0.52
+    stroke = (f'stroke="{Color.GREY}" stroke-opacity="{opacity}" fill="none"'
+              f' stroke-width="{Line.MEDIUM}" stroke-linecap="round" stroke-linejoin="round"')
+    p = [
+        f'<g {stroke}>',
+        f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="4"/>',              # court box
+        f'<rect x="{cx - key_w/2}" y="{y}" width="{key_w}" height="{key_h}"/>',  # the key
+        f'<circle cx="{cx}" cy="{y + 28}" r="14"/>',                            # hoop
+        f'<circle cx="{cx}" cy="{y + key_h}" r="{ft_r}"/>',                     # FT circle
+        f'<path d="M{cx - three_r},{y} A{three_r},{three_r} 0 0 0 {cx + three_r},{y}"/>',  # 3pt arc
+        f'<line x1="{x}" y1="{y + h}" x2="{x + w}" y2="{y + h}"/>',             # half-court line
+        '</g>',
+    ]
+    return "".join(p)
+
+
+# Five spots as fractions of the court box (basket at top): a center near the
+# rim, two forwards on the wings, two guards up top on the perimeter.
+_LINEUP_SPOTS = [
+    ("C", 0.50, 0.12),
+    ("PF", 0.19, 0.42), ("SF", 0.81, 0.42),
+    ("PG", 0.32, 0.76), ("SG", 0.68, 0.76),
+]
+
+
+def render_best_five(data: Dict[str, Any]) -> str:
+    facts = data["story"]["facts"]
+    season = data["story"].get("season_code")
+    round_number = data["story"].get("round_number")
+    lineup = facts.get("lineup", [])
+
+    # Header (DATA layer, above the court).
+    head: List[str] = []
+    head.append(C.text(CONTENT_X, 150, "El quinteto ideal", size=FontSize.H1,
+                       weight=FontWeight.DISPLAY, fill=Color.WHITE, tracking=LetterSpacing.HEADLINE))
+    head.append(C.text(CONTENT_X, 196, "LA MEJOR ALINEACIÓN DE LA JORNADA", size=FontSize.LABEL,
+                       weight=FontWeight.LABEL, fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True))
+    bar, _ = filter_bar(CONTENT_X, 240, [
+        {"label": "Mejor 5", "badge": 5, "with_mark": False, "chevron": True},
+        {"label": f"Jornada {round_number}", "with_mark": True, "chevron": True},
+    ])
+    head.append(bar)
+
+    # Court (GEOMETRY layer) + the five players placed on it (DATA layer).
+    bx, by, bw, bh = CONTENT_X, 372, CONTENT_W, 792
+    court = _court_diagram(bx, by, bw, bh)
+
+    players: List[str] = []
+    r = 60
+    for (pos, fx, fy), row in zip(_LINEUP_SPOTS, lineup):
+        px, py = bx + bw * fx, by + bh * fy
+        name = row.get("player_name") or row.get("player_external_id", "—")
+        rating = float(row.get("rating", 0))
+        players.append(C.avatar(px, py, r, initials=C.initials_of(name),
+                                photo_uri=row.get("photo_uri"), badge_uri=row.get("badge_uri")))
+        players.append(C.text(px, py + r + 34, name.upper(), size=FontSize.MICRO,
+                              weight=FontWeight.TITLE, fill=Color.WHITE, anchor="middle", upper=True))
+        chip, _ = C.rating_badge(px - 23, py + r + 48, rating, variant="mini")
+        players.append(chip)
+
+    ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB", season=season)
+    return compose(Background.STATISTICS_DARK, geometry=court,
+                   data="".join(head) + "".join(players) + ft)
+
+
+# ---------------------------------------------------------------------------
 # Dispatcher
 # ---------------------------------------------------------------------------
 
@@ -481,6 +558,7 @@ _RENDERERS: Dict[str, Callable[[Dict[str, Any]], str]] = {
     "player_of_round": render_player_of_round,
     "round_recap": render_round_recap,
     "stat_leaderboard": render_stat_leaderboard,
+    "best_five": render_best_five,
 }
 
 

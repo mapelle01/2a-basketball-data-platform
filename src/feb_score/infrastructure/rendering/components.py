@@ -541,6 +541,8 @@ def rating_badge(
     """
     if variant == "chip":
         return _rating_chip(x, y, value)
+    if variant == "mini":
+        return _rating_chip(x, y, value, size=46)
     if variant == "inline":
         return _rating_inline(x, y, value, width)
     return _rating_hero(x, y, value, width, on_dark)
@@ -563,13 +565,17 @@ def _rating_hero(x, y, value, width, on_dark) -> Rendered:
     return _group(parts), 220
 
 
-def _rating_chip(x, y, value) -> Rendered:
+def _rating_chip(x, y, value, size: int = 88) -> Rendered:
     """Compact boxed rating. Tier by BRIGHTNESS (elite = white fill / black text
     = max contrast), plus a proportional red brand meter along the bottom edge.
-    Red never means 'good' — the meter length does."""
-    size = 88
+    Red never means 'good' — the meter length does. ``size`` scales the box (88
+    for rankings, 46 for the on-court 'mini' chip)."""
     elite = value >= RATING_ELITE
     good = value >= RATING_GOOD
+    num_size = FontSize.H3 if size >= 64 else FontSize.LABEL
+    pad = max(6, round(size * 0.09))
+    mh = max(4, round(size * 0.06))
+    my = y + size - pad - mh
     if elite:
         bg, txt, border = Color.WHITE, Color.BLACK, ""
     else:
@@ -582,11 +588,11 @@ def _rating_chip(x, y, value) -> Rendered:
     parts = [
         rect(x, y, size, size, bg, radius=Radius.SM),
         border,
-        text(x + size / 2, y + size / 2 + 14, _fmt_rating(value), size=FontSize.H3,
+        text(x + size / 2, y + size / 2 + num_size * 0.40, _fmt_rating(value), size=num_size,
              weight=FontWeight.HERO, fill=txt, anchor="middle"),
         # brand meter along the bottom edge
-        rect(x + 8, y + size - 12, size - 16, 5, Color.INK if elite else Color.BLACK),
-        rect(x + 8, y + size - 12, (size - 16) * _rating_fill(value), 5, Color.RED),
+        rect(x + pad, my, size - 2 * pad, mh, Color.INK if elite else Color.BLACK),
+        rect(x + pad, my, (size - 2 * pad) * _rating_fill(value), mh, Color.RED),
     ]
     return _group(parts), size
 
