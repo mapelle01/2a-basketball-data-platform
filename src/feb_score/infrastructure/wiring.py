@@ -550,15 +550,12 @@ class _GatewayBase(CommandGateway):
 
     def _pipeline(self) -> RoundPipeline:
         if self._content_pipeline is None:
-            from pathlib import Path
-
             from .rendering.asset_provider import StatisticalAssetProvider
             from .rendering.design_system import DESIGN_SYSTEM_VERSION
-            from .rendering.svg_renderer import SvgTemplateRenderer
+            from .rendering.svg_renderer import ComponentSvgRenderer
 
-            templates_dir = Path(settings_from_env().content_templates_dir)
             self._content_pipeline = RoundPipeline(
-                renderer=SvgTemplateRenderer(templates_dir),
+                renderer=ComponentSvgRenderer(),
                 assets=StatisticalAssetProvider(),
                 queue=self._content_queue_repo,
                 design_system_version=DESIGN_SYSTEM_VERSION,

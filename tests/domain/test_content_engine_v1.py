@@ -14,7 +14,7 @@ from pathlib import Path
 
 from feb_score.application.use_cases.round_pipeline import RoundPipeline
 from feb_score.infrastructure.rendering.asset_provider import StatisticalAssetProvider
-from feb_score.infrastructure.rendering.svg_renderer import SvgTemplateRenderer
+from feb_score.infrastructure.rendering.svg_renderer import ComponentSvgRenderer
 from feb_score.domain.content.copy import generate_copy_match_final
 from feb_score.domain.content.insights import (
     MatchFactsInput,
@@ -34,7 +34,6 @@ from feb_score.domain.content.validation import validate_copy
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-TEMPLATES = REPO_ROOT / "templates" / "content"
 
 # Statuses meaning "content passed validation" (auto-approved OR queued for a
 # human to sign off). Both are success; only REJECTED/FAILED are not.
@@ -74,7 +73,7 @@ def _player(pid="p1", team="teamA", match="m1", points=25, rebounds=6, assists=4
 
 def _pipeline():
     return RoundPipeline(
-        renderer=SvgTemplateRenderer(TEMPLATES),
+        renderer=ComponentSvgRenderer(),
         assets=StatisticalAssetProvider(),
     )
 
@@ -157,7 +156,7 @@ class TestPipelineEndToEnd:
             _player(pid="p2", match="m2", points=15),
         ]
         pipeline = RoundPipeline(
-            renderer=SvgTemplateRenderer(TEMPLATES),
+            renderer=ComponentSvgRenderer(),
             assets=StatisticalAssetProvider(),
         )
         items = pipeline.run("2025-2026", 12, matches, players, top_n=5).items
@@ -204,18 +203,15 @@ class TestRunMetricsAndDedup:
 
     def test_render_not_called_for_duplicates(self):
         # A counting renderer proves we don't re-render already-queued stories.
-        from feb_score.infrastructure.rendering.svg_renderer import SvgTemplateRenderer
-
-        class _CountingRenderer(SvgTemplateRenderer):
-            def __init__(self, d):
-                super().__init__(d)
+        class _CountingRenderer(ComponentSvgRenderer):
+            def __init__(self):
                 self.calls = 0
 
             def render(self, name, data):
                 self.calls += 1
                 return super().render(name, data)
 
-        renderer = _CountingRenderer(TEMPLATES)
+        renderer = _CountingRenderer()
         pipeline = RoundPipeline(renderer=renderer, assets=StatisticalAssetProvider())
         matches = [_match(external_id="m1")]
         players = [_player(match="m1", points=27)]

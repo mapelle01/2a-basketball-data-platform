@@ -1,110 +1,108 @@
-# 2aFEB SCORE — Content Design System v1
+# FEB SCORE! — Design System v2.0
 
-Design tokens for the editorial layer. Every template consumes tokens from
-[`design_system.py`](../../src/feb_score/infrastructure/rendering/design_system.py) — never hardcodes values.
+The visual identity, consolidated from the ten official system boards into code
+tokens in [`design_system.py`](../../src/feb_score/infrastructure/rendering/design_system.py).
+Every component and template reads tokens from there — nothing hardcodes a hex,
+a font size, or a spacing value.
 
-## Brand decision
+> **Identity:** SPORTS DATA + EDITORIAL + PREMIUM + MODERN + DIGITAL.
+> Black/white = base · greys = structure · red = accent (≈60/25/15).
+> **ONE TYPEFACE. NO extra colors. NO gradients. NO shadows. CONTENT FIRST — BRAND SECOND.**
 
-**Editorial brand:** `2aFEB SCORE` (same wordmark as the technical platform).
-**Rationale:** the audience discovers the content before the data platform, so name continuity earns brand equity for both. Kept independent from Futbolea (that project is football, unrelated).
+## Source of truth
 
-The visual identity is separate from the platform's operational identity — a v2 rebrand affects only templates, never the API.
+The ten `*_system.png` boards under `~/Desktop/sistemas` (color, typography,
+logo, grid, shapes, photography, background, icon, component, template). The
+older `mini-grid` draft (brand "2FEB SCORE!") is **superseded** — the brand is
+**FEB SCORE!**.
 
 ## Color
 
-| Token | Hex | Use |
-|---|---|---|
-| `BG_DEEP` | `#0b0d13` | Canvas background |
-| `BG_SURFACE` | `#141821` | Cards |
-| `BG_ELEVATED` | `#1a1f2b` | Elevated cards / stat blocks |
-| `BG_SUNKEN` | `#0f1219` | Inset areas (avatar placeholders) |
-| `TEXT_PRIMARY` | `#f8fafc` | Headlines, big numbers |
-| `TEXT_SECONDARY` | `#cbd5e1` | Section labels |
-| `TEXT_MUTED` | `#94a3b8` | Metadata |
-| `TEXT_DISABLED` | `#475569` | Ranks/placeholders |
-| `ACCENT` | `#3b82f6` | Score highlights, single accent |
-| `ACCENT_ON` | `#ffffff` | Text on accent |
-| `SUCCESS` | `#10b981` | Positive trend (future) |
-| `WARNING` | `#f59e0b` | Neutral trend (future) |
-| `DANGER` | `#ef4444` | Negative trend (future) |
+Six official colors, with semantic roles. Red is an accent that guides
+attention (winner, status, key stat) — never a dominant surface, never decoration.
 
-**Rule:** exactly ONE accent per canvas. If everything is highlighted, nothing is.
-Near-black never `#000` (bad on OLED) — always the deep-navy `BG_DEEP`.
+| Token / role | Hex | Use |
+|---|---|---|
+| `BLACK` / PRIMARY | `#000000` | Main backgrounds, max contrast |
+| `INK` / STRUCTURAL | `#111111` | Panels, cards, structure |
+| `GREY` / SECONDARY | `#6B6B6B` | Secondary text, metadata, dividers |
+| `LIGHT_GREY` / SURFACE | `#E5E5E5` | Editorial surfaces, inactive |
+| `RED` / ACCENT | `#E10600` | **Accent only** — winner, status, key highlight |
+| `WHITE` / CONTRAST | `#FFFFFF` | Text on dark, contrast |
+
+Forbidden: any other color, gradients, colored shadows, alternate reds.
+A test (`TestIdentityRestraint`) fails the build if a template emits a
+non-palette color.
 
 ## Typography
 
-Two families only.
+**Inter, five weights. Numbers first** (scores/stats always Inter 900).
 
-- **Inter** — everything textual (headlines, labels, prose).
-- **JetBrains Mono** — scores and stat numerals ONLY. Tabular by default, aligns cleanly.
-
-### Scale
-
-| Token | px | Use |
+| Role | Weight | Use |
 |---|---|---|
-| `DISPLAY` | 96 | Round recap hero |
-| `H1` | 78 | Match / player headline |
-| `H2` | 56 | Section titles |
-| `H3` | 42 | Team names, card titles |
-| `H4` | 32 | Stat values |
-| `BODY_LG` | 26 | Subheadlines |
-| `BODY` | 22 | Body / labels |
-| `BODY_SM` | 20 | Secondary labels |
-| `CAPTION` | 18 | Metadata |
-| `MICRO` | 16 | Uppercase micro-labels |
-| `NANO` | 14 | Footer legalese |
+| HERO | 900 | Numbers, scores, hero figures |
+| DISPLAY | 800 | Main headlines |
+| TITLE | 700 | Secondary titles |
+| LABEL | 600 | Labels, categories, metadata |
+| BODY | 400 | Body, descriptions |
 
-Weight scale is Inter's native 400/500/600/700/800/900.
-Letter-spacing: display copy tightens (`-2` / `-0.5`), uppercase labels open up (`2` / `3` / `4`).
+Sizes (1080×1350): HERO 168 · DISPLAY 120 · H1 88 · H2 56 · H3 34 · BODY 24 ·
+LABEL 22 · MICRO 18. Tracking: negative on hero numbers, positive on labels.
+Line-height: 90–100% hero, 100–115% headline, 140–150% body. Labels uppercase,
+titles sentence case. Left-align first.
 
-## Spacing (8-pt grid)
+The wordmark "FEB SCORE!" is set oblique (italic); everything else is upright.
 
-`XS 8`, `SM 16`, `MD 24`, `LG 32`, `XL 48`, `XXL 64`, `XXXL 96`.
-Every gap, padding and margin is one of these — no arbitrary values.
+## Spacing (8px base, 4/12 micro half-steps)
+
+`MICRO 4` · `XS 8` (number↔label) · `SM 12` (icon↔text) · `MD 16` (internal) ·
+`LG 24` (related) · `XL 32` (block↔sub-block) · `XXL 48` · `BLOCK 64` (main
+blocks / outer margin / safe area) · `XXXL 96` · `HUGE 128`.
 
 ## Grid & canvases
 
-Three named canvases (add later if needed):
+12 columns, gutter 24px. **Outer margin / safe area 64px** (80px on 16:9).
 
-| Canvas | Size | Safe margin |
+| Canvas | Size | Margin |
 |---|---|---|
-| `IG_POST` | 1080×1080 | 60 |
-| `IG_PORTRAIT` | 1080×1350 | 60 |
-| `IG_STORY` | 1080×1920 | 80 |
+| `POST_PORTRAIT` | 1080×1350 | 64 · **primary** |
+| `POST_SQUARE` | 1080×1080 | 64 |
+| `STORY` | 1080×1920 | 64 |
+| `HORIZONTAL` | 1920×1080 | 80 |
 
-**v1 uses only `IG_PORTRAIT`** — the 4:5 format wins in the Instagram feed and doubles as a decent thumbnail. Story format arrives in v2.
+## Shapes, lines, radius, borders
 
-Safe area = margin on all sides. No copy, score or logo may cross it.
+Corners **sharp** by default (radius 0 for editorial/data; 4 controls, 8 cards,
+12 highlighted). Lines 4/2/1px. Border hairline 1px. **No shadows** — depth
+comes from surface elevation (BLACK vs INK), contrast and borders.
 
-## Radii, borders, shadows
+Red accent shapes: the accent bar (the one licensed use of red as a shape),
+plus vertical/corner/diagonal accents.
 
-- `Radius.SM 8` chips · `MD 12` inline stats · `LG 16` cards · `XL 24` hero · `PILL 999` avatars.
-- Borders: hairline (`1`) for subtle separators, standard (`2`) for avatar rings, heavy (`4`) for eyebrow bars.
-- **No shadows in v1** — flat, editorial. Depth comes from surface elevation (`BG_SURFACE` vs `BG_ELEVATED`), not blur.
+## Icons
 
-## Iconography
+**Outline, 2px stroke, round caps, 24-grid, no fill.** States: default (ink),
+active (red), inactive (grey), on-dark (white), disabled (light grey). Stat
+labels (PTS/REB/AST…) are set as text per the boards, so the graphic glyph set
+stays minimal.
 
-Single glyph per stat (points, rebounds, assists, steals, blocks, minutes, wins, losses, fire, trophy, rank up/down, star). Inline SVG paths in `Icons` (design_system.py) — dep-free, colored via CSS/fill. **No emojis, no Material Icons, no mixed sets.**
+## Backgrounds (eight official)
 
-## Image system
-
-Three levels, in fallback order:
-
-- **Level A — Official photo** (player, team logo, venue). Used when licensed and available.
-- **Level B — Contextual** (court, ball, arena, texture). Used when no A available.
-- **Level C — Statistical design** (numbers, geometry, team color, iconography). Always available; keeps the layout professional even with zero imagery.
-
-**v1 delivers Level C only.** The `AssetProvider` interface is ready for A/B — a template never knows which level filled its slot; it consumes an asset descriptor.
+`black_clean` · `black_red_accent` (solid red diagonal, no gradient) ·
+`black_structural` · `black_court` · `tactical_dark` · `white_editorial` ·
+`light_grey_editorial` · `statistics_dark`. **ONE BACKGROUND SYSTEM, NOT ONE PER
+POST.** `Background.text_on(name)` / `is_dark(name)` pick legible text.
 
 ## What NOT to do
 
-- Never hardcode a hex value in a template. Reference `Color.*`.
-- Never introduce a third font family "just for this template".
-- Never invent a spacing value. Round to the scale.
-- Never use two accent colors on one canvas.
-- Never place text closer to the edge than `safe_margin`.
-- Never render a template if a required slot is missing (VisualValidator will reject it).
+- No hex/size/space hardcoded in a component — reference a token.
+- No second typeface; Inter only, five weights.
+- No color outside the six; no gradients; no shadows.
+- No per-team colors — teams read by initials in white/grey; red marks the winner.
+- No element closer to the edge than the 64px safe margin.
 
 ## Versioning
 
-`DESIGN_SYSTEM_VERSION = "1.0"`. A published content object records the token version it was rendered with, so historical posts remain reproducible even after a v2 refresh.
+`DESIGN_SYSTEM_VERSION = "2.0"` (the black/white/red identity; v1.0 was the
+earlier dark-blue draft, now removed). A content item records the version it was
+rendered with, so historical posts stay reproducible.

@@ -28,7 +28,7 @@ from feb_score.application.use_cases.round_pipeline import RoundPipeline  # noqa
 from feb_score.domain.content.insights import MatchFactsInput, PlayerLineInput  # noqa: E402
 from feb_score.infrastructure.rendering.asset_provider import StatisticalAssetProvider  # noqa: E402
 from feb_score.infrastructure.rendering.design_system import DESIGN_SYSTEM_VERSION  # noqa: E402
-from feb_score.infrastructure.rendering.svg_renderer import SvgTemplateRenderer  # noqa: E402
+from feb_score.infrastructure.rendering.svg_renderer import ComponentSvgRenderer  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -155,16 +155,13 @@ def main() -> int:
     output_dir = REPO_ROOT / "examples" / "content"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    templates_dir = REPO_ROOT / "templates" / "content"
-    renderer = SvgTemplateRenderer(templates_dir)
-    assets = StatisticalAssetProvider()
     pipeline = RoundPipeline(
-        renderer=renderer,
-        assets=assets,
+        renderer=ComponentSvgRenderer(),
+        assets=StatisticalAssetProvider(),
         design_system_version=DESIGN_SYSTEM_VERSION,
     )
 
-    items = pipeline.run(SEASON, ROUND, MATCHES, PLAYER_LINES, top_n=8)
+    items = pipeline.run(SEASON, ROUND, MATCHES, PLAYER_LINES, top_n=8).items
 
     # Pick one representative content per story type so the deliverable is
     # exactly the 3 references the design system was built for.

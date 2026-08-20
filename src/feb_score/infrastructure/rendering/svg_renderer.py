@@ -11,8 +11,27 @@ from ...application.content.interfaces import TemplateRenderer
 PLACEHOLDER_RE = re.compile(r"\{\{\s*([a-zA-Z0-9_.\[\]]+)\s*(?::([^}]+))?\}\}")
 
 
+_VERSION_SUFFIX_RE = re.compile(r"_v\d+$")
+
+
 class TemplateNotFound(Exception):
     pass
+
+
+class ComponentSvgRenderer(TemplateRenderer):
+    """Renders a template by composing Component Library pieces in code (FEB
+    SCORE! identity v2). No template files: ``template_name`` (e.g.
+    ``match_final_v1``) is mapped to a composition function. This is the
+    renderer the pipeline uses; the file-based one below stays for tooling.
+    """
+
+    def render(self, template_name: str, data: Dict[str, Any]) -> str:
+        from .component_templates import has_template, render_template
+
+        template_id = _VERSION_SUFFIX_RE.sub("", template_name)
+        if not has_template(template_id):
+            raise TemplateNotFound(f"no component template for {template_name!r}")
+        return render_template(template_id, data)
 
 
 class SvgTemplateRenderer(TemplateRenderer):

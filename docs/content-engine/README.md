@@ -2,14 +2,27 @@
 
 **status:** delivered · 3 templates producing real content approved by fact + visual validators from 2025-2026 fixture data · pipeline runs end-to-end · CI 802/802 green
 
-## Design System
+## Design System — FEB SCORE! identity v2.0
 
-- **typography:** Inter (prose) + JetBrains Mono (numerals). Full scale in [`design_system.py`](../../src/feb_score/infrastructure/rendering/design_system.py) (DISPLAY 96 → NANO 14).
-- **colors:** near-black grounds (`BG_DEEP #0b0d13`), cool grey text ladder, single electric-blue accent (`ACCENT #3b82f6`). Full palette in [design-system.md](design-system.md).
-- **spacing:** 8-pt grid (XS 8 → XXXL 96), no arbitrary values.
-- **grid:** 3 named canvases (IG_POST 1080², IG_PORTRAIT 1080×1350, IG_STORY 1080×1920). v1 uses only IG_PORTRAIT.
-- **iconography:** 13 curated inline-SVG glyphs in `Icons` class (points, rebounds, assists, steals, blocks, minutes, wins, losses, fire, trophy, rank up/down, star). No emojis, no external icon sets.
-- **image system:** three-level fallback (A=official photo · B=contextual · C=statistical). v1 delivers Level C only via `StatisticalAssetProvider`; interface ready for A/B.
+The visual layer was migrated from the early dark-blue draft to the official
+**FEB SCORE!** identity (black/white/red), consolidated from the ten system
+boards. Full detail in [design-system.md](design-system.md) and the
+[Component Library](component-library.md).
+
+- **colors:** six official — `BLACK #000` · `INK #111111` · `GREY #6B6B6B` · `LIGHT_GREY #E5E5E5` · `RED #E10600` · `WHITE #FFF`. Red is accent only (≈60/25/15). **No extra colors, no gradients, no shadows** — enforced by a test.
+- **typography:** **Inter only, five weights** (HERO 900 / DISPLAY 800 / TITLE 700 / LABEL 600 / BODY 400). Numbers always 900. (JetBrains Mono removed.)
+- **spacing:** 8px base with 4/12 micro half-steps; safe margin **64px**.
+- **grid:** POST_PORTRAIT 1080×1350 primary; square/story/horizontal canvases defined.
+- **icons:** outline, 2px stroke, 24-grid (was fill-based).
+- **backgrounds:** eight official (`black_clean`, `black_red_accent`, `statistics_dark`, …).
+
+**Component Library:** the 5 priority components (`match_header`, `scoreboard`,
+`player_hero`, `stat_block`, `brand_footer`) are data-driven SVG functions in
+[`components.py`](../../src/feb_score/infrastructure/rendering/components.py).
+Templates are now **code compositions** ([`component_templates.py`](../../src/feb_score/infrastructure/rendering/component_templates.py))
+rendered by `ComponentSvgRenderer` — no more `.svg` placeholder files. The
+`TemplateRenderer` interface is unchanged, so the pipeline, validators and
+fact-tracing are untouched. See [component-library.md](component-library.md).
 
 ## Templates
 

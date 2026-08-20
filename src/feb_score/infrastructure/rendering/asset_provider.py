@@ -1,10 +1,11 @@
-"""Statistical asset provider — Level C fallback (no external images).
+"""Statistical asset provider — the no-photo fallback (FEB SCORE! identity).
 
-Implements the ``AssetProvider`` interface from the application layer using
-deterministic derivations from entity ids. A template asks for an asset; this
-provider always resolves it with a Level C placeholder (initials + a stable
-team color from a curated palette). No network, no filesystem, no external
-services.
+Implements the ``AssetProvider`` interface using deterministic derivations from
+entity ids. There are NO team colors in this identity: the palette is strictly
+black / white / greys with red as an accent (never a per-team color). Teams and
+players are distinguished by their initials in white/grey, and the renderer uses
+red only to mark a winner or a key stat. ``team_color`` therefore returns a
+neutral from the official palette, kept only to satisfy the interface.
 
 Level A (official photos) and Level B (contextual imagery) plug in as
 alternative implementations of the same interface without touching templates.
@@ -17,26 +18,11 @@ from ...application.content.interfaces import (
     Asset,
     AssetProvider,
 )
-
-
-# Deterministic team color from external_id. Palette curated to be visually
-# distinct on the dark background of the design system.
-_PALETTE = [
-    "#3b82f6",  # blue
-    "#ef4444",  # red
-    "#10b981",  # green
-    "#f59e0b",  # amber
-    "#8b5cf6",  # violet
-    "#ec4899",  # pink
-    "#06b6d4",  # cyan
-    "#84cc16",  # lime
-    "#f97316",  # orange
-    "#a855f7",  # purple
-]
+from .design_system import Color
 
 
 class StatisticalAssetProvider(AssetProvider):
-    """Level C only. Every asset is generated deterministically from ids."""
+    """No-photo fallback. Every asset is generated deterministically from ids."""
 
     def player_photo(self, player_external_id: str) -> Asset:
         return Asset(
@@ -57,7 +43,9 @@ class StatisticalAssetProvider(AssetProvider):
         )
 
     def team_color(self, team_external_id: str) -> str:
-        return _color_from_id(team_external_id)
+        # No per-team colors in this identity. Neutral by default; the renderer
+        # applies red as an accent based on context (winner / key stat), not team.
+        return Color.WHITE
 
 
 def _initials_from_id(entity_id: str) -> str:
@@ -67,10 +55,3 @@ def _initials_from_id(entity_id: str) -> str:
     if entity_id:
         return entity_id[:2].upper()
     return "--"
-
-
-def _color_from_id(entity_id: str) -> str:
-    if not entity_id:
-        return _PALETTE[0]
-    seed = sum(ord(c) for c in entity_id)
-    return _PALETTE[seed % len(_PALETTE)]
