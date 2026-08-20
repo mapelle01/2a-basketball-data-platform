@@ -30,6 +30,7 @@ from .design_system import (
     Icons,
     LetterSpacing,
     Line,
+    Radius,
     Spacing,
 )
 
@@ -69,17 +70,21 @@ def rect(x: float, y: float, w: float, h: float, fill: str, radius: int = 0) -> 
     return f'<rect x="{_n(x)}" y="{_n(y)}" width="{_n(w)}" height="{_n(h)}" fill="{fill}"{r}/>'
 
 
-def hline(x: float, y: float, w: float, *, weight: int = Line.THIN, color: str = Color.GREY) -> SVG:
+def hline(x: float, y: float, w: float, *, weight: int = Line.THIN,
+          color: str = Color.GREY, opacity: float = 1.0) -> SVG:
+    op = f' stroke-opacity="{opacity}"' if opacity < 1 else ""
     return (
         f'<line x1="{_n(x)}" y1="{_n(y)}" x2="{_n(x + w)}" y2="{_n(y)}"'
-        f' stroke="{color}" stroke-width="{weight}"/>'
+        f' stroke="{color}" stroke-width="{weight}"{op}/>'
     )
 
 
-def vline(x: float, y: float, h: float, *, weight: int = Line.THIN, color: str = Color.GREY) -> SVG:
+def vline(x: float, y: float, h: float, *, weight: int = Line.THIN,
+          color: str = Color.GREY, opacity: float = 1.0) -> SVG:
+    op = f' stroke-opacity="{opacity}"' if opacity < 1 else ""
     return (
         f'<line x1="{_n(x)}" y1="{_n(y)}" x2="{_n(x)}" y2="{_n(y + h)}"'
-        f' stroke="{color}" stroke-width="{weight}"/>'
+        f' stroke="{color}" stroke-width="{weight}"{op}/>'
     )
 
 
@@ -104,11 +109,16 @@ def status_pill(x: float, y: float, label: str, *, live: bool = False) -> SVG:
     pad_x, h = Spacing.SM, 34
     w = pad_x * 2 + len(label_u) * (FontSize.MICRO * 0.68)
     bg = Color.RED if live else Color.INK
-    fg = Color.WHITE
+    # Non-live pills get a hairline border so they read on any background.
+    border = "" if live else (
+        f'<rect x="{_n(x)}" y="{_n(y)}" width="{_n(w)}" height="{h}" fill="none"'
+        f' stroke="{Color.GREY}" stroke-opacity="0.5" stroke-width="{Line.THIN}"/>'
+    )
     return (
         rect(x, y, w, h, bg, radius=0)
+        + border
         + text(x + pad_x, y + h - 11, label_u, size=FontSize.MICRO, weight=FontWeight.LABEL,
-               fill=fg, tracking=LetterSpacing.CAPS, upper=True)
+               fill=Color.WHITE, tracking=LetterSpacing.CAPS, upper=True)
     ), w  # returns (svg, width) — pills flow horizontally
 
 
@@ -126,15 +136,25 @@ def match_header(
     round_label: str,
     status: Optional[str] = None,
     on_dark: bool = True,
+    left_inset: float = 0,
 ) -> Rendered:
     """Context strip: competition + round on the left, status pill on the right.
-    Compact; never competes with the scoreboard."""
+    Compact; never competes with the scoreboard. ``left_inset`` shifts the
+    eyebrow right (e.g. to sit next to a competition mark the caller drew) and
+    replaces the red accent bar."""
     fg = Color.WHITE if on_dark else Color.BLACK
     parts: List[SVG] = []
-    # Red eyebrow accent bar
-    parts.append(accent_bar(x, y, 48, Line.HEAVY))
-    eyebrow = f"{competition} · {round_label}".upper()
-    parts.append(text(x, y + 30, eyebrow, size=FontSize.LABEL, weight=FontWeight.LABEL,
+    if left_inset > 0:
+        # A competition mark sits to the left (drawn by the caller): it already
+        # says the competition, so the eyebrow is just the context (round) — no
+        # repetition, matching how league seals are used editorially.
+        tx, ty = x + left_inset, y + 34
+        eyebrow = round_label.upper()
+    else:
+        parts.append(accent_bar(x, y, 48, Line.HEAVY))  # red eyebrow accent
+        tx, ty = x, y + 30
+        eyebrow = f"{competition} · {round_label}".upper()
+    parts.append(text(tx, ty, eyebrow, size=FontSize.LABEL, weight=FontWeight.LABEL,
                       fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True))
     if status:
         pill_svg, pill_w = status_pill(
@@ -185,25 +205,28 @@ def _score_color(side: TeamSide, fg: str) -> str:
 
 
 def _scoreboard_hero(x, y, width, home, away, fg) -> Rendered:
+    """Two columns side by side — team name above, giant score below — with a
+    center ball mark. Number-first and balanced (no empty gutter). Winner red."""
     parts: List[SVG] = []
-    # HOME row
-    parts.append(text(x, y + 40, home.name.upper(), size=FontSize.H2,
-                      weight=FontWeight.DISPLAY, fill=fg, tracking=LetterSpacing.HEADLINE, upper=True))
-    parts.append(text(x + width, y + 168, str(home.score), size=FontSize.HERO,
-                      weight=FontWeight.HERO, fill=_score_color(home, fg), anchor="end",
-                      tracking=LetterSpacing.HERO))
-    # center divider with ball mark (knockout rect assumes a dark ground)
-    mid = y + 220
-    parts.append(hline(x, mid, width, weight=Line.MEDIUM, color=Color.GREY))
-    parts.append(rect(x + width / 2 - 26, mid - 16, 52, 32, Color.BLACK))  # knockout behind ball
-    parts.append(icon(x + width / 2 - 14, mid - 14, Icons.BALL, size=28, color=Color.GREY))
-    # AWAY row
-    parts.append(text(x, mid + 88, away.name.upper(), size=FontSize.H2,
-                      weight=FontWeight.DISPLAY, fill=fg, tracking=LetterSpacing.HEADLINE, upper=True))
-    parts.append(text(x + width, mid + 216, str(away.score), size=FontSize.HERO,
-                      weight=FontWeight.HERO, fill=_score_color(away, fg), anchor="end",
-                      tracking=LetterSpacing.HERO))
-    return _group(parts), 470
+    half = width / 2
+    hx = x + half * 0.5          # center of the home column
+    ax = x + half + half * 0.5   # center of the away column
+    cx = x + half                # center line
+    name_y = y + 44
+    num_y = y + 236              # baseline of the giant numbers
+
+    for col_cx, side in ((hx, home), (ax, away)):
+        parts.append(text(col_cx, name_y, side.name.upper(), size=FontSize.H3,
+                          weight=FontWeight.DISPLAY, fill=fg, anchor="middle",
+                          tracking=LetterSpacing.HEADLINE, upper=True))
+        parts.append(text(col_cx, num_y, str(side.score), size=FontSize.HERO,
+                          weight=FontWeight.HERO, fill=_score_color(side, fg),
+                          anchor="middle", tracking=LetterSpacing.HERO))
+
+    # Center ball mark, vertically aligned with the numbers.
+    ball_cy = num_y - 66
+    parts.append(icon(cx - 18, ball_cy - 18, Icons.BALL, size=36, color=Color.GREY))
+    return _group(parts), 268
 
 
 def _scoreboard_compact(x, y, width, home, away, fg) -> Rendered:
@@ -253,22 +276,28 @@ def player_hero(
     fg = Color.WHITE if on_dark else Color.BLACK
     parts: List[SVG] = []
 
-    # Fallback "portrait": a bordered square with large initials + red corner
-    # accent. Editorial, not a cartoon avatar.
-    box = 300
+    # Fallback "portrait": a photo-shaped panel (3:4) — INK fill so it reads as a
+    # clean frame, a hairline border, a red corner accent, and large initials set
+    # low like a name plate. Editorial placeholder, not a cartoon avatar.
+    bw_, bh_ = 300, 400
     cx = x + width / 2
-    parts.append(rect(cx - box / 2, y, box, box, Color.INK))
-    parts.append(hline(cx - box / 2, y, 80, weight=Line.HEAVY, color=Color.RED))  # corner accent
-    parts.append(vline(cx - box / 2, y, 80, weight=Line.HEAVY, color=Color.RED))
-    parts.append(text(cx, y + box / 2 + 40, (initials or "—"), size=FontSize.DISPLAY,
+    px = cx - bw_ / 2
+    parts.append(rect(px, y, bw_, bh_, Color.INK))
+    parts.append(
+        f'<rect x="{_n(px)}" y="{_n(y)}" width="{bw_}" height="{bh_}" fill="none"'
+        f' stroke="{Color.GREY}" stroke-opacity="0.35" stroke-width="{Line.THIN}"/>'
+    )
+    parts.append(hline(px, y, 72, weight=Line.HEAVY, color=Color.RED))       # corner accent
+    parts.append(vline(px, y, 72, weight=Line.HEAVY, color=Color.RED))
+    parts.append(text(cx, y + bh_ * 0.62, (initials or "—"), size=FontSize.DISPLAY + 20,
                       weight=FontWeight.HERO, fill=Color.GREY, anchor="middle",
                       tracking=LetterSpacing.HERO))
     if badge:
         bw = _pill_width(badge)
-        pill, _ = status_pill(cx + box / 2 - bw, y + box - 38, badge, live=True)
+        pill, _ = status_pill(cx + bw_ / 2 - bw, y + bh_ - 44, badge, live=True)
         parts.append(pill)
 
-    cursor = y + box + Spacing.XL
+    cursor = y + bh_ + Spacing.XL
     # Identity
     parts.append(text(cx, cursor + 60, name.upper(), size=FontSize.H1, weight=FontWeight.DISPLAY,
                       fill=fg, anchor="middle", tracking=LetterSpacing.HEADLINE, upper=True))
@@ -343,6 +372,162 @@ def _stat_stacked(x, y, width, primary, primary_label, secondary, fg, variant, c
                 parts.append(vline(x + col_w * i, row_y + 6, 68, color=Color.INK))
         h += Spacing.LG + 80
     return _group(parts), h
+
+
+def stat_group(
+    x: float,
+    y: float,
+    width: float,
+    stats: Sequence[Tuple[str, str]],
+    *,
+    on_dark: bool = True,
+    highlight_first: bool = False,
+) -> Rendered:
+    """A horizontal row of equal stat columns (number above label, dividers
+    between). The board's STAT GROUP. Reused for secondary-data strips."""
+    fg = Color.WHITE if on_dark else Color.BLACK
+    n = max(1, len(stats))
+    col_w = width / n
+    parts: List[SVG] = []
+    for i, (val, lab) in enumerate(stats):
+        cx = x + col_w * i + col_w / 2
+        color = Color.RED if (highlight_first and i == 0) else fg
+        parts.append(text(cx, y + 58, str(val), size=FontSize.H1, weight=FontWeight.HERO,
+                          fill=color, anchor="middle"))
+        parts.append(text(cx, y + 92, lab.upper(), size=FontSize.MICRO, weight=FontWeight.LABEL,
+                          fill=Color.GREY, anchor="middle", tracking=LetterSpacing.CAPS, upper=True))
+        if i > 0:
+            parts.append(vline(x + col_w * i, y + 12, 80, color=Color.INK))
+    return _group(parts), 104
+
+
+# ---------------------------------------------------------------------------
+# FEB RATING — the signature 0..10 mark, encoded within the palette
+# ---------------------------------------------------------------------------
+# Red is NOT semantic here (in sport/data red reads as "bad"). Red is the BRAND
+# color, carried by the proportional meter — a fuller bar means a better rating,
+# which IS intuitive. The number's QUALITY is read by brightness: white for a
+# solid game, grey for a quiet one. The elite tier is marked by MAX contrast
+# (a white fill), never by red-means-good.
+
+RATING_ELITE = 8.0    # >= this: max brightness (white fill on the chip)
+RATING_GOOD = 6.5     # >= this: white number (a solid game)
+# below RATING_GOOD: grey number (a quiet game)
+_RATING_METER_MIN = 5.0   # the meter maps 5..10 → 0..100% (the useful range),
+_RATING_METER_MAX = 10.0  # so real differences read clearly (most are 5.5+).
+
+
+def _rating_color(value: float) -> str:
+    """Number color by brightness — never red (red isn't 'good' here)."""
+    return Color.WHITE if value >= RATING_GOOD else Color.GREY
+
+
+def _rating_fill(value: float) -> float:
+    span = _RATING_METER_MAX - _RATING_METER_MIN
+    return max(0.0, min(1.0, (value - _RATING_METER_MIN) / span))
+
+
+def _fmt_rating(value: float) -> str:
+    return f"{value:.1f}" if value < 10 else "10"
+
+
+def rating_badge(
+    x: float,
+    y: float,
+    value: float,
+    *,
+    variant: str = "hero",
+    width: float = 360,
+    on_dark: bool = True,
+) -> Rendered:
+    """The FEB Rating mark. variants:
+    hero    — giant number + RATING label + proportional red meter (protagonist)
+    chip    — compact boxed number for lists/rankings (elite = red fill)
+    inline  — number + tiny meter, for a stat row
+    """
+    if variant == "chip":
+        return _rating_chip(x, y, value)
+    if variant == "inline":
+        return _rating_inline(x, y, value, width)
+    return _rating_hero(x, y, value, width, on_dark)
+
+
+def _rating_hero(x, y, value, width, on_dark) -> Rendered:
+    parts: List[SVG] = []
+    cx = x + width / 2
+    color = _rating_color(value)
+    parts.append(text(cx, y + 130, _fmt_rating(value), size=FontSize.HERO,
+                      weight=FontWeight.HERO, fill=color, anchor="middle",
+                      tracking=LetterSpacing.HERO))
+    parts.append(text(cx, y + 168, "RATING", size=FontSize.LABEL, weight=FontWeight.LABEL,
+                      fill=Color.GREY, anchor="middle", tracking=LetterSpacing.CAPS, upper=True))
+    # Proportional red meter under the number.
+    mw, mh, my = width * 0.62, 8, y + 196
+    mx = cx - mw / 2
+    parts.append(rect(mx, my, mw, mh, Color.INK))
+    parts.append(rect(mx, my, mw * _rating_fill(value), mh, Color.RED))
+    return _group(parts), 220
+
+
+def _rating_chip(x, y, value) -> Rendered:
+    """Compact boxed rating. Tier by BRIGHTNESS (elite = white fill / black text
+    = max contrast), plus a proportional red brand meter along the bottom edge.
+    Red never means 'good' — the meter length does."""
+    size = 88
+    elite = value >= RATING_ELITE
+    good = value >= RATING_GOOD
+    if elite:
+        bg, txt, border = Color.WHITE, Color.BLACK, ""
+    else:
+        bg, txt = Color.INK, (Color.WHITE if good else Color.GREY)
+        edge = Color.WHITE if good else Color.GREY
+        border = (
+            f'<rect x="{_n(x)}" y="{_n(y)}" width="{size}" height="{size}" fill="none"'
+            f' stroke="{edge}" stroke-opacity="0.6" stroke-width="{Line.MEDIUM}" rx="{Radius.SM}"/>'
+        )
+    parts = [
+        rect(x, y, size, size, bg, radius=Radius.SM),
+        border,
+        text(x + size / 2, y + size / 2 + 14, _fmt_rating(value), size=FontSize.H3,
+             weight=FontWeight.HERO, fill=txt, anchor="middle"),
+        # brand meter along the bottom edge
+        rect(x + 8, y + size - 12, size - 16, 5, Color.INK if elite else Color.BLACK),
+        rect(x + 8, y + size - 12, (size - 16) * _rating_fill(value), 5, Color.RED),
+    ]
+    return _group(parts), size
+
+
+def _rating_inline(x, y, value, width) -> Rendered:
+    color = _rating_color(value)
+    parts = [
+        text(x, y + 40, _fmt_rating(value), size=FontSize.H2, weight=FontWeight.HERO, fill=color),
+        text(x + 110, y + 40, "RATING", size=FontSize.MICRO, weight=FontWeight.LABEL,
+             fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True),
+    ]
+    mw, my = width - 260, y + 28
+    mx = x + 250
+    parts.append(rect(mx, my, mw, 6, Color.INK))
+    parts.append(rect(mx, my, mw * _rating_fill(value), 6, Color.RED))
+    return _group(parts), 56
+
+
+def rating_scale(x: float, y: float, width: float, value: float) -> Rendered:
+    """The 0..10 scale with a marker at the player's rating — an educational
+    strip (the 'rating tipoff' idea), monochrome + red marker."""
+    parts: List[SVG] = []
+    parts.append(rect(x, y, width, 10, Color.INK))
+    parts.append(rect(x, y, width * (value / 10.0), 10, Color.RED))
+    for tick in (0, 5, 10):
+        tx = x + width * (tick / 10.0)
+        parts.append(vline(tx, y - 6, 22, weight=Line.THIN, color=Color.GREY, opacity=0.5))
+        parts.append(text(tx, y + 48, str(tick), size=FontSize.MICRO, weight=FontWeight.LABEL,
+                          fill=Color.GREY, anchor="middle"))
+    # Marker
+    mx = x + width * (value / 10.0)
+    parts.append(rect(mx - 3, y - 10, 6, 30, Color.RED))
+    parts.append(text(mx, y - 20, _fmt_rating(value), size=FontSize.BODY, weight=FontWeight.HERO,
+                      fill=Color.WHITE, anchor="middle"))
+    return _group(parts), 70
 
 
 def _stat_inline(x, y, width, primary, primary_label, secondary, fg) -> Rendered:

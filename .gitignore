@@ -29,3 +29,6 @@ coverage.xml
 
 # OS
 .DS_Store
+# Content Engine: rendered example SVGs are heavy (embedded background) and regenerable
+examples/content/*.svg
+examples/content/live/
