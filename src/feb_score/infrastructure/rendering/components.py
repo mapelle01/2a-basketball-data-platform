@@ -505,10 +505,10 @@ def stat_group(
 # (a white fill), never by red-means-good.
 
 RATING_ELITE = 8.0    # >= this: max brightness (white fill on the chip)
-RATING_GOOD = 6.5     # >= this: white number (a solid game)
-# below RATING_GOOD: grey number (a quiet game)
-_RATING_METER_MIN = 5.0   # the meter maps 5..10 → 0..100% (the useful range),
-_RATING_METER_MAX = 10.0  # so real differences read clearly (most are 5.5+).
+RATING_GOOD = 6.0     # >= this: white number (a normal game or better)
+# below RATING_GOOD: grey number (a below-average game)
+_RATING_METER_MIN = 4.0   # the meter maps 4..10 → 0..100% (the realistic band,
+_RATING_METER_MAX = 10.0  # since the curve puts an average game near ~6.5).
 
 
 def _rating_color(value: float) -> str:

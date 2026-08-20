@@ -37,6 +37,23 @@ class TestFebRating:
     def test_monotonic_in_points(self):
         assert feb_rating(30, 5, 3) > feb_rating(10, 5, 3)
 
+    def test_average_game_anchored_near_six_five(self):
+        # An average line (impact ~23) should sit around the 6.5 anchor, not
+        # bunched high — the v1.1 curve's whole point.
+        assert 6.2 <= feb_rating(14, 5, 2, 1, 0, 2) <= 6.8
+
+    def test_low_band_is_alive(self):
+        # A poor game must be able to drop below the old 5.0 floor.
+        assert feb_rating(2, 1, 0, 0, 0, 3) < 5.0
+
+    def test_elite_games_separate_below_ten(self):
+        # Big games must not all flatten to a dull 10 — they separate, and 10
+        # stays reserved for a historic line.
+        monster = feb_rating(35, 12, 8, 2, 1, 3)
+        historic = feb_rating(44, 15, 10, 3, 2, 3)
+        assert monster < 10.0
+        assert monster < historic
+
 
 class TestDetector:
     def test_ranks_by_points(self):
