@@ -27,8 +27,33 @@ TEMPLATE (composition)
 
 - **Atoms** (indivisible): `text`, `rect`, `hline`/`vline`, `accent_bar`,
   `icon`, `status_pill`.
+- **Frames & slots**: `corner_frame` (the signature L-bracket encuadre — pure
+  monochrome chrome), `avatar` and the `player_hero` portrait (asset **slots**:
+  real cutout/crest when present, monochrome initials fallback when not),
+  `initials_of`.
 - **Molecules** (the five components below) compose atoms.
 - **Compositions** (templates) compose molecules on an official background.
+
+## Composition engine — the layer stack
+
+Templates are assembled by `compose(background, **layers)` in
+`component_templates.py`, which paints named layers back to front in a fixed
+z-order. Any layer may be empty; asset-driven layers degrade to brand chrome, so
+a piece is always valid and never invents an asset it doesn't have.
+
+```
+BASE      official background (image or procedural)   ← _background
+IDENTITY  team echo / crest as texture (asset slot)   [awaits crests]
+PHOTO     player cutout (asset slot)                  ← avatar / player_hero
+GEOMETRY  frames, court lines, brackets (chrome)      ← corner_frame …
+DATA      scores, stats, ratings, ranking rows        ← components
+ACCENT    the single red accent / brand footer        ← accent_bar …
+```
+
+When real crests (PNG w/ alpha) and player cutouts arrive, they fill the
+IDENTITY / PHOTO slots that already exist — no template rework. Team-color
+gradients are deliberately **out** of the engine (identity: no per-team colors,
+no decorative gradients).
 
 Components nest: a **player_hero** embeds a hero **stat_block**, which embeds
 stat numbers. That nesting is what makes the system reusable.

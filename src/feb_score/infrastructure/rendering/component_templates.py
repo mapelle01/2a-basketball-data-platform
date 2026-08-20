@@ -200,6 +200,33 @@ def _svg_document(body: str, favicon_bg: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Composition engine — the layer stack
+# ---------------------------------------------------------------------------
+# Every template is composed as an ordered stack of layers, painted back to
+# front. Any layer may be empty (a template that has no photo simply passes ""),
+# and asset-driven layers (IDENTITY / PHOTO) degrade to monochrome chrome when
+# the crest/cutout isn't available — so a piece is always valid and never
+# invents an asset it doesn't have.
+#
+#   BASE       the official background (image or procedural)   ← _background
+#   IDENTITY   team echo / crest as texture (asset slot)       [awaits crests]
+#   PHOTO      player cutout (asset slot)                       C.avatar / player_hero
+#   GEOMETRY   frames, court lines, brackets (brand chrome)     C.corner_frame …
+#   DATA       scores, stats, ratings, ranking rows             components
+#   ACCENT     the single red accent / brand footer             C.accent_bar …
+
+_LAYER_ORDER = ("base", "identity", "photo", "geometry", "data", "accent")
+
+
+def compose(background: str, **layers: str) -> str:
+    """Assemble a template from named layers, painted in the canonical z-order
+    (see ``_LAYER_ORDER``). ``background`` selects the BASE layer; the rest are
+    optional SVG fragments. Unknown/empty layers are skipped."""
+    body = "".join(layers.get(name, "") or "" for name in _LAYER_ORDER[1:])
+    return _svg_document(body, background)
+
+
+# ---------------------------------------------------------------------------
 # Template: MATCH FINAL
 # ---------------------------------------------------------------------------
 
@@ -378,21 +405,27 @@ def render_stat_leaderboard(data: Dict[str, Any]) -> str:
     tab, _ = context_tab(CONTENT_X, 288, f"Segunda FEB · Jornada {round_number}", chevron=True)
     body.append(tab)
 
-    # Ranking rows: rank · name/team · points · FEB Rating chip.
+    # Ranking rows: rank · avatar · name/team · points · FEB Rating chip.
+    # The avatar is a SLOT — initials today, a real cutout when photos land.
     ry = 430
     n = max(1, len(leaders))
     step = min(132, (FOOTER_Y - 60 - ry) // n)
     chip = 88
+    av_r = 42
+    av_cx = CONTENT_X + 40 + av_r
+    name_x = av_cx + av_r + Spacing.LG
     for row in leaders:
         name = row.get("player_name") or row.get("player_external_id", "—")
         team = row.get("team_name") or row.get("team_external_id", "")
         body.append(C.hline(CONTENT_X, ry - 24, CONTENT_W, weight=Line.THIN, color=Color.GREY, opacity=0.22))
         body.append(C.text(CONTENT_X, ry + 20, str(row.get("rank", "")), size=FontSize.H3,
                            weight=FontWeight.HERO, fill=Color.GREY))
-        body.append(C.text(CONTENT_X + 60, ry + 16, name.upper(), size=FontSize.H3,
+        body.append(C.avatar(av_cx, ry + 8, av_r, initials=C.initials_of(name),
+                             photo_uri=row.get("photo_uri"), badge_uri=row.get("badge_uri")))
+        body.append(C.text(name_x, ry + 16, name.upper(), size=FontSize.H3,
                            weight=FontWeight.TITLE, fill=Color.WHITE, upper=True))
         if team:
-            body.append(C.text(CONTENT_X + 60, ry + 46, team.upper(), size=FontSize.MICRO,
+            body.append(C.text(name_x, ry + 46, team.upper(), size=FontSize.MICRO,
                                weight=FontWeight.LABEL, fill=Color.GREY, tracking=LetterSpacing.LABEL, upper=True))
         body.append(C.text(CONTENT_X + CONTENT_W - chip - 40, ry + 22, str(row.get("points", 0)),
                            size=FontSize.H2, weight=FontWeight.HERO, fill=Color.WHITE, anchor="end"))

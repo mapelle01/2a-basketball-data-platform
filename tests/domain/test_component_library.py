@@ -39,6 +39,50 @@ class TestAtoms:
         assert "&amp;" in svg and "&lt;" in svg
 
 
+class TestFramesAndSlots:
+    def test_corner_frame_is_monochrome_chrome(self):
+        svg = C.corner_frame(100, 100, 300, 400, corners=("tl", "br"))
+        ET.fromstring(_wrap(svg))
+        # brand chrome only — no stray colors, no asset references
+        assert not (_colors_in(svg) - _ALLOWED_COLORS)
+        assert "image" not in svg
+
+    def test_avatar_fallback_shows_initials(self):
+        svg = C.avatar(100, 100, 42, initials="CS")
+        ET.fromstring(_wrap(svg))
+        assert "CS" in svg
+        assert "<image" not in svg  # no photo → no image element
+
+    def test_avatar_photo_slot_uses_image_when_present(self):
+        svg = C.avatar(100, 100, 42, photo_uri="data:image/png;base64,AAAA")
+        ET.fromstring(_wrap(svg))
+        assert "<image" in svg and "clip-path" in svg
+
+    def test_initials_of(self):
+        assert C.initials_of("C. Sáez") == "CS"
+        assert C.initials_of("Melilla") == "ME"
+        assert C.initials_of("") == "—"
+
+    def test_player_hero_photo_slot(self):
+        svg, _ = C.player_hero(
+            0, 0, 950, name="C. Sáez", team="Alicante",
+            primary_stat="31", primary_label="PTS",
+            photo_uri="data:image/png;base64,AAAA", badge="MVP",
+        )
+        ET.fromstring(_wrap(svg))
+        assert "<image" in svg  # the cutout fills the frame
+
+    def test_compose_orders_layers_and_skips_empty(self):
+        svg = T.compose(
+            T.IMAGE_BACKGROUND,
+            geometry=C.corner_frame(0, 0, 100, 100),
+            data=C.text(10, 10, "X", size=20, weight=700, fill=Color.WHITE),
+            photo="",  # empty slot is skipped, not rendered as literal
+        )
+        ET.fromstring(svg)
+        assert ">X<" in svg
+
+
 class TestScoreboard:
     def test_winner_score_is_red_loser_is_not(self):
         svg, h = C.scoreboard(

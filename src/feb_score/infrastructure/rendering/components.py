@@ -123,6 +123,89 @@ def status_pill(x: float, y: float, label: str, *, live: bool = False) -> SVG:
 
 
 # ---------------------------------------------------------------------------
+# Frames & asset slots — the composition-engine primitives
+# ---------------------------------------------------------------------------
+# These carry the layer model IDENTITY / PHOTO: each is a SLOT that renders the
+# real asset when present and degrades to a monochrome brand fallback when not.
+# Nothing here invents data — a missing photo/logo becomes typographic chrome.
+
+
+_Corner = str  # one of "tl", "tr", "bl", "br"
+
+
+def corner_frame(
+    x: float, y: float, w: float, h: float, *,
+    arm: float = 64, thickness: int = Line.HEAVY, color: str = Color.WHITE,
+    corners: Sequence[_Corner] = ("tl", "br"),
+) -> SVG:
+    """The signature L-bracket encuadre: short arms at chosen corners of the
+    (x, y, w, h) box. Pure brand chrome — monochrome, no assets, no fill. Frames
+    a photo, a hero number or a whole composition (the FEB SCORE! 'marco')."""
+    x2, y2 = x + w, y + h
+    t = thickness
+    parts: List[SVG] = []
+    for c in corners:
+        if c == "tl":
+            parts += [rect(x, y, arm, t, color), rect(x, y, t, arm, color)]
+        elif c == "tr":
+            parts += [rect(x2 - arm, y, arm, t, color), rect(x2 - t, y, t, arm, color)]
+        elif c == "bl":
+            parts += [rect(x, y2 - t, arm, t, color), rect(x, y2 - arm, t, arm, color)]
+        elif c == "br":
+            parts += [rect(x2 - arm, y2 - t, arm, t, color), rect(x2 - t, y2 - arm, t, arm, color)]
+    return _group(parts)
+
+
+def initials_of(name: str, n: int = 2) -> str:
+    """Initials fallback for an avatar/portrait when no photo is available."""
+    words = [w for w in name.replace(".", " ").split() if w]
+    if not words:
+        return "—"
+    if len(words) == 1:
+        return words[0][:n].upper()
+    return (words[0][0] + words[-1][0]).upper()
+
+
+def avatar(
+    cx: float, cy: float, r: float, *,
+    photo_uri: Optional[str] = None, initials: Optional[str] = None,
+    badge_uri: Optional[str] = None, ring: bool = True,
+) -> SVG:
+    """A circular player slot (the lineup/ranking mugshot). Renders the photo
+    clipped to a circle when ``photo_uri`` is given; otherwise an INK disc with
+    the player's initials — a clean fallback, never an empty hole. ``badge_uri``
+    (a team crest) is an optional small mark at the bottom-right; omitted when
+    the crest isn't available."""
+    parts: List[SVG] = []
+    if photo_uri:
+        cid = f"av{_n(cx)}_{_n(cy)}_{_n(r)}".replace(".", "")
+        parts.append(f'<clipPath id="{cid}"><circle cx="{_n(cx)}" cy="{_n(cy)}" r="{_n(r)}"/></clipPath>')
+        parts.append(
+            f'<image href="{photo_uri}" x="{_n(cx - r)}" y="{_n(cy - r)}"'
+            f' width="{_n(2 * r)}" height="{_n(2 * r)}" clip-path="url(#{cid})"'
+            f' preserveAspectRatio="xMidYMid slice"/>'
+        )
+    else:
+        parts.append(f'<circle cx="{_n(cx)}" cy="{_n(cy)}" r="{_n(r)}" fill="{Color.INK}"/>')
+        parts.append(text(cx, cy + r * 0.34, (initials or "—"), size=int(r * 0.72),
+                          weight=FontWeight.HERO, fill=Color.GREY, anchor="middle"))
+    if ring:
+        parts.append(
+            f'<circle cx="{_n(cx)}" cy="{_n(cy)}" r="{_n(r)}" fill="none"'
+            f' stroke="{Color.GREY}" stroke-opacity="0.4" stroke-width="{Line.THIN}"/>'
+        )
+    if badge_uri:
+        br = r * 0.42
+        bx, by = cx + r * 0.62, cy + r * 0.62
+        parts.append(f'<circle cx="{_n(bx)}" cy="{_n(by)}" r="{_n(br + 3)}" fill="{Color.BLACK}"/>')
+        parts.append(
+            f'<image href="{badge_uri}" x="{_n(bx - br)}" y="{_n(by - br)}"'
+            f' width="{_n(2 * br)}" height="{_n(2 * br)}" preserveAspectRatio="xMidYMid meet"/>'
+        )
+    return _group(parts)
+
+
+# ---------------------------------------------------------------------------
 # 01 — MATCH HEADER
 # ---------------------------------------------------------------------------
 
@@ -267,31 +350,42 @@ def player_hero(
     primary_label: str,
     secondary_stats: Sequence[Tuple[str, str]] = (),
     initials: Optional[str] = None,
+    photo_uri: Optional[str] = None,
     badge: Optional[str] = None,
     on_dark: bool = True,
 ) -> Rendered:
-    """A featured player. Combines identity + a hero Stat Block. Valid WITHOUT a
-    photo: falls back to a premium typographic composition (large initials mark),
-    never a childish placeholder."""
+    """A featured player. Combines identity + a hero Stat Block. The portrait is
+    a SLOT: a real cutout when ``photo_uri`` is given, otherwise a premium
+    typographic fallback (large initials mark) — never a childish placeholder.
+    Either way it sits inside the signature L-bracket frame."""
     fg = Color.WHITE if on_dark else Color.BLACK
     parts: List[SVG] = []
 
-    # Fallback "portrait": a photo-shaped panel (3:4) — INK fill so it reads as a
-    # clean frame, a hairline border, a red corner accent, and large initials set
-    # low like a name plate. Editorial placeholder, not a cartoon avatar.
+    # PHOTO slot — a 3:4 portrait frame. With a cutout: the image, slice-fitted
+    # and clipped to the panel. Without: an INK panel with large initials set low
+    # like a name plate. Both wear the same white L-bracket encuadre + a red edge.
     bw_, bh_ = 300, 400
     cx = x + width / 2
     px = cx - bw_ / 2
-    parts.append(rect(px, y, bw_, bh_, Color.INK))
+    if photo_uri:
+        cid = f"ph{_n(px)}_{_n(y)}".replace(".", "")
+        parts.append(f'<clipPath id="{cid}"><rect x="{_n(px)}" y="{_n(y)}" width="{bw_}" height="{bh_}"/></clipPath>')
+        parts.append(rect(px, y, bw_, bh_, Color.INK))
+        parts.append(
+            f'<image href="{photo_uri}" x="{_n(px)}" y="{_n(y)}" width="{bw_}" height="{bh_}"'
+            f' clip-path="url(#{cid})" preserveAspectRatio="xMidYMid slice"/>'
+        )
+    else:
+        parts.append(rect(px, y, bw_, bh_, Color.INK))
+        parts.append(text(cx, y + bh_ * 0.62, (initials or "—"), size=FontSize.DISPLAY + 20,
+                          weight=FontWeight.HERO, fill=Color.GREY, anchor="middle",
+                          tracking=LetterSpacing.HERO))
     parts.append(
         f'<rect x="{_n(px)}" y="{_n(y)}" width="{bw_}" height="{bh_}" fill="none"'
         f' stroke="{Color.GREY}" stroke-opacity="0.35" stroke-width="{Line.THIN}"/>'
     )
-    parts.append(hline(px, y, 72, weight=Line.HEAVY, color=Color.RED))       # corner accent
-    parts.append(vline(px, y, 72, weight=Line.HEAVY, color=Color.RED))
-    parts.append(text(cx, y + bh_ * 0.62, (initials or "—"), size=FontSize.DISPLAY + 20,
-                      weight=FontWeight.HERO, fill=Color.GREY, anchor="middle",
-                      tracking=LetterSpacing.HERO))
+    parts.append(accent_bar(px, y, 72))                                       # red top edge accent
+    parts.append(corner_frame(px, y, bw_, bh_, arm=52, corners=("tl", "br")))  # signature encuadre
     if badge:
         bw = _pill_width(badge)
         pill, _ = status_pill(cx + bw_ / 2 - bw, y + bh_ - 44, badge, live=True)
