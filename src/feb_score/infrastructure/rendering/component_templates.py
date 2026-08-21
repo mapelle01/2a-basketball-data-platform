@@ -356,10 +356,11 @@ def render_player_of_round(data: Dict[str, Any]) -> str:
         photo_uri=assets.get("player_photo"),
         badge=facts.get("badge_label", "MVP"),
     )
-    # Center the player hero in the space between header and footer.
+    # Place the hero below the kicker, biased upward so the kicker→portrait gap
+    # stays tight (the slack falls to the bottom, where the footer anchors it).
     _, hero_h = C.player_hero(CONTENT_X, 0, CONTENT_W, **hero_kwargs)
-    top, bottom = MARGIN + 40 + Spacing.XL, FOOTER_Y - Spacing.XL
-    y0 = top + max(0, (bottom - top - hero_h) // 2)
+    top, bottom = MARGIN + 116, FOOTER_Y - Spacing.MD
+    y0 = top + max(0, int((bottom - top - hero_h) * 0.28))
     ph, _ = C.player_hero(CONTENT_X, y0, CONTENT_W, **hero_kwargs)
     body.append(ph)
 

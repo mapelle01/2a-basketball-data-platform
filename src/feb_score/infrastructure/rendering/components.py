@@ -364,7 +364,7 @@ def player_hero(
     # PHOTO slot — a 3:4 portrait frame. With a cutout: the image, slice-fitted
     # and clipped to the panel. Without: an INK panel with large initials set low
     # like a name plate. Both wear the same white L-bracket encuadre + a red edge.
-    bw_, bh_ = 300, 400
+    bw_, bh_ = 300, 372
     cx = x + width / 2
     px = cx - bw_ / 2
     if photo_uri:
@@ -387,17 +387,19 @@ def player_hero(
     parts.append(accent_bar(px, y, 72))                                       # red top edge accent
     parts.append(corner_frame(px, y, bw_, bh_, arm=52, corners=("tl", "br")))  # signature encuadre
     if badge:
+        # A centered plaque inside the portrait's lower edge — clear of the corner
+        # brackets and of the name below, reads like a tag on the photo.
         bw = _pill_width(badge)
-        pill, _ = status_pill(cx + bw_ / 2 - bw, y + bh_ - 44, badge, live=True)
+        pill, _ = status_pill(cx - bw / 2, y + bh_ - 46, badge, live=True)
         parts.append(pill)
 
-    cursor = y + bh_ + Spacing.XL
+    cursor = y + bh_ + Spacing.LG
     # Identity
-    parts.append(text(cx, cursor + 60, name.upper(), size=FontSize.H1, weight=FontWeight.DISPLAY,
+    parts.append(text(cx, cursor + 58, name.upper(), size=FontSize.H1, weight=FontWeight.DISPLAY,
                       fill=fg, anchor="middle", tracking=LetterSpacing.HEADLINE, upper=True))
-    parts.append(text(cx, cursor + 100, team.upper(), size=FontSize.LABEL, weight=FontWeight.LABEL,
+    parts.append(text(cx, cursor + 96, team.upper(), size=FontSize.LABEL, weight=FontWeight.LABEL,
                       fill=Color.GREY, anchor="middle", tracking=LetterSpacing.CAPS, upper=True))
-    cursor += 130
+    cursor += 128
 
     # Embedded hero Stat Block
     sb, sb_h = stat_block(
@@ -452,19 +454,23 @@ def _stat_stacked(x, y, width, primary, primary_label, secondary, fg, variant, c
     h = int(num_size * 0.78 + 40)
 
     if secondary:
-        row_y = y + h + Spacing.LG
+        # Group the secondary stats in a narrow band centered under the hero
+        # number (not spread edge-to-edge), so they read as one tight unit.
         n = len(secondary)
-        col_w = width / n
+        band = min(width, n * 190)
+        bx = (ox - band / 2) if center else x
+        col_w = band / n
+        row_y = y + h + Spacing.XS
         for i, (val, lab) in enumerate(secondary):
-            col_cx = x + col_w * i + col_w / 2
-            parts.append(text(col_cx, row_y + 40, str(val), size=FontSize.H3,
+            col_cx = bx + col_w * i + col_w / 2
+            parts.append(text(col_cx, row_y + 36, str(val), size=FontSize.H3,
                               weight=FontWeight.HERO, fill=fg, anchor="middle"))
-            parts.append(text(col_cx, row_y + 70, lab.upper(), size=FontSize.MICRO,
+            parts.append(text(col_cx, row_y + 64, lab.upper(), size=FontSize.MICRO,
                               weight=FontWeight.LABEL, fill=Color.GREY, anchor="middle",
                               tracking=LetterSpacing.CAPS, upper=True))
             if i > 0:
-                parts.append(vline(x + col_w * i, row_y + 6, 68, color=Color.INK))
-        h += Spacing.LG + 80
+                parts.append(vline(bx + col_w * i, row_y + 2, 60, color=Color.INK))
+        h += Spacing.XS + 74
     return _group(parts), h
 
 
