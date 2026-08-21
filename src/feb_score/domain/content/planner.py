@@ -51,6 +51,7 @@ TYPE_IMPORTANCE = {
     StoryType.IRON_MAN: 58,
     StoryType.SHARPSHOOTER: 74,
     StoryType.PERFECT_NIGHT: 80,
+    StoryType.PLAYMAKER: 60,
 }
 
 

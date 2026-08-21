@@ -155,3 +155,13 @@ def detect_season_rebounding_leader(
         story_type=StoryType.TOP_REBOUNDER, hero_label="REB TOTALES", per_game_label="RPP",
         section_label="Máximo reboteador de la temporada", badge_label="MÁX. REBOTES",
     )
+
+
+def detect_season_assist_leader(
+    season_code: str, round_number: int, season: Optional[SeasonAggregate],
+) -> List[StoryObject]:
+    return _season_leader(
+        season, round_number, total_of=lambda p: p.assists,
+        story_type=StoryType.TOP_ASSIST_PROVIDER, hero_label="AST TOTALES", per_game_label="APP",
+        section_label="Máximo asistente de la temporada", badge_label="MÁX. ASISTENCIAS",
+    )

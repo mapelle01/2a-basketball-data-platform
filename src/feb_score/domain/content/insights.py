@@ -471,7 +471,7 @@ def detect_playmaker(
     if not eligible:
         return None
     p = max(eligible, key=lambda x: (x.assists, x.points))
-    return _player_story(StoryType.TOP_ASSIST_PROVIDER, season_code, round_number, p, {
+    return _player_story(StoryType.PLAYMAKER, season_code, round_number, p, {
         "hero_value": p.assists, "hero_label": "AST",
         "secondary": [[p.points, "PTS"], [p.rebounds, "REB"]],
         "badge_label": "DIRECTOR", "section_label": "El director de juego",

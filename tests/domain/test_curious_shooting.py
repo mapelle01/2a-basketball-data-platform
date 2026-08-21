@@ -58,7 +58,7 @@ class TestCuriousLive:
     def test_playmaker_fires_on_assist_night(self):
         lines = [_line("a", ast=11, pts=9), _line("b", ast=4)]
         s = detect_playmaker("2025-2026", 5, lines)
-        assert s is not None and s.story_type is StoryType.TOP_ASSIST_PROVIDER
+        assert s is not None and s.story_type is StoryType.PLAYMAKER
         assert s.facts["hero_value"] == 11 and s.facts["hero_label"] == "AST"
         _assert_copy_valid(s)
 

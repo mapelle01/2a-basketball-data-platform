@@ -45,6 +45,8 @@ class StoryType(str, Enum):
     IRON_MAN = "iron_man"              # most minutes played (curious)
     SHARPSHOOTER = "sharpshooter"      # best 3-point game (shooting)
     PERFECT_NIGHT = "perfect_night"    # no misses from the field (shooting)
+    PLAYMAKER = "playmaker"            # the round's assist leader (per-game director)
+    # TOP_SCORER / TOP_REBOUNDER / TOP_ASSIST_PROVIDER are the SEASON leaders.
 
     # Team-level
     TEAM_OF_ROUND = "team_of_round"
@@ -85,12 +87,14 @@ STORY_TO_TEMPLATE: Dict[StoryType, str] = {
     StoryType.UPSET: "match_final",              # a scoreboard, framed as the upset
     # Curious / shooting player angles — a player card framed by the hero stat
     # each detector chooses (assists, minutes, threes…), not always points.
-    StoryType.TOP_ASSIST_PROVIDER: "player_of_round",
+    StoryType.PLAYMAKER: "player_of_round",
     StoryType.IRON_MAN: "player_of_round",
     StoryType.SHARPSHOOTER: "player_of_round",
     StoryType.PERFECT_NIGHT: "player_of_round",
-    StoryType.TOP_SCORER: "player_of_round",     # season scoring leader, framed
-    StoryType.TOP_REBOUNDER: "player_of_round",  # season rebounding leader, framed
+    # Season leaders (one card per category), framed by the leading season total.
+    StoryType.TOP_SCORER: "player_of_round",
+    StoryType.TOP_REBOUNDER: "player_of_round",
+    StoryType.TOP_ASSIST_PROVIDER: "player_of_round",
     StoryType.WIN_STREAK: "team_streak",         # a team card: the run visualized
     StoryType.LOSS_STREAK: "team_streak",
 }

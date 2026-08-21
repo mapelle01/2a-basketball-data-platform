@@ -425,6 +425,31 @@ def generate_copy_top_scorer(story: Dict[str, Any]) -> CopyContract:
     )
 
 
+def generate_copy_season_assist_leader(story: Dict[str, Any]) -> CopyContract:
+    f = story["facts"]
+    name = f.get("player_name") or f.get("player_external_id", "El jugador")
+    team = f.get("team_name") or f.get("team_external_id", "")
+    assists = f["assists"]
+    games = f["games_played"]
+
+    headline = f"{name}"
+    subtitle = f"Máximo asistente de la temporada · {assists} asistencias"
+    caption = (
+        f"{name} es el máximo asistente de la temporada de Segunda FEB con "
+        f"{assists} asistencias en {games} partidos."
+    )
+    hashtags = BASE_HASHTAGS + ("Asistencias",)
+    if team:
+        hashtags = hashtags + (_slugify(team),)
+    return CopyContract(
+        headline=headline,
+        subtitle=subtitle,
+        caption=caption,
+        hashtags=hashtags,
+        facts_used=("player_name", "team_name", "assists", "games_played"),
+    )
+
+
 def generate_copy_top_rebounder(story: Dict[str, Any]) -> CopyContract:
     f = story["facts"]
     name = f.get("player_name") or f.get("player_external_id", "El jugador")
@@ -491,11 +516,12 @@ _GENERATORS = {
     "loss_streak": generate_copy_streak,
     "stat_leaderboard": generate_copy_stat_leaderboard,
     "iron_man": generate_copy_iron_man,
-    "top_assist_provider": generate_copy_playmaker,
+    "playmaker": generate_copy_playmaker,                        # round director
     "sharpshooter": generate_copy_sharpshooter,
     "perfect_night": generate_copy_perfect_night,
-    "top_scorer": generate_copy_top_scorer,
+    "top_scorer": generate_copy_top_scorer,                      # season leaders
     "top_rebounder": generate_copy_top_rebounder,
+    "top_assist_provider": generate_copy_season_assist_leader,
 }
 
 
