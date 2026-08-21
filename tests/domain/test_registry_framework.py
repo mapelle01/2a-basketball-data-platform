@@ -22,6 +22,7 @@ from feb_score.domain.content.registry import (
 )
 from feb_score.domain.content.season_aggregate import (
     build_season_aggregate,
+    detect_season_rebounding_leader,
     detect_season_scoring_leader,
 )
 from feb_score.domain.content.story import STORY_TO_TEMPLATE, StoryType
@@ -38,7 +39,8 @@ class TestRegistry:
         round_names = {s.name for s in registered(Scope.ROUND)}
         assert {"match_final", "player_of_round", "stat_leaderboard", "iron_man"} <= round_names
         season_names = {s.name for s in registered(Scope.SEASON)}
-        assert {"season_highs", "team_streaks", "upsets", "season_scoring_leader"} <= season_names
+        assert {"season_highs", "team_streaks", "upsets",
+                "season_scoring_leader", "season_rebounding_leader"} <= season_names
 
     def test_run_filters_by_scope(self):
         ctx = DetectionContext(
@@ -78,6 +80,19 @@ class TestSeasonAggregate:
         stories = detect_season_scoring_leader("2025-2026", 5, agg)
         assert stories and stories[0].story_type is StoryType.TOP_SCORER
         assert stories[0].facts["points"] == 90 and stories[0].facts["games_played"] == 3
+
+    def test_rebounding_leader_fires_and_renders(self):
+        agg = build_season_aggregate(
+            "2025-2026", [[_line("a", 10, reb=14, name="R. Grande"), _line("b", 30, reb=3)]] * 3
+        )
+        stories = detect_season_rebounding_leader("2025-2026", 5, agg)
+        assert stories and stories[0].story_type is StoryType.TOP_REBOUNDER
+        s = stories[0]
+        assert s.facts["rebounds"] == 42 and s.facts["hero_label"] == "REB TOTALES"
+        copy = generate_copy(
+            {"story_type": s.story_type.value, "round_number": 5, "facts": s.facts}
+        )
+        assert validate_copy(copy.to_dict(), {**s.facts, "round_number": 5}).ok
 
 
 class TestEndToEnd:

@@ -425,6 +425,31 @@ def generate_copy_top_scorer(story: Dict[str, Any]) -> CopyContract:
     )
 
 
+def generate_copy_top_rebounder(story: Dict[str, Any]) -> CopyContract:
+    f = story["facts"]
+    name = f.get("player_name") or f.get("player_external_id", "El jugador")
+    team = f.get("team_name") or f.get("team_external_id", "")
+    rebounds = f["rebounds"]
+    games = f["games_played"]
+
+    headline = f"{name}"
+    subtitle = f"Máximo reboteador de la temporada · {rebounds} rebotes"
+    caption = (
+        f"{name} es el máximo reboteador de la temporada de Segunda FEB con "
+        f"{rebounds} rebotes en {games} partidos."
+    )
+    hashtags = BASE_HASHTAGS + ("Rebotes",)
+    if team:
+        hashtags = hashtags + (_slugify(team),)
+    return CopyContract(
+        headline=headline,
+        subtitle=subtitle,
+        caption=caption,
+        hashtags=hashtags,
+        facts_used=("player_name", "team_name", "rebounds", "games_played"),
+    )
+
+
 def generate_copy_streak(story: Dict[str, Any]) -> CopyContract:
     f = story["facts"]
     team = f.get("team_name") or f.get("team_external_id", "El equipo")
@@ -470,6 +495,7 @@ _GENERATORS = {
     "sharpshooter": generate_copy_sharpshooter,
     "perfect_night": generate_copy_perfect_night,
     "top_scorer": generate_copy_top_scorer,
+    "top_rebounder": generate_copy_top_rebounder,
 }
 
 

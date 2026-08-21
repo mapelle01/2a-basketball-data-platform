@@ -25,6 +25,7 @@ from ..repositories.interfaces import (
     TeamRepository,
 )
 from ...domain.content.insights import MatchFactsInput, PlayerLineInput
+from ...domain.content.season_aggregate import PlayerSeasonLine, SeasonAggregate
 from ...domain.content.season_insights import SEASON_HIGH_MIN_POINTS, SeasonContext
 from ...domain.match.model import Match
 from ...domain.statistics.model import TeamLeaderboardMetric
@@ -92,6 +93,31 @@ class LiveContentAdapter:
             team_results=self._team_results(season, inputs.matches),
             team_rank=self._team_rank(season),
         )
+
+    # ------------------------------------------------------------------
+    # Season aggregate (for the season-leader detectors)
+    # ------------------------------------------------------------------
+
+    def build_season_aggregate(self, season_code: str) -> SeasonAggregate:
+        """Per-player season totals, read from the authoritative season
+        aggregates projection. Player names are resolved from the catalog in one
+        batch; team is left unresolved (None) — the card degrades gracefully, and
+        team enrichment is a later polish."""
+        season = SeasonCode(season_code)
+        aggregates = list(self._stats.list_season_player_aggregates(season))
+        names = self._resolve_player_names({a.player_external_id for a in aggregates})
+        players = tuple(
+            PlayerSeasonLine(
+                player_external_id=a.player_external_id,
+                games=a.games_played,
+                points=a.points,
+                rebounds=a.rebounds,
+                assists=a.assists,
+                player_name=names.get(a.player_external_id),
+            )
+            for a in aggregates
+        )
+        return SeasonAggregate(season_code=season_code, players=players)
 
     def _team_rank(self, season: SeasonCode) -> Dict[str, int]:
         try:

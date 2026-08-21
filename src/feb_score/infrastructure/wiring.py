@@ -569,6 +569,7 @@ class _GatewayBase(CommandGateway):
         season_context = self._content_adapter.build_season_context(
             season_code, round_number, inputs
         )
+        season_aggregate = self._content_adapter.build_season_aggregate(season_code)
         pipeline = self._pipeline()
         result = pipeline.run(
             inputs.season_code,
@@ -577,6 +578,7 @@ class _GatewayBase(CommandGateway):
             inputs.player_lines,
             top_n=top_n,
             season_context=season_context,
+            season=season_aggregate,
         )
         return {
             "season_code": season_code,

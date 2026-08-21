@@ -236,3 +236,24 @@ class TestSeasonContext:
         ctx = adapter.build_season_context(SEASON, 12, inputs)
         # p1 scored only 8 → not a season-high candidate → no history query
         assert "p1" not in ctx.player_history
+
+
+class TestSeasonAggregate:
+    def test_build_season_aggregate_folds_and_resolves_names(self):
+        adapter, _matches, stats, players, _teams = _build_adapter()
+        players.save(_player("p1", "C. Sáez"))
+        # p1 plays two games, p2 one — season totals fold across matches.
+        stats.save_player_stats("m1", SeasonCode(SEASON), [
+            PlayerStats("p1", "tA", points=28, rebounds=10, assists=5),
+            PlayerStats("p2", "tB", points=12, rebounds=8, assists=2),
+        ])
+        stats.save_player_stats("m2", SeasonCode(SEASON), [
+            PlayerStats("p1", "tA", points=22, rebounds=12, assists=4),
+        ])
+        agg = adapter.build_season_aggregate(SEASON)
+        p1 = next(p for p in agg.players if p.player_external_id == "p1")
+        assert p1.games == 2 and p1.points == 50 and p1.rebounds == 22
+        assert p1.player_name == "C. Sáez"      # resolved from catalog
+        assert p1.team_external_id is None        # team left unresolved (graceful)
+        p2 = next(p for p in agg.players if p.player_external_id == "p2")
+        assert p2.player_name is None             # no catalog record → None, not invented

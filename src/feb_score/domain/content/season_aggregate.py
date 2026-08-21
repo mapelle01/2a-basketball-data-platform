@@ -19,13 +19,13 @@ from .story import StoryEntities, StoryObject, StoryType
 @dataclass(frozen=True)
 class PlayerSeasonLine:
     player_external_id: str
-    player_name: Optional[str]
-    team_external_id: str
-    team_name: Optional[str]
     games: int
     points: int
     rebounds: int
     assists: int
+    player_name: Optional[str] = None
+    team_external_id: Optional[str] = None
+    team_name: Optional[str] = None
 
     @property
     def ppg(self) -> float:
@@ -72,27 +72,35 @@ def build_season_aggregate(
 
 
 # ---------------------------------------------------------------------------
-# Season-scope detectors
+# Season-scope detectors — the season leaders (one card per category)
 # ---------------------------------------------------------------------------
 
-SEASON_SCORER_MIN_GAMES = 3  # need a real sample before crowning a leader
+SEASON_LEADER_MIN_GAMES = 3  # need a real sample before crowning a leader
 
 
-def detect_season_scoring_leader(
-    season_code: str,
-    round_number: int,
+def _season_leader(
     season: Optional[SeasonAggregate],
-    min_games: int = SEASON_SCORER_MIN_GAMES,
+    round_number: int,
+    *,
+    total_of,                # PlayerSeasonLine -> int (the season total to rank on)
+    story_type: StoryType,
+    hero_label: str,
+    per_game_label: str,
+    section_label: str,
+    badge_label: str,
+    min_games: int = SEASON_LEADER_MIN_GAMES,
 ) -> List[StoryObject]:
-    """The season's top scorer by total points (min games). Self-skips when no
-    season aggregate is available, so it stays dormant until the adapter feeds
-    one — same pattern as the shooting lane."""
+    """The season leader for a stat (max season total, min games). Self-skips
+    with no aggregate — dormant until the adapter feeds one. Reuses the player
+    card, framed by the leading total."""
     if season is None:
         return []
-    eligible = [p for p in season.players if p.games >= min_games]
+    eligible = [p for p in season.players if p.games >= min_games and total_of(p) > 0]
     if not eligible:
         return []
-    leader = max(eligible, key=lambda p: (p.points, p.player_external_id))
+    leader = max(eligible, key=lambda p: (total_of(p), p.player_external_id))
+    total = total_of(leader)
+    per_game = round(total / leader.games, 1) if leader.games else 0.0
     facts = {
         "player_external_id": leader.player_external_id,
         "player_name": leader.player_name,
@@ -102,17 +110,18 @@ def detect_season_scoring_leader(
         "rebounds": leader.rebounds,
         "assists": leader.assists,
         "games_played": leader.games,
-        "ppg": leader.ppg,
+        "season_total": total,
+        "per_game": per_game,
         "impact_score": round(leader.points + leader.rebounds * 1.2 + leader.assists * 1.5, 1),
         # Player-card hero hints (reuses player_of_round, framed as the season lead).
-        "hero_value": leader.points, "hero_label": "PTS TOTALES",
-        "secondary": [[leader.games, "PART"], [leader.ppg, "PPP"]],
-        "badge_label": "MÁX. ANOTADOR",
-        "section_label": "Máximo anotador de la temporada",
+        "hero_value": total, "hero_label": hero_label,
+        "secondary": [[leader.games, "PART"], [per_game, per_game_label]],
+        "badge_label": badge_label,
+        "section_label": section_label,
     }
     return [StoryObject(
-        story_type=StoryType.TOP_SCORER,
-        season_code=season_code,
+        story_type=story_type,
+        season_code=season.season_code,
         round_number=round_number,
         entities=StoryEntities(
             player_external_id=leader.player_external_id,
@@ -121,7 +130,28 @@ def detect_season_scoring_leader(
         facts=facts,
         source_refs={
             "season_player_stats": (
-                f"2afeb_score://season_player_stats/{season_code}/{leader.player_external_id}"
+                f"2afeb_score://season_player_stats/{season.season_code}/"
+                f"{leader.player_external_id}"
             ),
         },
     )]
+
+
+def detect_season_scoring_leader(
+    season_code: str, round_number: int, season: Optional[SeasonAggregate],
+) -> List[StoryObject]:
+    return _season_leader(
+        season, round_number, total_of=lambda p: p.points,
+        story_type=StoryType.TOP_SCORER, hero_label="PTS TOTALES", per_game_label="PPP",
+        section_label="Máximo anotador de la temporada", badge_label="MÁX. ANOTADOR",
+    )
+
+
+def detect_season_rebounding_leader(
+    season_code: str, round_number: int, season: Optional[SeasonAggregate],
+) -> List[StoryObject]:
+    return _season_leader(
+        season, round_number, total_of=lambda p: p.rebounds,
+        story_type=StoryType.TOP_REBOUNDER, hero_label="REB TOTALES", per_game_label="RPP",
+        section_label="Máximo reboteador de la temporada", badge_label="MÁX. REBOTES",
+    )
