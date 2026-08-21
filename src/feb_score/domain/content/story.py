@@ -91,9 +91,8 @@ STORY_TO_TEMPLATE: Dict[StoryType, str] = {
     StoryType.PERFECT_NIGHT: "player_of_round",
     StoryType.TOP_SCORER: "player_of_round",     # season scoring leader, framed
     StoryType.TOP_REBOUNDER: "player_of_round",  # season rebounding leader, framed
-    # WIN_STREAK / LOSS_STREAK have no team-shaped template yet: they are
-    # detected and scored, and surfaced in the pipeline summary, but not
-    # rendered until a dedicated team template exists (deferred visual work).
+    StoryType.WIN_STREAK: "team_streak",         # a team card: the run visualized
+    StoryType.LOSS_STREAK: "team_streak",
 }
 
 

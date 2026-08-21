@@ -27,6 +27,7 @@ from .design_system import (
     FontWeight,
     LetterSpacing,
     Line,
+    Radius,
     Spacing,
 )
 
@@ -562,6 +563,101 @@ def render_best_five(data: Dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Template: TEAM STREAK (a team card — the win/loss run visualized)
+# ---------------------------------------------------------------------------
+
+
+def render_team_streak(data: Dict[str, Any]) -> str:
+    facts = data["story"]["facts"]
+    assets = data.get("assets", {})
+    season = data["story"].get("season_code")
+    round_number = data["story"].get("round_number")
+    team = facts.get("team_name") or facts.get("team_external_id", "Equipo")
+    is_win = facts.get("streak_kind", "win") == "win"
+    length = int(facts.get("streak_length", 0))
+    word = "VICTORIAS" if is_win else "DERROTAS"
+    section = "Racha de victorias" if is_win else "Racha de derrotas"
+
+    body: List[str] = []
+    cx = CANVAS.width / 2
+
+    # Kicker (same prominent style as the player card).
+    body.append(C.accent_bar(CONTENT_X, MARGIN, 56, Line.HEAVY))
+    body.append(C.text(CONTENT_X, MARGIN + 50, section.upper(), size=FontSize.H3,
+                       weight=FontWeight.DISPLAY, fill=Color.WHITE,
+                       tracking=LetterSpacing.HEADLINE, upper=True))
+    body.append(C.text(CONTENT_X, MARGIN + 92, f"JORNADA {round_number}", size=FontSize.LABEL,
+                       weight=FontWeight.LABEL, fill=Color.GREY,
+                       tracking=LetterSpacing.CAPS, upper=True))
+
+    # Crest SLOT — a square with the team initials (a real crest drops in later).
+    cs, cy0 = 220, 240
+    px = cx - cs / 2
+    crest = assets.get("team_crest")
+    if crest:
+        cid = f"cr{int(px)}_{cy0}"
+        body.append(f'<clipPath id="{cid}"><rect x="{px:.0f}" y="{cy0}" width="{cs}" height="{cs}"/></clipPath>')
+        body.append(C.rect(px, cy0, cs, cs, Color.INK))
+        body.append(f'<image href="{crest}" x="{px:.0f}" y="{cy0}" width="{cs}" height="{cs}"'
+                    f' clip-path="url(#{cid})" preserveAspectRatio="xMidYMid meet"/>')
+    else:
+        body.append(C.rect(px, cy0, cs, cs, Color.INK))
+        body.append(C.text(cx, cy0 + cs * 0.66, C.initials_of(team), size=FontSize.DISPLAY,
+                           weight=FontWeight.HERO, fill=Color.GREY, anchor="middle",
+                           tracking=LetterSpacing.HERO))
+    body.append(
+        f'<rect x="{px:.0f}" y="{cy0}" width="{cs}" height="{cs}" fill="none"'
+        f' stroke="{Color.GREY}" stroke-opacity="0.35" stroke-width="{Line.THIN}"/>'
+    )
+    body.append(C.accent_bar(px, cy0, 64))
+    body.append(C.corner_frame(px, cy0, cs, cs, arm=44, corners=("tl", "br")))
+
+    # Team name (steps down a size for long names so it never overflows).
+    name_size = FontSize.H1 if len(team) <= 14 else FontSize.H2
+    body.append(C.text(cx, cy0 + cs + 80, team.upper(), size=name_size, weight=FontWeight.DISPLAY,
+                       fill=Color.WHITE, anchor="middle", tracking=LetterSpacing.HEADLINE, upper=True))
+
+    # Hero streak number + label (number white — red stays the brand accent, on
+    # the run chips below, never a semantic "good/bad").
+    ny = cy0 + cs + 300
+    body.append(C.text(cx, ny, str(length), size=FontSize.HERO, weight=FontWeight.HERO,
+                       fill=Color.WHITE, anchor="middle", tracking=LetterSpacing.HERO))
+    body.append(C.text(cx, ny + 40, f"{word} SEGUIDAS", size=FontSize.LABEL, weight=FontWeight.LABEL,
+                       fill=Color.RED, anchor="middle", tracking=LetterSpacing.CAPS, upper=True))
+
+    # The run, visualized: one mark per game. Red squares for wins, grey-outline
+    # for losses. Capped so a long run still fits (a "+N" tail carries the rest).
+    shown = min(length, 8)
+    chip, gap = 72, Spacing.SM
+    extra = length - shown
+    tail_w = 44 if extra > 0 else 0
+    total = shown * chip + (shown - 1) * gap + (tail_w + gap if extra > 0 else 0)
+    sx = cx - total / 2
+    ry = ny + 96
+    letter = "V" if is_win else "D"
+    for i in range(shown):
+        x = sx + i * (chip + gap)
+        if is_win:
+            body.append(C.rect(x, ry, chip, chip, Color.RED, radius=Radius.SM))
+            body.append(C.text(x + chip / 2, ry + chip / 2 + 12, letter, size=FontSize.H3,
+                               weight=FontWeight.HERO, fill=Color.WHITE, anchor="middle"))
+        else:
+            body.append(C.rect(x, ry, chip, chip, Color.INK, radius=Radius.SM))
+            body.append(f'<rect x="{x:.0f}" y="{ry}" width="{chip}" height="{chip}" fill="none"'
+                        f' stroke="{Color.GREY}" stroke-opacity="0.6" stroke-width="{Line.MEDIUM}" rx="{Radius.SM}"/>')
+            body.append(C.text(x + chip / 2, ry + chip / 2 + 12, letter, size=FontSize.H3,
+                               weight=FontWeight.HERO, fill=Color.GREY, anchor="middle"))
+    if extra > 0:
+        tx = sx + shown * (chip + gap)
+        body.append(C.text(tx + tail_w / 2, ry + chip / 2 + 10, f"+{extra}", size=FontSize.H3,
+                           weight=FontWeight.HERO, fill=Color.GREY, anchor="middle"))
+
+    ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB", season=season)
+    body.append(ft)
+    return _svg_document("".join(body), IMAGE_BACKGROUND)
+
+
+# ---------------------------------------------------------------------------
 # Dispatcher
 # ---------------------------------------------------------------------------
 
@@ -571,6 +667,7 @@ _RENDERERS: Dict[str, Callable[[Dict[str, Any]], str]] = {
     "round_recap": render_round_recap,
     "stat_leaderboard": render_stat_leaderboard,
     "best_five": render_best_five,
+    "team_streak": render_team_streak,
 }
 
 

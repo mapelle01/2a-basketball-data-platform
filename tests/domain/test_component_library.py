@@ -223,6 +223,34 @@ class TestBrandFooter:
             ET.fromstring(_wrap(svg))
 
 
+class TestTeamStreak:
+    def _data(self, kind, length, team="Alicante Basket"):
+        return {
+            "story": {"facts": {"team_name": team, "streak_kind": kind, "streak_length": length},
+                      "round_number": 12, "season_code": "2025-2026"},
+            "copy": {}, "display": {}, "assets": {}, "meta": {},
+        }
+
+    def test_win_streak_renders_run_in_red(self):
+        from feb_score.domain.content.story import STORY_TO_TEMPLATE, StoryType
+        assert STORY_TO_TEMPLATE[StoryType.WIN_STREAK] == "team_streak"
+        svg = T.render_template("team_streak", self._data("win", 5))
+        ET.fromstring(svg)
+        assert not (_colors_in(svg) - _ALLOWED_COLORS)
+        assert "VICTORIAS SEGUIDAS" in svg and "ALICANTE BASKET" in svg
+        assert svg.count(Color.RED) >= 5  # one red mark per game of the run
+
+    def test_loss_streak_marks_are_not_red_fill(self):
+        svg = T.render_template("team_streak", self._data("loss", 4, team="Zamora"))
+        ET.fromstring(svg)
+        assert "DERROTAS SEGUIDAS" in svg
+
+    def test_long_run_caps_with_tail(self):
+        svg = T.render_template("team_streak", self._data("win", 12))
+        ET.fromstring(svg)
+        assert "+4" in svg  # 12 shown as 8 marks + "+4"
+
+
 class TestIdentityRestraint:
     def test_templates_use_only_official_palette(self):
         data = {
