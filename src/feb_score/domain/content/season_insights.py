@@ -229,10 +229,16 @@ def detect_all_season(
     player_lines: Sequence[PlayerLineInput],
     context: Optional[SeasonContext],
 ) -> List[StoryObject]:
+    """Run the SEASON-scope detectors that depend on ``SeasonContext``. Delegates
+    to the detector registry; kept as a convenience entry point."""
     if context is None:
         return []
-    stories: List[StoryObject] = []
-    stories.extend(detect_season_highs(season_code, round_number, player_lines, context))
-    stories.extend(detect_streaks(season_code, round_number, matches, context))
-    stories.extend(detect_upsets(season_code, round_number, matches, context))
-    return stories
+    from .registry import DetectionContext, Scope, run_detectors  # lazy: avoid import cycle
+
+    ctx = DetectionContext(
+        season_code=season_code, round_number=round_number,
+        matches=tuple(matches), player_lines=tuple(player_lines), season_context=context,
+    )
+    # SEASON scope minus the aggregate-only detectors (this entry point carries a
+    # SeasonContext, not a SeasonAggregate — those self-skip anyway).
+    return run_detectors(ctx, {Scope.SEASON})

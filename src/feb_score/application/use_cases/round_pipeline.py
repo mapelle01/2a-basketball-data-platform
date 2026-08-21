@@ -18,15 +18,13 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from ..content.interfaces import AssetProvider, ContentQueue, TemplateRenderer
 from ...domain.content.copy import generate_copy
-from ...domain.content.insights import (
-    MatchFactsInput,
-    PlayerLineInput,
-    detect_all_for_round,
-)
+from ...domain.content.insights import MatchFactsInput, PlayerLineInput
 from ...domain.content.planner import plan
 from ...domain.content.queue import ContentItem, ContentStatus, InMemoryContentQueue
+from ...domain.content.registry import DetectionContext, run_detectors
 from ...domain.content.review import decide_review
-from ...domain.content.season_insights import SeasonContext, detect_all_season
+from ...domain.content.season_aggregate import SeasonAggregate
+from ...domain.content.season_insights import SeasonContext
 from ...domain.content.story import StoryObject, StoryStatus
 from ...domain.content.templates import TEMPLATE_VERSION, TEMPLATES
 from ...domain.content.validation import validate_copy, validate_visual
@@ -102,11 +100,17 @@ class RoundPipeline:
         player_lines: Sequence[PlayerLineInput],
         top_n: int = 5,
         season_context: Optional[SeasonContext] = None,
+        season: Optional[SeasonAggregate] = None,
     ) -> "RunResult":
-        stories = detect_all_for_round(season_code, round_number, matches, player_lines)
-        stories += detect_all_season(
-            season_code, round_number, matches, player_lines, season_context
+        # One call to the detector registry: every registered detector whose
+        # scope has data runs and self-skips otherwise. Adding a pattern later
+        # needs no change here.
+        ctx = DetectionContext(
+            season_code=season_code, round_number=round_number,
+            matches=tuple(matches), player_lines=tuple(player_lines),
+            season_context=season_context, season=season,
         )
+        stories = run_detectors(ctx)
 
         # Real novelty: which story types are already covered for this round?
         seen_types = self._seen_story_types(stories, season_code, round_number)

@@ -534,35 +534,13 @@ def detect_all_for_round(
     matches: Sequence[MatchFactsInput],
     player_lines: Sequence[PlayerLineInput],
 ) -> List[StoryObject]:
-    """Run every detector applicable to a round and return the raw stories.
-    The Planner scores/selects; this only emits."""
-    stories: List[StoryObject] = []
-    stories.extend(detect_match_final(m) for m in matches)
+    """Run every ROUND-scope detector and return the raw stories. Delegates to
+    the detector registry (the single source of truth); kept as a convenience
+    entry point. The Planner scores/selects; this only emits."""
+    from .registry import DetectionContext, Scope, run_detectors  # lazy: avoid import cycle
 
-    por = detect_player_of_round(season_code, round_number, player_lines)
-    if por is not None:
-        stories.append(por)
-
-    recap = detect_round_recap(season_code, round_number, matches, player_lines)
-    if recap is not None:
-        stories.append(recap)
-
-    biggest = detect_biggest_win(season_code, round_number, matches)
-    if biggest is not None:
-        stories.append(biggest)
-
-    stories.extend(detect_notable_performances(season_code, round_number, player_lines))
-
-    leaderboard = detect_stat_leaderboard(season_code, round_number, player_lines)
-    if leaderboard is not None:
-        stories.append(leaderboard)
-
-    # Curious (live) + shooting (dormant until per-player shooting is ingested).
-    for detector in (
-        detect_iron_man, detect_playmaker, detect_sharpshooter, detect_perfect_night,
-    ):
-        story = detector(season_code, round_number, player_lines)
-        if story is not None:
-            stories.append(story)
-
-    return stories
+    ctx = DetectionContext(
+        season_code=season_code, round_number=round_number,
+        matches=tuple(matches), player_lines=tuple(player_lines),
+    )
+    return run_detectors(ctx, {Scope.ROUND})

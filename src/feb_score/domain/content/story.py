@@ -89,6 +89,7 @@ STORY_TO_TEMPLATE: Dict[StoryType, str] = {
     StoryType.IRON_MAN: "player_of_round",
     StoryType.SHARPSHOOTER: "player_of_round",
     StoryType.PERFECT_NIGHT: "player_of_round",
+    StoryType.TOP_SCORER: "player_of_round",     # season scoring leader, framed
     # WIN_STREAK / LOSS_STREAK have no team-shaped template yet: they are
     # detected and scored, and surfaced in the pipeline summary, but not
     # rendered until a dedicated team template exists (deferred visual work).

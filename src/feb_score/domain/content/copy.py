@@ -400,6 +400,31 @@ def generate_copy_perfect_night(story: Dict[str, Any]) -> CopyContract:
     )
 
 
+def generate_copy_top_scorer(story: Dict[str, Any]) -> CopyContract:
+    f = story["facts"]
+    name = f.get("player_name") or f.get("player_external_id", "El jugador")
+    team = f.get("team_name") or f.get("team_external_id", "")
+    points = f["points"]
+    games = f["games_played"]
+
+    headline = f"{name}"
+    subtitle = f"Máximo anotador de la temporada · {points} puntos"
+    caption = (
+        f"{name} es el máximo anotador de la temporada de Segunda FEB con "
+        f"{points} puntos en {games} partidos."
+    )
+    hashtags = BASE_HASHTAGS + ("MaximoAnotador",)
+    if team:
+        hashtags = hashtags + (_slugify(team),)
+    return CopyContract(
+        headline=headline,
+        subtitle=subtitle,
+        caption=caption,
+        hashtags=hashtags,
+        facts_used=("player_name", "team_name", "points", "games_played"),
+    )
+
+
 def generate_copy_streak(story: Dict[str, Any]) -> CopyContract:
     f = story["facts"]
     team = f.get("team_name") or f.get("team_external_id", "El equipo")
@@ -444,6 +469,7 @@ _GENERATORS = {
     "top_assist_provider": generate_copy_playmaker,
     "sharpshooter": generate_copy_sharpshooter,
     "perfect_night": generate_copy_perfect_night,
+    "top_scorer": generate_copy_top_scorer,
 }
 
 
