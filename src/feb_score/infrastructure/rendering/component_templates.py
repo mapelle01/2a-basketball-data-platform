@@ -328,11 +328,15 @@ def render_player_of_round(data: Dict[str, Any]) -> str:
 
     body: List[str] = []
     section = facts.get("section_label", "Jugador de la jornada")
-    hdr, _ = C.match_header(
-        CONTENT_X, MARGIN, CONTENT_W,
-        competition=section, round_label=f"Jornada {round_number}",
-    )
-    body.append(hdr)
+    # Prominent kicker: the highlighted-datum descriptor set big and bright, with
+    # the round on its OWN line so it reads clearly (not crammed after a middot).
+    body.append(C.accent_bar(CONTENT_X, MARGIN, 56, Line.HEAVY))
+    body.append(C.text(CONTENT_X, MARGIN + 50, section.upper(), size=FontSize.H3,
+                       weight=FontWeight.DISPLAY, fill=Color.WHITE,
+                       tracking=LetterSpacing.HEADLINE, upper=True))
+    body.append(C.text(CONTENT_X, MARGIN + 92, f"JORNADA {round_number}", size=FontSize.LABEL,
+                       weight=FontWeight.LABEL, fill=Color.GREY,
+                       tracking=LetterSpacing.CAPS, upper=True))
 
     # The hero stat is chosen by the detector (points by default, but assists /
     # minutes / threes for the curious & shooting angles) via facts hints, so the
