@@ -701,6 +701,15 @@ def brand_footer(
     on_dark = variant != "light"
     fg = Color.WHITE if on_dark else Color.BLACK
     parts: List[SVG] = []
+    # Full-bleed scrim so the wordmark reads cleanly over busy background marks
+    # (the blueprint's technical ticks otherwise collide with "FEB SCORE!").
+    # Assumes symmetric margins (x on each side).
+    canvas_w = width + 2 * x
+    scrim = Color.BLACK if on_dark else Color.WHITE
+    parts.append(
+        f'<rect x="0" y="{_n(y - 22)}" width="{_n(canvas_w)}" height="74"'
+        f' fill="{scrim}" fill-opacity="0.88"/>'
+    )
     parts.append(accent_bar(x, y, 4, 30))  # small vertical red accent
     if variant == "compact":
         parts.append(text(x + 16, y + 24, Brand.COMPACT_MARK, size=FontSize.LABEL,
