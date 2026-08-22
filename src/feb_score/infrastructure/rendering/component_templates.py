@@ -44,11 +44,23 @@ FOOTER_Y = CANVAS.height - MARGIN - 40
 # ---------------------------------------------------------------------------
 
 
-# The official brand background image (tactical blueprint). Provisional: it's
-# embedded as a data URI so the SVG is self-contained and renders anywhere.
+# The official brand background images (blueprint moods), embedded as data URIs
+# so the SVG is self-contained. Three moods share the same court-blueprint
+# language: dark (default), light (editorial), red (impact — MVP/records).
 # TODO(perf): when a PNG rasterizer lands, compose the background there and keep
-# the persisted SVG light instead of embedding ~1.3MB per item.
-IMAGE_BACKGROUND = "tactical_blueprint"
+# the persisted SVG light instead of embedding ~1.4MB per item.
+BG_DARK = "court_dark"     # default: black blueprint, clean centre
+BG_LIGHT = "court_light"   # editorial white blueprint
+BG_RED = "court_red"       # red-impact blueprint (high-energy pieces)
+IMAGE_BACKGROUND = BG_DARK
+
+# Every embeddable image background (the moods + the earlier assets, kept for
+# back-compat). Anything here is embedded; other names fall to procedural.
+_IMAGE_BACKGROUNDS = {
+    BG_DARK, BG_LIGHT, BG_RED,
+    "tactical_blueprint", "tactical_blueprint_alt",
+    "editorial_light", "editorial_light_alt", "red_accent",
+}
 _ASSET_DIR = Path(__file__).with_name("assets")
 
 
@@ -152,7 +164,7 @@ def _background(name: str) -> str:
     """Compose a background. The brand image background (tactical blueprint) is
     embedded and already carries the court lines, technical marks and red
     accents — so no geometric treatment is drawn over it."""
-    if name == IMAGE_BACKGROUND:
+    if name in _IMAGE_BACKGROUNDS:
         uri = _background_data_uri(name)
         return (
             f'<image href="{uri}" x="0" y="0" width="{CANVAS.width}"'
@@ -769,7 +781,7 @@ def render_best_duo(data: Dict[str, Any]) -> str:
 
     ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB", season=season)
     body.append(ft)
-    return _svg_document("".join(body), IMAGE_BACKGROUND)
+    return _svg_document("".join(body), BG_RED)  # high-energy mood for the duo
 
 
 # ---------------------------------------------------------------------------
