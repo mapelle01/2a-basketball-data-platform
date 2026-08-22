@@ -239,9 +239,10 @@ class TestSeasonContext:
 
 
 class TestSeasonAggregate:
-    def test_build_season_aggregate_folds_and_resolves_names(self):
-        adapter, _matches, stats, players, _teams = _build_adapter()
+    def test_build_season_aggregate_folds_and_resolves_names_and_team(self):
+        adapter, _matches, stats, players, teams = _build_adapter()
         players.save(_player("p1", "C. Sáez"))
+        teams.save(_team("tA", "Alicante Basket"))
         # p1 plays two games, p2 one — season totals fold across matches.
         stats.save_player_stats("m1", SeasonCode(SEASON), [
             PlayerStats("p1", "tA", points=28, rebounds=10, assists=5),
@@ -253,7 +254,10 @@ class TestSeasonAggregate:
         agg = adapter.build_season_aggregate(SEASON)
         p1 = next(p for p in agg.players if p.player_external_id == "p1")
         assert p1.games == 2 and p1.points == 50 and p1.rebounds == 22
-        assert p1.player_name == "C. Sáez"      # resolved from catalog
-        assert p1.team_external_id is None        # team left unresolved (graceful)
+        assert p1.player_name == "C. Sáez"          # resolved from catalog
+        assert p1.team_external_id == "tA"           # team resolved from stats
+        assert p1.team_name == "Alicante Basket"     # team name from catalog
         p2 = next(p for p in agg.players if p.player_external_id == "p2")
-        assert p2.player_name is None             # no catalog record → None, not invented
+        assert p2.player_name is None                # no catalog record → None, not invented
+        assert p2.team_external_id == "tB"           # team id resolved
+        assert p2.team_name is None                  # team not in catalog → None, not invented

@@ -100,12 +100,25 @@ class LiveContentAdapter:
 
     def build_season_aggregate(self, season_code: str) -> SeasonAggregate:
         """Per-player season totals, read from the authoritative season
-        aggregates projection. Player names are resolved from the catalog in one
-        batch; team is left unresolved (None) — the card degrades gracefully, and
-        team enrichment is a later polish."""
+        aggregates projection. Player names, each player's season team, and the
+        team names are all resolved from repositories; anything missing stays
+        ``None`` (the card degrades gracefully — never an invented name).
+
+        Team is resolved per player (a season is a weekly batch, so the per-player
+        team lookup is acceptable; a batch player→team query is the optimization
+        if it ever matters). A traded player is attributed to their first team.
+        """
         season = SeasonCode(season_code)
         aggregates = list(self._stats.list_season_player_aggregates(season))
         names = self._resolve_player_names({a.player_external_id for a in aggregates})
+
+        player_team: Dict[str, str] = {}
+        for a in aggregates:
+            teams = list(self._stats.list_player_season_teams(a.player_external_id, season))
+            if teams:
+                player_team[a.player_external_id] = teams[0]
+        team_names = self._team_names_by_ids(set(player_team.values()))
+
         players = tuple(
             PlayerSeasonLine(
                 player_external_id=a.player_external_id,
@@ -114,10 +127,18 @@ class LiveContentAdapter:
                 rebounds=a.rebounds,
                 assists=a.assists,
                 player_name=names.get(a.player_external_id),
+                team_external_id=player_team.get(a.player_external_id),
+                team_name=team_names.get(player_team.get(a.player_external_id)),
             )
             for a in aggregates
         )
         return SeasonAggregate(season_code=season_code, players=players)
+
+    def _team_names_by_ids(self, team_ids: set) -> Dict[str, Optional[str]]:
+        if not team_ids:
+            return {}
+        catalog = self._teams.get_many_by_external_ids(team_ids)
+        return {tid: (team.name if team is not None else None) for tid, team in catalog.items()}
 
     def _team_rank(self, season: SeasonCode) -> Dict[str, int]:
         try:
