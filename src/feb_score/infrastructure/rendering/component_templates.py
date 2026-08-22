@@ -340,11 +340,19 @@ def render_match_final(data: Dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
+# High-energy player story types get the Red-Impact mood, so a feed of player
+# cards doesn't read as one dark template; routine ones stay on the blueprint.
+_RED_PLAYER_STORIES = {"perfect_night", "sharpshooter", "triple_double", "season_high"}
+
+
 def render_player_of_round(data: Dict[str, Any]) -> str:
     facts = data["story"]["facts"]
     display = data.get("display", {})
     assets = data.get("assets", {})
     round_number = data["story"].get("round_number")
+    story_type = data["story"].get("story_type")
+    red_mood = story_type in _RED_PLAYER_STORIES
+    bg = BG_RED if red_mood else IMAGE_BACKGROUND
 
     body: List[str] = []
     section = facts.get("section_label", "Jugador de la jornada")
@@ -357,7 +365,8 @@ def render_player_of_round(data: Dict[str, Any]) -> str:
     body.append(C.text(CONTENT_X, MARGIN + 92, f"JORNADA {round_number}", size=FontSize.LABEL,
                        weight=FontWeight.LABEL, fill=Color.GREY,
                        tracking=LetterSpacing.CAPS, upper=True))
-    body.append(_corner_mark())
+    if not red_mood:  # the red top corner can't host the dark mark cleanly
+        body.append(_corner_mark())
 
     # The hero stat is chosen by the detector (points by default, but assists /
     # minutes / threes for the curious & shooting angles) via facts hints, so the
@@ -388,7 +397,7 @@ def render_player_of_round(data: Dict[str, Any]) -> str:
     ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W,
                            competition="Segunda FEB", season=data["story"].get("season_code"))
     body.append(ft)
-    return _svg_document("".join(body), IMAGE_BACKGROUND)
+    return _svg_document("".join(body), bg)
 
 
 # ---------------------------------------------------------------------------
