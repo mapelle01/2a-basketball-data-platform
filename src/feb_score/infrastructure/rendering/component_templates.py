@@ -94,6 +94,13 @@ def competition_mark(x: float, y: float, height: float) -> str:
     )
 
 
+def _corner_mark(height: float = 52) -> str:
+    """The Segunda FEB mark in the top-right corner — a consistent competition
+    signature for cards whose header doesn't already carry it."""
+    mw = height * (_MARK_BBOX[2] / _MARK_BBOX[3])
+    return competition_mark(CONTENT_X + CONTENT_W - mw, MARGIN - 4, height)
+
+
 def context_tab(x: float, y: float, label: str, *, with_mark: bool = True,
                 badge: Any = None, chevron: bool = False, height: float = 60):
     """A subtle filter/context tab: [lead] label [▾], boxed with a hairline
@@ -350,6 +357,7 @@ def render_player_of_round(data: Dict[str, Any]) -> str:
     body.append(C.text(CONTENT_X, MARGIN + 92, f"JORNADA {round_number}", size=FontSize.LABEL,
                        weight=FontWeight.LABEL, fill=Color.GREY,
                        tracking=LetterSpacing.CAPS, upper=True))
+    body.append(_corner_mark())
 
     # The hero stat is chosen by the detector (points by default, but assists /
     # minutes / threes for the curious & shooting angles) via facts hints, so the
@@ -402,6 +410,7 @@ def render_round_recap(data: Dict[str, Any]) -> str:
         competition="Segunda FEB", round_label="Resumen de la jornada",
     )
     body.append(hdr)
+    body.append(_corner_mark())
 
     # HERO — giant round number + matches played.
     body.append(C.text(CONTENT_X, 200, "JORNADA", size=FontSize.LABEL, weight=FontWeight.LABEL,
@@ -422,8 +431,10 @@ def render_round_recap(data: Dict[str, Any]) -> str:
 
     # Red discipline: only the headline row (the first — top scorer when present)
     # carries the red value; the rest read in white, so one red datum leads.
-    ry = 620
-    step = min(180, (FOOTER_Y - 40 - ry) // max(1, len(rows)))
+    # Density: start the rows right after the hero and distribute to the footer,
+    # closing the empty band between the round number and the highlights.
+    ry = 540
+    step = min(220, (FOOTER_Y - 40 - ry) // max(1, len(rows)))
     for i, (label, subject, value) in enumerate(rows):
         value_color = Color.RED if i == 0 else Color.WHITE
         body.append(C.hline(CONTENT_X, ry, CONTENT_W, weight=Line.THIN, color=Color.GREY, opacity=0.28))
@@ -565,6 +576,7 @@ def render_best_five(data: Dict[str, Any]) -> str:
         {"label": f"Jornada {round_number}", "with_mark": True, "chevron": True},
     ])
     head.append(bar)
+    head.append(_corner_mark())
 
     # Court (GEOMETRY layer) + the five players placed on it (DATA layer).
     bx, by, bw, bh = CONTENT_X, 372, CONTENT_W, 792
@@ -615,6 +627,7 @@ def render_team_streak(data: Dict[str, Any]) -> str:
     body.append(C.text(CONTENT_X, MARGIN + 92, f"JORNADA {round_number}", size=FontSize.LABEL,
                        weight=FontWeight.LABEL, fill=Color.GREY,
                        tracking=LetterSpacing.CAPS, upper=True))
+    body.append(_corner_mark())
 
     # Crest SLOT — a square with the team initials (a real crest drops in later).
     cs, cy0 = 220, 240
