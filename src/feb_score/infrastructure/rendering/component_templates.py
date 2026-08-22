@@ -450,12 +450,16 @@ def render_stat_leaderboard(data: Dict[str, Any]) -> str:
     round_number = data["story"].get("round_number")
     leaders = facts.get("leaders", [])
 
+    # LIGHT DATA mood: rankings read best on the editorial white blueprint, so
+    # text inverts to dark and the rating chip uses its on-light tiers.
+    ink, sub = Color.BLACK, Color.GREY
+
     body: List[str] = []
     # Title + subtitle
     body.append(C.text(CONTENT_X, 180, "Máximos anotadores", size=FontSize.H1,
-                       weight=FontWeight.DISPLAY, fill=Color.WHITE, tracking=LetterSpacing.HEADLINE))
+                       weight=FontWeight.DISPLAY, fill=ink, tracking=LetterSpacing.HEADLINE))
     body.append(C.text(CONTENT_X, 232, "LA JORNADA EN CIFRAS", size=FontSize.LABEL,
-                       weight=FontWeight.LABEL, fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True))
+                       weight=FontWeight.LABEL, fill=sub, tracking=LetterSpacing.CAPS, upper=True))
 
     # Two-tab filter bar: criteria (a red count chip) + scope (competition mark).
     bar, _ = filter_bar(CONTENT_X, 288, [
@@ -476,26 +480,27 @@ def render_stat_leaderboard(data: Dict[str, Any]) -> str:
     for row in leaders:
         name = row.get("player_name") or row.get("player_external_id", "—")
         team = row.get("team_name") or row.get("team_external_id", "")
-        body.append(C.hline(CONTENT_X, ry - 24, CONTENT_W, weight=Line.THIN, color=Color.GREY, opacity=0.22))
+        body.append(C.hline(CONTENT_X, ry - 24, CONTENT_W, weight=Line.THIN, color=Color.INK, opacity=0.15))
         body.append(C.text(CONTENT_X, ry + 20, str(row.get("rank", "")), size=FontSize.H3,
-                           weight=FontWeight.HERO, fill=Color.GREY))
+                           weight=FontWeight.HERO, fill=sub))
         body.append(C.avatar(av_cx, ry + 8, av_r, initials=C.initials_of(name),
                              photo_uri=row.get("photo_uri"), badge_uri=row.get("badge_uri")))
         body.append(C.text(name_x, ry + 16, name.upper(), size=FontSize.H3,
-                           weight=FontWeight.TITLE, fill=Color.WHITE, upper=True))
+                           weight=FontWeight.TITLE, fill=ink, upper=True))
         if team:
             body.append(C.text(name_x, ry + 46, team.upper(), size=FontSize.MICRO,
-                               weight=FontWeight.LABEL, fill=Color.GREY, tracking=LetterSpacing.LABEL, upper=True))
+                               weight=FontWeight.LABEL, fill=sub, tracking=LetterSpacing.LABEL, upper=True))
         body.append(C.text(CONTENT_X + CONTENT_W - chip - 40, ry + 22, str(row.get("points", 0)),
-                           size=FontSize.H2, weight=FontWeight.HERO, fill=Color.WHITE, anchor="end"))
+                           size=FontSize.H2, weight=FontWeight.HERO, fill=ink, anchor="end"))
         rating_svg, _ = C.rating_badge(CONTENT_X + CONTENT_W - chip, ry - 24, float(row.get("rating", 0)),
-                                       variant="chip")
+                                       variant="chip", on_dark=False)
         body.append(rating_svg)
         ry += step
 
-    ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB", season=season)
+    ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB",
+                           season=season, variant="light")
     body.append(ft)
-    return _svg_document("".join(body), IMAGE_BACKGROUND)
+    return _svg_document("".join(body), BG_LIGHT)
 
 
 # ---------------------------------------------------------------------------

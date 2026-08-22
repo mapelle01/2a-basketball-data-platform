@@ -546,9 +546,9 @@ def rating_badge(
     inline  — number + tiny meter, for a stat row
     """
     if variant == "chip":
-        return _rating_chip(x, y, value)
+        return _rating_chip(x, y, value, on_dark=on_dark)
     if variant == "mini":
-        return _rating_chip(x, y, value, size=46)
+        return _rating_chip(x, y, value, size=46, on_dark=on_dark)
     if variant == "inline":
         return _rating_inline(x, y, value, width)
     return _rating_hero(x, y, value, width, on_dark)
@@ -571,22 +571,34 @@ def _rating_hero(x, y, value, width, on_dark) -> Rendered:
     return _group(parts), 220
 
 
-def _rating_chip(x, y, value, size: int = 88) -> Rendered:
-    """Compact boxed rating. Tier by BRIGHTNESS (elite = white fill / black text
-    = max contrast), plus a proportional red brand meter along the bottom edge.
-    Red never means 'good' — the meter length does. ``size`` scales the box (88
-    for rankings, 46 for the on-court 'mini' chip)."""
+def _rating_chip(x, y, value, size: int = 88, on_dark: bool = True) -> Rendered:
+    """Compact boxed rating. Tier by CONTRAST against the background (elite = the
+    most prominent fill), plus a proportional red brand meter along the bottom
+    edge. Red never means 'good' — the meter length does. ``size`` scales the box
+    (88 for rankings, 46 for the on-court 'mini' chip). ``on_dark`` inverts the
+    tiers for a light background (elite = solid black on light)."""
     elite = value >= RATING_ELITE
     good = value >= RATING_GOOD
     num_size = FontSize.H3 if size >= 64 else FontSize.LABEL
     pad = max(6, round(size * 0.09))
     mh = max(4, round(size * 0.06))
     my = y + size - pad - mh
-    if elite:
-        bg, txt, border = Color.WHITE, Color.BLACK, ""
+    border = ""
+    if on_dark:
+        # brightness = quality: elite is brightest (white).
+        if elite:
+            bg, txt, track = Color.WHITE, Color.BLACK, Color.INK
+        else:
+            bg, txt, track = Color.INK, (Color.WHITE if good else Color.GREY), Color.BLACK
+            edge = Color.WHITE if good else Color.GREY
     else:
-        bg, txt = Color.INK, (Color.WHITE if good else Color.GREY)
-        edge = Color.WHITE if good else Color.GREY
+        # on light, darkness = quality: elite is darkest (black).
+        if elite:
+            bg, txt, track = Color.BLACK, Color.WHITE, Color.LIGHT_GREY
+        else:
+            bg, txt, track = Color.WHITE, (Color.BLACK if good else Color.GREY), Color.LIGHT_GREY
+            edge = Color.INK if good else Color.GREY
+    if not elite:
         border = (
             f'<rect x="{_n(x)}" y="{_n(y)}" width="{size}" height="{size}" fill="none"'
             f' stroke="{edge}" stroke-opacity="0.6" stroke-width="{Line.MEDIUM}" rx="{Radius.SM}"/>'
@@ -597,7 +609,7 @@ def _rating_chip(x, y, value, size: int = 88) -> Rendered:
         text(x + size / 2, y + size / 2 + num_size * 0.40, _fmt_rating(value), size=num_size,
              weight=FontWeight.HERO, fill=txt, anchor="middle"),
         # brand meter along the bottom edge
-        rect(x + pad, my, size - 2 * pad, mh, Color.INK if elite else Color.BLACK),
+        rect(x + pad, my, size - 2 * pad, mh, track),
         rect(x + pad, my, (size - 2 * pad) * _rating_fill(value), mh, Color.RED),
     ]
     return _group(parts), size
