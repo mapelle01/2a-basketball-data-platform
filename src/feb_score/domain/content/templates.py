@@ -101,6 +101,24 @@ TEMPLATES: Dict[str, TemplateContract] = {
         ),
         optional_slots=(),
     ),
+    "best_duo": TemplateContract(
+        template_id="best_duo",
+        version=TEMPLATE_VERSION,
+        canvas="IG_PORTRAIT",
+        required_slots=(
+            "story.round_number",
+            "story.facts.p1_points",
+            "story.facts.p2_points",
+            "story.facts.combined_points",
+            "copy.headline",
+            "copy.subtitle",
+        ),
+        optional_slots=(
+            "story.facts.p1_name",
+            "story.facts.p2_name",
+            "story.facts.team_name",
+        ),
+    ),
     "team_streak": TemplateContract(
         template_id="team_streak",
         version=TEMPLATE_VERSION,

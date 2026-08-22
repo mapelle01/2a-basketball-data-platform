@@ -25,6 +25,7 @@ from .design_system import (
     Font,
     FontSize,
     FontWeight,
+    Icons,
     LetterSpacing,
     Line,
     Radius,
@@ -658,6 +659,120 @@ def render_team_streak(data: Dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Template: BEST DUO (two teammates + their combined total)
+# ---------------------------------------------------------------------------
+
+
+def _fmt_rating(value: float) -> str:
+    return f"{value:.1f}" if value < 10 else "10"
+
+
+def _rating_scale_card(x: float, y: float, w: float, value: float) -> tuple:
+    """Boxed FEB RATING with a 0..10 segmented meter (the duo mockup's card)."""
+    h = 118
+    pad = Spacing.MD
+    parts = [
+        f'<rect x="{x:.0f}" y="{y}" width="{w:.0f}" height="{h}" fill="none"'
+        f' stroke="{Color.GREY}" stroke-opacity="0.4" stroke-width="{Line.THIN}" rx="{Radius.MD}"/>',
+        C.text(x + pad, y + 36, "FEB RATING", size=FontSize.MICRO, weight=FontWeight.LABEL,
+               fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True),
+        C.text(x + pad, y + 92, _fmt_rating(value), size=FontSize.H2, weight=FontWeight.HERO,
+               fill=Color.WHITE),
+    ]
+    mx = x + pad + 116
+    mw = w - (mx - x) - pad
+    my = y + 58
+    seg, gap = 10, 5
+    sw = (mw - (seg - 1) * gap) / seg
+    filled = int(round(value))
+    for i in range(seg):
+        sx = mx + i * (sw + gap)
+        if i < filled:
+            parts.append(f'<rect x="{sx:.1f}" y="{my}" width="{sw:.1f}" height="18" fill="{Color.RED}" rx="2"/>')
+        else:
+            parts.append(f'<rect x="{sx:.1f}" y="{my}" width="{sw:.1f}" height="18" fill="{Color.GREY}"'
+                         f' fill-opacity="0.3" rx="2"/>')
+    for tick in (0, 5, 10):
+        tx = mx + mw * (tick / 10)
+        parts.append(C.text(tx, my + 44, str(tick), size=FontSize.MICRO, weight=FontWeight.LABEL,
+                            fill=Color.GREY, anchor="middle"))
+    return "".join(parts), h
+
+
+def _duo_column(cx: float, avatar_cy: float, col_w: float, name: str, pts, rating: float,
+                *, initials: str, photo_uri=None, badge_uri=None) -> str:
+    r = 108
+    parts = [C.avatar(cx, avatar_cy, r, initials=initials, photo_uri=photo_uri, badge_uri=badge_uri)]
+    side = 2 * r + 44
+    parts.append(C.corner_frame(cx - side / 2, avatar_cy - side / 2, side, side,
+                                arm=46, corners=("tl", "tr", "bl", "br")))
+    ny = avatar_cy + r + 70
+    parts.append(C.text(cx, ny, name.upper(), size=FontSize.H3, weight=FontWeight.DISPLAY,
+                        fill=Color.WHITE, anchor="middle", tracking=LetterSpacing.HEADLINE, upper=True))
+    bx, by, bh = cx - col_w / 2, ny + 42, 92
+    parts.append(f'<rect x="{bx:.0f}" y="{by}" width="{col_w:.0f}" height="{bh}" fill="none"'
+                 f' stroke="{Color.GREY}" stroke-opacity="0.4" stroke-width="{Line.THIN}" rx="{Radius.MD}"/>')
+    parts.append(C.text(cx - 16, by + 66, str(pts), size=FontSize.H1, weight=FontWeight.HERO,
+                        fill=Color.WHITE, anchor="end"))
+    parts.append(C.text(cx + 6, by + 62, "PTS", size=FontSize.LABEL, weight=FontWeight.LABEL,
+                        fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True))
+    card, _ = _rating_scale_card(bx, by + bh + Spacing.SM, col_w, rating)
+    parts.append(card)
+    return "".join(parts)
+
+
+def render_best_duo(data: Dict[str, Any]) -> str:
+    facts = data["story"]["facts"]
+    season = data["story"].get("season_code")
+    round_number = data["story"].get("round_number")
+    n1 = facts.get("p1_name") or facts.get("p1_external_id", "Jugador 1")
+    n2 = facts.get("p2_name") or facts.get("p2_external_id", "Jugador 2")
+    assets = data.get("assets", {})
+
+    body: List[str] = []
+    # Kicker.
+    body.append(C.accent_bar(CONTENT_X, MARGIN, 210, Line.HEAVY))
+    body.append(C.text(CONTENT_X, MARGIN + 92, "EL MEJOR DÚO", size=FontSize.H1,
+                       weight=FontWeight.HERO, fill=Color.WHITE, tracking=LetterSpacing.HEADLINE, upper=True))
+    body.append(C.text(CONTENT_X, MARGIN + 138, f"JORNADA {round_number}", size=FontSize.LABEL,
+                       weight=FontWeight.LABEL, fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True))
+
+    # Two columns (teammates, not a versus).
+    left_cx = CONTENT_X + CONTENT_W * 0.25
+    right_cx = CONTENT_X + CONTENT_W * 0.75
+    col_w, avatar_cy = 384, 400
+    body.append(_duo_column(left_cx, avatar_cy, col_w, n1, facts.get("p1_points", 0),
+                            float(facts.get("p1_rating", 0)), initials=C.initials_of(n1),
+                            photo_uri=assets.get("p1_photo"), badge_uri=assets.get("team_crest")))
+    body.append(_duo_column(right_cx, avatar_cy, col_w, n2, facts.get("p2_points", 0),
+                            float(facts.get("p2_rating", 0)), initials=C.initials_of(n2),
+                            photo_uri=assets.get("p2_photo"), badge_uri=assets.get("team_crest")))
+    # The uniting "+" on the center line, level with the stat boxes.
+    body.append(C.text(CANVAS.width / 2, avatar_cy + 300, "+", size=FontSize.DISPLAY,
+                       weight=FontWeight.HERO, fill=Color.WHITE, anchor="middle"))
+
+    # Separator + center ball, then the combined total (the protagonist).
+    sep_y = 902
+    body.append(C.hline(CONTENT_X, sep_y, CONTENT_W, weight=Line.THIN, color=Color.GREY, opacity=0.25))
+    body.append(C.icon(CANVAS.width / 2 - 18, sep_y - 18, Icons.BALL, size=36, color=Color.RED))
+
+    combined = facts.get("combined_points", 0)
+    box_w, box_h, box_y = 500, 210, 972
+    box_x = CANVAS.width / 2 - box_w / 2
+    body.append(C.corner_frame(box_x, box_y, box_w, box_h, arm=56, color=Color.RED,
+                               corners=("tl", "tr", "bl", "br")))
+    body.append(C.text(CANVAS.width / 2, box_y + 150, str(combined), size=FontSize.HERO,
+                       weight=FontWeight.HERO, fill=Color.WHITE, anchor="middle", tracking=LetterSpacing.HERO))
+    body.append(C.text(CANVAS.width / 2, box_y + 200, "PTS COMBINADOS", size=FontSize.LABEL,
+                       weight=FontWeight.LABEL, fill=Color.RED, anchor="middle",
+                       tracking=LetterSpacing.CAPS, upper=True))
+
+    ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB", season=season)
+    body.append(ft)
+    return _svg_document("".join(body), IMAGE_BACKGROUND)
+
+
+# ---------------------------------------------------------------------------
 # Dispatcher
 # ---------------------------------------------------------------------------
 
@@ -668,6 +783,7 @@ _RENDERERS: Dict[str, Callable[[Dict[str, Any]], str]] = {
     "stat_leaderboard": render_stat_leaderboard,
     "best_five": render_best_five,
     "team_streak": render_team_streak,
+    "best_duo": render_best_duo,
 }
 
 

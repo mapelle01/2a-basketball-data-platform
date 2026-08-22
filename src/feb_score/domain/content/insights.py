@@ -523,6 +523,65 @@ def detect_perfect_night(
     })
 
 
+DUO_MIN_COMBINED = 35  # two teammates must combine for a real haul to be a story
+
+
+def detect_best_duo(
+    season_code: str, round_number: int, player_lines: Sequence[PlayerLineInput],
+) -> Optional[StoryObject]:
+    """The round's best pair of TEAMMATES: the two highest scorers on the same
+    team in the same game, by combined points. Needs two players from one
+    team-game; skips below the combined threshold (no manufactured duo)."""
+    from collections import defaultdict
+
+    from .rating import FEB_RATING_VERSION, feb_rating
+
+    groups: Dict[tuple, List[PlayerLineInput]] = defaultdict(list)
+    for p in player_lines:
+        groups[(p.match_external_id, p.team_external_id)].append(p)
+
+    best: Optional[tuple] = None  # (combined, p1, p2)
+    for members in groups.values():
+        if len(members) < 2:
+            continue
+        p1, p2 = sorted(members, key=lambda x: (-x.points, x.player_external_id))[:2]
+        combined = p1.points + p2.points
+        if best is None or combined > best[0]:
+            best = (combined, p1, p2)
+    if best is None or best[0] < DUO_MIN_COMBINED:
+        return None
+    combined, p1, p2 = best
+
+    def _rt(p: PlayerLineInput) -> float:
+        return feb_rating(p.points, p.rebounds, p.assists, p.steals, p.blocks, p.turnovers)
+
+    facts = {
+        "team_external_id": p1.team_external_id,
+        "team_name": p1.team_name,
+        "match_external_id": p1.match_external_id,
+        "p1_external_id": p1.player_external_id, "p1_name": p1.player_name,
+        "p1_points": p1.points, "p1_rating": _rt(p1),
+        "p2_external_id": p2.player_external_id, "p2_name": p2.player_name,
+        "p2_points": p2.points, "p2_rating": _rt(p2),
+        "combined_points": combined,
+        "rating_version": FEB_RATING_VERSION,
+    }
+    return StoryObject(
+        story_type=StoryType.BEST_DUO,
+        season_code=season_code,
+        round_number=round_number,
+        entities=StoryEntities(
+            team_external_id=p1.team_external_id, match_external_id=p1.match_external_id,
+        ),
+        facts=facts,
+        source_refs={
+            "player_stats": (
+                f"2afeb_score://match_player_stats/{p1.match_external_id}"
+            ),
+        },
+    )
+
+
 # ---------------------------------------------------------------------------
 # Round-level convenience entry point
 # ---------------------------------------------------------------------------

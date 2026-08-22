@@ -251,6 +251,38 @@ class TestTeamStreak:
         assert "+4" in svg  # 12 shown as 8 marks + "+4"
 
 
+class TestBestDuo:
+    def test_detector_picks_top_two_teammates(self):
+        from feb_score.domain.content.insights import PlayerLineInput, detect_best_duo
+        from feb_score.domain.content.story import STORY_TO_TEMPLATE, StoryType
+
+        def L(pid, team, tid, pts):
+            return PlayerLineInput(pid, pid.upper(), tid, team, "m1", pts, 4, 3)
+        lines = [L("a", "Alicante", "tA", 31), L("b", "Alicante", "tA", 27),
+                 L("c", "Alicante", "tA", 8), L("d", "Melilla", "tB", 22)]
+        s = detect_best_duo("2025-2026", 12, lines)
+        assert s is not None and s.story_type is StoryType.BEST_DUO
+        assert s.facts["combined_points"] == 58
+        assert {s.facts["p1_external_id"], s.facts["p2_external_id"]} == {"a", "b"}
+        assert STORY_TO_TEMPLATE[StoryType.BEST_DUO] == "best_duo"
+
+    def test_detector_needs_two_teammates(self):
+        from feb_score.domain.content.insights import PlayerLineInput, detect_best_duo
+        lines = [PlayerLineInput("a", "A", "tA", "T", "m1", 40, 4, 3)]  # lone player
+        assert detect_best_duo("2025-2026", 12, lines) is None
+
+    def test_renders_the_mockup(self):
+        data = {"story": {"round_number": 12, "season_code": "2025-2026", "facts": {
+            "p1_name": "J. Pérez", "p1_points": 31, "p1_rating": 8.4,
+            "p2_name": "R. Costa", "p2_points": 27, "p2_rating": 7.2,
+            "combined_points": 58, "team_name": "Alicante"}},
+            "copy": {}, "display": {}, "assets": {}, "meta": {}}
+        svg = T.render_template("best_duo", data)
+        ET.fromstring(svg)
+        assert not (_colors_in(svg) - _ALLOWED_COLORS)
+        assert "EL MEJOR DÚO" in svg and "PTS COMBINADOS" in svg and ">58<" in svg
+
+
 class TestIdentityRestraint:
     def test_templates_use_only_official_palette(self):
         data = {

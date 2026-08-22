@@ -122,6 +122,9 @@ register("sharpshooter", Scope.ROUND)(
 register("perfect_night", Scope.ROUND)(
     lambda ctx: _one(_ins.detect_perfect_night(ctx.season_code, ctx.round_number, ctx.player_lines))
 )
+register("best_duo", Scope.ROUND)(
+    lambda ctx: _one(_ins.detect_best_duo(ctx.season_code, ctx.round_number, ctx.player_lines))
+)
 
 # --- SEASON scope --- (self-skip when their context/aggregate is None)
 register("season_highs", Scope.SEASON)(

@@ -475,6 +475,35 @@ def generate_copy_top_rebounder(story: Dict[str, Any]) -> CopyContract:
     )
 
 
+def generate_copy_best_duo(story: Dict[str, Any]) -> CopyContract:
+    f = story["facts"]
+    n1 = f.get("p1_name") or f.get("p1_external_id", "Jugador 1")
+    n2 = f.get("p2_name") or f.get("p2_external_id", "Jugador 2")
+    team = f.get("team_name") or f.get("team_external_id", "")
+    round_number = story.get("round_number")
+    p1 = f["p1_points"]
+    p2 = f["p2_points"]
+    combined = f["combined_points"]
+
+    headline = f"{n1} & {n2}"
+    subtitle = f"El mejor dúo de la jornada {round_number}"
+    caption = (
+        f"{n1} ({p1}) y {n2} ({p2}) suman {combined} puntos: el mejor dúo de la "
+        f"jornada {round_number} de Segunda FEB."
+    )
+    hashtags = BASE_HASHTAGS + ("MejorDuo",)
+    if team:
+        hashtags = hashtags + (_slugify(team),)
+    return CopyContract(
+        headline=headline,
+        subtitle=subtitle,
+        caption=caption,
+        hashtags=hashtags,
+        facts_used=("p1_name", "p2_name", "p1_points", "p2_points",
+                    "combined_points", "round_number"),
+    )
+
+
 def generate_copy_streak(story: Dict[str, Any]) -> CopyContract:
     f = story["facts"]
     team = f.get("team_name") or f.get("team_external_id", "El equipo")
@@ -522,6 +551,7 @@ _GENERATORS = {
     "top_scorer": generate_copy_top_scorer,                      # season leaders
     "top_rebounder": generate_copy_top_rebounder,
     "top_assist_provider": generate_copy_season_assist_leader,
+    "best_duo": generate_copy_best_duo,
 }
 
 

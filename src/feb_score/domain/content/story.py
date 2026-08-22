@@ -46,6 +46,7 @@ class StoryType(str, Enum):
     SHARPSHOOTER = "sharpshooter"      # best 3-point game (shooting)
     PERFECT_NIGHT = "perfect_night"    # no misses from the field (shooting)
     PLAYMAKER = "playmaker"            # the round's assist leader (per-game director)
+    BEST_DUO = "best_duo"             # two teammates, best combined game (round)
     # TOP_SCORER / TOP_REBOUNDER / TOP_ASSIST_PROVIDER are the SEASON leaders.
 
     # Team-level
@@ -97,6 +98,7 @@ STORY_TO_TEMPLATE: Dict[StoryType, str] = {
     StoryType.TOP_ASSIST_PROVIDER: "player_of_round",
     StoryType.WIN_STREAK: "team_streak",         # a team card: the run visualized
     StoryType.LOSS_STREAK: "team_streak",
+    StoryType.BEST_DUO: "best_duo",              # two teammates + combined total
 }
 
 
