@@ -666,6 +666,17 @@ def _stat_inline(x, y, width, primary, primary_label, secondary, fg) -> Rendered
 # ---------------------------------------------------------------------------
 
 
+def _short_season(season: Optional[str]) -> Optional[str]:
+    """'2025-2026' → '2025-26' for a compact metadata line."""
+    if not season:
+        return season
+    s = str(season)
+    if "-" in s:
+        a, b = s.split("-", 1)
+        return f"{a}-{b[-2:]}" if len(b) == 4 else s
+    return s
+
+
 def brand_footer(
     x: float,
     y: float,
@@ -689,7 +700,7 @@ def brand_footer(
         parts.append(text(x + 16, y + 24, Brand.NAME, size=FontSize.LABEL,
                           weight=FontWeight.DISPLAY, fill=fg, italic=True,
                           tracking=LetterSpacing.HEADLINE))
-    meta = " · ".join([m for m in (competition, season) if m])
+    meta = " · ".join([m for m in (competition, _short_season(season)) if m])
     if meta:
         parts.append(text(x + width, y + 24, meta.upper(), size=FontSize.MICRO,
                           weight=FontWeight.LABEL, fill=Color.GREY, anchor="end",

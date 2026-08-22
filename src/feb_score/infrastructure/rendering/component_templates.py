@@ -320,15 +320,6 @@ def render_match_final(data: Dict[str, Any]) -> str:
     return _svg_document("".join(body), IMAGE_BACKGROUND)
 
 
-def _season_short(season: Any) -> str:
-    """'2025-2026' → '2025-26' for a cleaner metadata line."""
-    s = str(season or "")
-    if "-" in s:
-        a, b = s.split("-", 1)
-        return f"{a}-{b[-2:]}" if len(b) == 4 else s
-    return s
-
-
 # ---------------------------------------------------------------------------
 # Template: PLAYER OF THE ROUND
 # ---------------------------------------------------------------------------
@@ -680,10 +671,6 @@ def render_team_streak(data: Dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _fmt_rating(value: float) -> str:
-    return f"{value:.1f}" if value < 10 else "10"
-
-
 def _rating_scale_card(x: float, y: float, w: float, value: float) -> tuple:
     """Boxed FEB RATING with a 0..10 segmented meter (the duo mockup's card)."""
     h = 118
@@ -693,7 +680,7 @@ def _rating_scale_card(x: float, y: float, w: float, value: float) -> tuple:
         f' stroke="{Color.GREY}" stroke-opacity="0.4" stroke-width="{Line.THIN}" rx="{Radius.MD}"/>',
         C.text(x + pad, y + 36, "FEB RATING", size=FontSize.MICRO, weight=FontWeight.LABEL,
                fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True),
-        C.text(x + pad, y + 92, _fmt_rating(value), size=FontSize.H2, weight=FontWeight.HERO,
+        C.text(x + pad, y + 92, C._fmt_rating(value), size=FontSize.H2, weight=FontWeight.HERO,
                fill=Color.WHITE),
     ]
     mx = x + pad + 116
