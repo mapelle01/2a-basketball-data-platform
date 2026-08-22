@@ -284,6 +284,12 @@ def render_match_final(data: Dict[str, Any]) -> str:
     away_score = facts.get("away_score", 0)
     home_win = home_score >= away_score
     margin = abs(home_score - away_score)
+    # Delight: a blowout (20+) ignites the Red-Impact mood; a normal game stays
+    # on the dark blueprint. On red, red is the background, so the winner reads
+    # white and the loser grey (brightness), not red.
+    blowout = margin >= 20
+    bg = BG_RED if blowout else IMAGE_BACKGROUND
+    sb_colors = dict(winner_color=Color.WHITE, loser_color=Color.GREY) if blowout else {}
 
     body: List[str] = []
     # HEADER (top) with the official Segunda FEB competition mark on the left.
@@ -303,7 +309,7 @@ def render_match_final(data: Dict[str, Any]) -> str:
         CONTENT_X, 460, CONTENT_W,
         home=C.TeamSide(display.get("home_team", "Local"), home_score, is_winner=home_win),
         away=C.TeamSide(display.get("away_team", "Visitante"), away_score, is_winner=not home_win),
-        variant="hero",
+        variant="hero", **sb_colors,
     )
     body.append(sb)
 
@@ -319,7 +325,7 @@ def render_match_final(data: Dict[str, Any]) -> str:
     # BRANDING (bottom)
     ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB", season=season)
     body.append(ft)
-    return _svg_document("".join(body), IMAGE_BACKGROUND)
+    return _svg_document("".join(body), bg)
 
 
 # ---------------------------------------------------------------------------

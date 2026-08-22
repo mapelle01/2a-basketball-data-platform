@@ -269,27 +269,34 @@ def scoreboard(
     away: TeamSide,
     variant: str = "hero",
     on_dark: bool = True,
+    winner_color: Optional[str] = None,
+    loser_color: Optional[str] = None,
 ) -> Rendered:
     """Match result. Number-first: score dominates, team second. Red marks the
-    winner only. Works with zero logos.
+    winner only. Works with zero logos. ``winner_color``/``loser_color`` override
+    the defaults (red winner, fg loser) — e.g. on the red-impact blowout mood,
+    where red is the background, the winner reads white and the loser grey.
 
     variants: hero (stacked, huge) · compact (one line) · minimal (score only).
     """
     fg = Color.WHITE if on_dark else Color.BLACK
+    wc = winner_color or Color.RED
+    lc = loser_color or fg
     if variant == "minimal":
         return _scoreboard_minimal(x, y, width, home, away, fg)
     if variant == "compact":
-        return _scoreboard_compact(x, y, width, home, away, fg)
-    return _scoreboard_hero(x, y, width, home, away, fg)
+        return _scoreboard_compact(x, y, width, home, away, fg, wc, lc)
+    return _scoreboard_hero(x, y, width, home, away, fg, wc, lc)
 
 
-def _score_color(side: TeamSide, fg: str) -> str:
-    return Color.RED if side.is_winner else fg
+def _score_color(side: TeamSide, winner_color: str, loser_color: str) -> str:
+    return winner_color if side.is_winner else loser_color
 
 
-def _scoreboard_hero(x, y, width, home, away, fg) -> Rendered:
+def _scoreboard_hero(x, y, width, home, away, fg, wc=Color.RED, lc=None) -> Rendered:
     """Two columns side by side — team name above, giant score below — with a
     center ball mark. Number-first and balanced (no empty gutter). Winner red."""
+    lc = lc if lc is not None else fg
     parts: List[SVG] = []
     half = width / 2
     hx = x + half * 0.5          # center of the home column
@@ -303,7 +310,7 @@ def _scoreboard_hero(x, y, width, home, away, fg) -> Rendered:
                           weight=FontWeight.DISPLAY, fill=fg, anchor="middle",
                           tracking=LetterSpacing.HEADLINE, upper=True))
         parts.append(text(col_cx, num_y, str(side.score), size=FontSize.HERO,
-                          weight=FontWeight.HERO, fill=_score_color(side, fg),
+                          weight=FontWeight.HERO, fill=_score_color(side, wc, lc),
                           anchor="middle", tracking=LetterSpacing.HERO))
 
     # Center ball mark, vertically aligned with the numbers.
@@ -312,18 +319,19 @@ def _scoreboard_hero(x, y, width, home, away, fg) -> Rendered:
     return _group(parts), 268
 
 
-def _scoreboard_compact(x, y, width, home, away, fg) -> Rendered:
+def _scoreboard_compact(x, y, width, home, away, fg, wc=Color.RED, lc=None) -> Rendered:
+    lc = lc if lc is not None else fg
     parts: List[SVG] = []
     parts.append(text(x, y + 60, home.name.upper(), size=FontSize.H3,
                       weight=FontWeight.TITLE, fill=fg, upper=True))
     parts.append(text(x + width, y + 60, away.name.upper(), size=FontSize.H3,
                       weight=FontWeight.TITLE, fill=fg, anchor="end", upper=True))
     parts.append(text(x + width / 2 - 60, y + 60, str(home.score), size=FontSize.H1,
-                      weight=FontWeight.HERO, fill=_score_color(home, fg), anchor="end"))
+                      weight=FontWeight.HERO, fill=_score_color(home, wc, lc), anchor="end"))
     parts.append(text(x + width / 2, y + 60, "–", size=FontSize.H2, weight=FontWeight.HERO,
                       fill=Color.GREY, anchor="middle"))
     parts.append(text(x + width / 2 + 60, y + 60, str(away.score), size=FontSize.H1,
-                      weight=FontWeight.HERO, fill=_score_color(away, fg)))
+                      weight=FontWeight.HERO, fill=_score_color(away, wc, lc)))
     return _group(parts), 96
 
 
