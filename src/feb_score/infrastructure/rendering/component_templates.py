@@ -308,9 +308,11 @@ def render_match_final(data: Dict[str, Any]) -> str:
     body.append(sb)
 
     # A single editorial datum under the scoreboard: the margin.
+    # Red discipline: the winner's score is the one red datum on this card, so
+    # the margin reads in white (was a second red).
     mid_x = CANVAS.width / 2
     body.append(C.text(mid_x, 792, f"+{margin}", size=FontSize.H2, weight=FontWeight.HERO,
-                       fill=Color.RED, anchor="middle"))
+                       fill=Color.WHITE, anchor="middle"))
     body.append(C.text(mid_x, 826, "DIFERENCIA", size=FontSize.MICRO, weight=FontWeight.LABEL,
                        fill=Color.GREY, anchor="middle", tracking=LetterSpacing.CAPS, upper=True))
 
@@ -412,9 +414,12 @@ def render_round_recap(data: Dict[str, Any]) -> str:
     rows.append(("Mayor diferencia", None, f"+{facts.get('biggest_win_margin', 0)}"))
     rows.append(("Partido más ajustado", None, f"{facts.get('closest_game_margin', 0)} PTS"))
 
+    # Red discipline: only the headline row (the first — top scorer when present)
+    # carries the red value; the rest read in white, so one red datum leads.
     ry = 620
     step = min(180, (FOOTER_Y - 40 - ry) // max(1, len(rows)))
-    for label, subject, value in rows:
+    for i, (label, subject, value) in enumerate(rows):
+        value_color = Color.RED if i == 0 else Color.WHITE
         body.append(C.hline(CONTENT_X, ry, CONTENT_W, weight=Line.THIN, color=Color.GREY, opacity=0.28))
         body.append(C.text(CONTENT_X, ry + 46, label.upper(), size=FontSize.MICRO,
                            weight=FontWeight.LABEL, fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True))
@@ -422,7 +427,7 @@ def render_round_recap(data: Dict[str, Any]) -> str:
             body.append(C.text(CONTENT_X, ry + 100, subject.upper(), size=FontSize.H3,
                                weight=FontWeight.TITLE, fill=Color.WHITE, upper=True))
         body.append(C.text(CONTENT_X + CONTENT_W, ry + 92, value, size=FontSize.H2,
-                           weight=FontWeight.HERO, fill=Color.RED, anchor="end"))
+                           weight=FontWeight.HERO, fill=value_color, anchor="end"))
         ry += step
 
     ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB", season=season)
