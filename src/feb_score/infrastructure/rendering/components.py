@@ -394,8 +394,9 @@ def player_hero(
         parts.append(pill)
 
     cursor = y + bh_ + Spacing.LG
-    # Identity
-    parts.append(text(cx, cursor + 58, name.upper(), size=FontSize.H1, weight=FontWeight.DISPLAY,
+    # Identity — step the name down for long names so it never overflows the frame.
+    name_size = FontSize.H1 if len(name) <= 16 else FontSize.H2
+    parts.append(text(cx, cursor + 58, name.upper(), size=name_size, weight=FontWeight.DISPLAY,
                       fill=fg, anchor="middle", tracking=LetterSpacing.HEADLINE, upper=True))
     parts.append(text(cx, cursor + 96, team.upper(), size=FontSize.LABEL, weight=FontWeight.LABEL,
                       fill=Color.GREY, anchor="middle", tracking=LetterSpacing.CAPS, upper=True))
