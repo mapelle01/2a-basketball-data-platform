@@ -464,6 +464,11 @@ def render_stat_leaderboard(data: Dict[str, Any]) -> str:
     ])
     body.append(bar)
 
+    # Column note so the rating chip reads as a 0..10 score, not a bare number.
+    body.append(C.text(CONTENT_X + CONTENT_W, 400, "FEB RATING /10", size=FontSize.MICRO,
+                       weight=FontWeight.LABEL, fill=sub, anchor="end",
+                       tracking=LetterSpacing.LABEL, upper=True))
+
     # Ranking rows: rank · avatar · name/team · points · FEB Rating chip.
     # The avatar is a SLOT — initials today, a real cutout when photos land.
     ry = 430
