@@ -482,7 +482,8 @@ def render_stat_leaderboard(data: Dict[str, Any]) -> str:
             body.append(C.text(name_x, ry + 46, team.upper(), size=FontSize.MICRO,
                                weight=FontWeight.LABEL, fill=sub, tracking=LetterSpacing.LABEL, upper=True))
         body.append(C.text(CONTENT_X + CONTENT_W - chip - 40, ry + 22, str(row.get("points", 0)),
-                           size=FontSize.H2, weight=FontWeight.HERO, fill=ink, anchor="end"))
+                           size=FontSize.H2, weight=FontWeight.HERO, fill=ink, anchor="end",
+                           tracking=LetterSpacing.DISPLAY))
         rating_svg, _ = C.rating_badge(CONTENT_X + CONTENT_W - chip, ry - 24, float(row.get("rating", 0)),
                                        variant="chip", on_dark=False)
         body.append(rating_svg)
@@ -717,7 +718,7 @@ def _duo_column(cx: float, avatar_cy: float, col_w: float, name: str, pts, ratin
     parts.append(f'<rect x="{bx:.0f}" y="{by}" width="{col_w:.0f}" height="{bh}" fill="none"'
                  f' stroke="{Color.GREY}" stroke-opacity="0.4" stroke-width="{Line.THIN}" rx="{Radius.MD}"/>')
     parts.append(C.text(cx - 16, by + 66, str(pts), size=FontSize.H1, weight=FontWeight.HERO,
-                        fill=Color.WHITE, anchor="end"))
+                        fill=Color.WHITE, anchor="end", tracking=LetterSpacing.DISPLAY))
     parts.append(C.text(cx + 6, by + 62, "PTS", size=FontSize.LABEL, weight=FontWeight.LABEL,
                         fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True))
     card, _ = _rating_scale_card(bx, by + bh + Spacing.SM, col_w, rating)
@@ -737,7 +738,7 @@ def render_best_duo(data: Dict[str, Any]) -> str:
     # Kicker.
     body.append(C.accent_bar(CONTENT_X, MARGIN, 210, Line.HEAVY))
     body.append(C.text(CONTENT_X, MARGIN + 92, "EL MEJOR DÚO", size=FontSize.H1,
-                       weight=FontWeight.HERO, fill=Color.WHITE, tracking=LetterSpacing.HEADLINE, upper=True))
+                       weight=FontWeight.DISPLAY, fill=Color.WHITE, tracking=LetterSpacing.HEADLINE, upper=True))
     body.append(C.text(CONTENT_X, MARGIN + 138, f"JORNADA {round_number}", size=FontSize.LABEL,
                        weight=FontWeight.LABEL, fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True))
 
