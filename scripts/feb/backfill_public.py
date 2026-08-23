@@ -157,6 +157,11 @@ def _http_post(base_url: str, api_key: str) -> Callable[[str, Dict[str, Any]], i
             with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310 (own ingest API)
                 return resp.status
         except urllib.error.HTTPError as exc:
+            try:
+                body = exc.read().decode("utf-8", "replace")[:500]
+                print(f"    ↳ {command_type} {exc.code}: {body}", file=sys.stderr)
+            except Exception:  # noqa: BLE001
+                pass
             return exc.code
     return post
 
