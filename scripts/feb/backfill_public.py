@@ -133,6 +133,16 @@ def _discover_tasks(season_code: str, competition: str, group: str) -> List[Matc
     return tasks
 
 
+def _clean_env(name: str) -> str:
+    """Env value with whitespace and stray surrounding quotes stripped.
+
+    Guards against pasting a key with smart/curly quotes (`“…”`), which would
+    otherwise crash urllib's latin-1 header encoding.
+    """
+    v = os.environ.get(name, "").strip()
+    return v.strip("'\"“”‘’`").strip()
+
+
 def _http_post(base_url: str, api_key: str) -> Callable[[str, Dict[str, Any]], int]:
     def post(command_type: str, command: Dict[str, Any]) -> int:
         body = json.dumps({"command_id": command["command_id"], "payload": command["payload"]})
@@ -170,8 +180,8 @@ def main() -> int:
     if args.dry_run:
         post: Callable[[str, Dict[str, Any]], int] = lambda ctype, cmd: 200  # noqa: E731
     else:
-        base = os.environ.get("FEB_TARGET_API")
-        key = os.environ.get("FEB_API_KEY")
+        base = _clean_env("FEB_TARGET_API")
+        key = _clean_env("FEB_API_KEY")
         if not base or not key:
             raise SystemExit("CONFIG_ERROR: FEB_TARGET_API and FEB_API_KEY are required")
         post = _http_post(base, key)
