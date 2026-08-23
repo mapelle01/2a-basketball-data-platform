@@ -18,6 +18,23 @@ class PlayerStats:
     turnovers: int = 0
     minutes: float = 0.0
     played_at: Optional[datetime] = None
+    # Shooting / fouls / +/- — OPTIONAL (None when a source doesn't carry them).
+    # The public FEB boxscore (Partido.aspx) supplies all of these; they ride in
+    # the persisted `data` JSON blob, so no schema change is needed to store them.
+    field_goals_made: Optional[int] = None
+    field_goals_attempted: Optional[int] = None
+    three_points_made: Optional[int] = None
+    three_points_attempted: Optional[int] = None
+    free_throws_made: Optional[int] = None
+    free_throws_attempted: Optional[int] = None
+    fouls: Optional[int] = None
+    plus_minus: Optional[int] = None
+
+    _SHOTS = (
+        ("field_goals_made", "field_goals_attempted"),
+        ("three_points_made", "three_points_attempted"),
+        ("free_throws_made", "free_throws_attempted"),
+    )
 
     def __post_init__(self) -> None:
         for field_name in ("points", "rebounds", "assists", "steals", "blocks", "turnovers"):
@@ -26,6 +43,15 @@ class PlayerStats:
                 raise ValueError(f"{field_name} must be non-negative")
         if self.minutes < 0:
             raise ValueError("minutes must be non-negative")
+        for made_f, att_f in self._SHOTS:
+            made, att = getattr(self, made_f), getattr(self, att_f)
+            for name, v in ((made_f, made), (att_f, att)):
+                if v is not None and v < 0:
+                    raise ValueError(f"{name} must be non-negative")
+            if made is not None and att is not None and att < made:
+                raise ValueError(f"{att_f} must be >= {made_f}")
+        if self.fouls is not None and self.fouls < 0:
+            raise ValueError("fouls must be non-negative")
 
     def to_dict(self) -> Dict[str, object]:
         return {
@@ -39,6 +65,14 @@ class PlayerStats:
             "turnovers": self.turnovers,
             "minutes": self.minutes,
             "played_at": self.played_at.isoformat() if self.played_at else None,
+            "field_goals_made": self.field_goals_made,
+            "field_goals_attempted": self.field_goals_attempted,
+            "three_points_made": self.three_points_made,
+            "three_points_attempted": self.three_points_attempted,
+            "free_throws_made": self.free_throws_made,
+            "free_throws_attempted": self.free_throws_attempted,
+            "fouls": self.fouls,
+            "plus_minus": self.plus_minus,
         }
 
 

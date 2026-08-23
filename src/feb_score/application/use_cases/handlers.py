@@ -207,6 +207,11 @@ class UpsertMatchStatsHandler:
     @staticmethod
     def _player_stats(raw: Dict[str, object]) -> PlayerStats:
         played_at = raw.get("played_at")
+
+        def _opt_int(key: str):
+            v = raw.get(key)
+            return int(v) if v is not None else None
+
         return PlayerStats(
             player_external_id=str(raw["player_external_id"]),
             team_external_id=str(raw["team_external_id"]),
@@ -218,6 +223,15 @@ class UpsertMatchStatsHandler:
             turnovers=int(raw.get("turnovers", 0)),
             minutes=float(raw.get("minutes", 0.0)),
             played_at=parse_iso_datetime(played_at) if played_at else None,
+            # Optional shooting/fouls/+/- (public boxscore); None when absent.
+            field_goals_made=_opt_int("field_goals_made"),
+            field_goals_attempted=_opt_int("field_goals_attempted"),
+            three_points_made=_opt_int("three_points_made"),
+            three_points_attempted=_opt_int("three_points_attempted"),
+            free_throws_made=_opt_int("free_throws_made"),
+            free_throws_attempted=_opt_int("free_throws_attempted"),
+            fouls=_opt_int("fouls"),
+            plus_minus=_opt_int("plus_minus"),
         )
 
 
