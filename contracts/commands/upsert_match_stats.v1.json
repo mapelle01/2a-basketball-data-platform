@@ -57,7 +57,15 @@
         "blocks":{"type":"integer","minimum":0},
         "turnovers":{"type":"integer","minimum":0},
         "minutes":{"type":"number","minimum":0},
-        "played_at":{"type":["string","null"],"format":"date-time"}
+        "played_at":{"type":["string","null"],"format":"date-time"},
+        "field_goals_made":{"type":["integer","null"],"minimum":0},
+        "field_goals_attempted":{"type":["integer","null"],"minimum":0},
+        "three_points_made":{"type":["integer","null"],"minimum":0},
+        "three_points_attempted":{"type":["integer","null"],"minimum":0},
+        "free_throws_made":{"type":["integer","null"],"minimum":0},
+        "free_throws_attempted":{"type":["integer","null"],"minimum":0},
+        "fouls":{"type":["integer","null"],"minimum":0},
+        "plus_minus":{"type":["integer","null"]}
       },
       "additionalProperties": false
     }

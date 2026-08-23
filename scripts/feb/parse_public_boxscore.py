@@ -21,8 +21,10 @@ import html as _html
 import re
 import urllib.error
 import urllib.request
+import uuid
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple
 
 DEFAULT_PUBLIC_MATCH_BASE = "https://baloncestoenvivo.feb.es/Partido.aspx"
 USER_AGENT = "feb-score-boxscore/1.0"
@@ -242,6 +244,92 @@ def parse_public_boxscore(html: str, match_external_id: str = "") -> PublicBoxsc
 
     return PublicBoxscore(match_external_id=match_external_id, home=home, away=away,
                           players=tuple(players))
+
+
+# ---------------------------------------------------------------------------
+# Mapper: PublicBoxscore -> upsert_match_stats command
+# ---------------------------------------------------------------------------
+# Mirrors scripts/feb/ingest_match.py's stats command shape (contract
+# commands/upsert_match_stats.v1.json), so a scraped boxscore ingests exactly
+# like a LiveStats one — but carrying per-player shooting/fouls/+/-. The command
+# id reuses the same UUIDv5 scheme, so public-HTML and LiveStats ingestion of the
+# same match are idempotent against each other.
+
+_COMMAND_VERSION = "1.0"
+_ACTOR = {"id": "ingestor-1", "role": "system"}
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _stats_command_id(season_code: str, competition_id: str, external_id: str) -> str:
+    name = f"{season_code}|{competition_id}|{external_id}"
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"feb-score-ingestor-stats:{name}"))
+
+
+def _team_stats_payload(team: PublicTeam, opponent_score: int,
+                        players: Tuple[PublicPlayerLine, ...]) -> Dict[str, Any]:
+    return {
+        "team_external_id": team.external_id,
+        "points_for": team.score,
+        "points_against": opponent_score,
+        "field_goals_made": sum(p.field_goals.made for p in players),
+        "field_goals_attempted": sum(p.field_goals.attempted for p in players),
+        "three_points_made": sum(p.three_points.made for p in players),
+        "three_points_attempted": sum(p.three_points.attempted for p in players),
+        "free_throws_made": sum(p.free_throws.made for p in players),
+        "free_throws_attempted": sum(p.free_throws.attempted for p in players),
+        "turnovers": sum(p.turnovers for p in players),
+        "rebounds": sum(p.rebounds_total for p in players),
+    }
+
+
+def _player_stats_payload(p: PublicPlayerLine, played_at: Optional[str]) -> Dict[str, Any]:
+    return {
+        "player_external_id": p.player_external_id,
+        "team_external_id": p.team_external_id,
+        "points": p.points,
+        "rebounds": p.rebounds_total,
+        "assists": p.assists,
+        "steals": p.steals,
+        "blocks": p.blocks,
+        "turnovers": p.turnovers,
+        "minutes": p.minutes,
+        "played_at": played_at,
+        "field_goals_made": p.field_goals.made,
+        "field_goals_attempted": p.field_goals.attempted,
+        "three_points_made": p.three_points.made,
+        "three_points_attempted": p.three_points.attempted,
+        "free_throws_made": p.free_throws.made,
+        "free_throws_attempted": p.free_throws.attempted,
+        "fouls": p.fouls_committed,
+        "plus_minus": p.plus_minus,
+    }
+
+
+def to_stats_command(box: PublicBoxscore, season_code: str, competition_id: str,
+                     played_at: Optional[str] = None,
+                     issued_at: Optional[str] = None) -> Dict[str, Any]:
+    """Build the ``upsert_match_stats`` command envelope from a public boxscore.
+
+    Team totals are aggregated from the player rows (+ the scoreboard scores).
+    ``played_at`` (ISO, from the calendar) flows to each player row; ``None`` is
+    valid per the contract. Idempotent via the shared stats command id."""
+    home_p = box.players_of(box.home.external_id)
+    away_p = box.players_of(box.away.external_id)
+    return {
+        "command_id": _stats_command_id(season_code, competition_id, box.match_external_id),
+        "meta": {"version": _COMMAND_VERSION, "issued_at": issued_at or _now_iso()},
+        "actor": dict(_ACTOR),
+        "payload": {
+            "match_external_id": box.match_external_id,
+            "season_code": season_code,
+            "home_team_stats": _team_stats_payload(box.home, box.away.score, home_p),
+            "away_team_stats": _team_stats_payload(box.away, box.home.score, away_p),
+            "player_stats": [_player_stats_payload(p, played_at) for p in box.players],
+        },
+    }
 
 
 def fetch_match_page(match_external_id: str, base_url: str = DEFAULT_PUBLIC_MATCH_BASE) -> str:
