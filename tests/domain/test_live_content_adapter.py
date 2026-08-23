@@ -261,3 +261,45 @@ class TestSeasonAggregate:
         assert p2.player_name is None                # no catalog record → None, not invented
         assert p2.team_external_id == "tB"           # team id resolved
         assert p2.team_name is None                  # team not in catalog → None, not invented
+
+
+class TestShootingFlowsThrough:
+    """Per-player shooting reaches the content lane end to end: PlayerStats →
+    adapter → PlayerLineInput → the (previously dormant) sharpshooter detector."""
+
+    def test_shooting_reaches_player_lines_and_lights_the_detector(self):
+        from feb_score.domain.content.insights import detect_sharpshooter
+
+        adapter, matches, stats, players, _ = _build_adapter()
+        matches.save(_finalized_match("m1", "979897", "983412", 88, 76))
+        players.save(_player("shooter", "C. Sáez"))
+        stats.save_player_stats("m1", SeasonCode(SEASON), [
+            PlayerStats(
+                player_external_id="shooter", team_external_id="979897",
+                points=27, rebounds=3, assists=2, steals=1, blocks=0, turnovers=2, minutes=30.0,
+                field_goals_made=10, field_goals_attempted=15,
+                three_points_made=8, three_points_attempted=12,
+                free_throws_made=1, free_throws_attempted=2, fouls=3, plus_minus=-4,
+            ),
+        ])
+        inputs = adapter.build_round_inputs(SEASON, ROUND)
+        line = next(p for p in inputs.player_lines if p.player_external_id == "shooter")
+        assert line.has_shooting is True
+        assert line.three_points_made == 8 and line.three_points_attempted == 12
+        assert line.three_point_pct == round(100 * 8 / 12, 1)
+
+        story = detect_sharpshooter(SEASON, ROUND, inputs.player_lines)
+        assert story is not None
+        assert story.facts["three_points_made"] == 8  # the lane is live on real data
+
+    def test_no_shooting_keeps_detector_dormant(self):
+        from feb_score.domain.content.insights import detect_sharpshooter
+
+        adapter, matches, stats, players, _ = _build_adapter()
+        matches.save(_finalized_match("m1", "979897", "983412", 88, 76))
+        stats.save_player_stats("m1", SeasonCode(SEASON), [
+            _player_stat("p", "979897", "m1", 30),  # no shooting fields
+        ])
+        inputs = adapter.build_round_inputs(SEASON, ROUND)
+        assert all(not p.has_shooting for p in inputs.player_lines)
+        assert detect_sharpshooter(SEASON, ROUND, inputs.player_lines) is None

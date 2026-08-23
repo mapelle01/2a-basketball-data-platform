@@ -253,6 +253,15 @@ class LiveContentAdapter:
                 blocks=ps.blocks,
                 turnovers=ps.turnovers,
                 minutes=ps.minutes,
+                # Shooting/fouls flow through when present (public boxscore); the
+                # shooting detectors self-skip while these are None.
+                field_goals_made=ps.field_goals_made,
+                field_goals_attempted=ps.field_goals_attempted,
+                three_points_made=ps.three_points_made,
+                three_points_attempted=ps.three_points_attempted,
+                free_throws_made=ps.free_throws_made,
+                free_throws_attempted=ps.free_throws_attempted,
+                fouls=ps.fouls,
             )
             for mid, ps in raw
         ]
