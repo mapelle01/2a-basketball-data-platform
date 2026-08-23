@@ -263,9 +263,59 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _command_id(season_code: str, competition_id: str, external_id: str) -> str:
+    """Same scheme as the LiveStats ingestor → the create command is idempotent
+    across the public and LiveStats paths for the same match."""
+    name = f"{season_code}|{competition_id}|{external_id}"
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"feb-score-ingestor:{name}"))
+
+
 def _stats_command_id(season_code: str, competition_id: str, external_id: str) -> str:
     name = f"{season_code}|{competition_id}|{external_id}"
     return str(uuid.uuid5(uuid.NAMESPACE_URL, f"feb-score-ingestor-stats:{name}"))
+
+
+def _finalize_command_id(season_code: str, competition_id: str, external_id: str) -> str:
+    name = f"{season_code}|{competition_id}|{external_id}"
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"feb-score-ingestor-finalize:{name}"))
+
+
+def to_match_command(box: PublicBoxscore, season_code: str, competition_id: str,
+                     round_number: Optional[int] = None, scheduled_at: Optional[str] = None,
+                     source_url: Optional[str] = None, issued_at: Optional[str] = None) -> Dict[str, Any]:
+    """Build the ``create_or_update_match`` command from the public boxscore.
+    Team ids/names come from the page; round + scheduled_at from the calendar."""
+    now = issued_at or _now_iso()
+    payload: Dict[str, Any] = {
+        "external_id": box.match_external_id,
+        "competition_id": competition_id,
+        "season_code": season_code,
+        "scheduled_at": scheduled_at or now,
+        "home_team": {"external_id": box.home.external_id, "name": box.home.name},
+        "away_team": {"external_id": box.away.external_id, "name": box.away.name},
+        "source": {"id": "feb-public", "fetched_at": now,
+                   "s3_path": source_url or f"https://baloncestoenvivo.feb.es/Partido.aspx?p={box.match_external_id}"},
+    }
+    if round_number is not None:
+        payload["round_number"] = round_number
+    return {
+        "command_id": _command_id(season_code, competition_id, box.match_external_id),
+        "meta": {"version": _COMMAND_VERSION, "issued_at": now},
+        "actor": dict(_ACTOR),
+        "payload": payload,
+    }
+
+
+def to_finalize_command(match_external_id: str, season_code: str, competition_id: str,
+                        strict: bool = False, issued_at: Optional[str] = None) -> Dict[str, Any]:
+    """Build the ``finalize_match`` command — a backfilled match is definitively
+    played, so it should end FINALIZED (the content engine needs that state)."""
+    return {
+        "command_id": _finalize_command_id(season_code, competition_id, match_external_id),
+        "meta": {"version": _COMMAND_VERSION, "issued_at": issued_at or _now_iso()},
+        "actor": dict(_ACTOR),
+        "payload": {"match_external_id": match_external_id, "validation_context": {"strict": strict}},
+    }
 
 
 def _team_stats_payload(team: PublicTeam, opponent_score: int,
