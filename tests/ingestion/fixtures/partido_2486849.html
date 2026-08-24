@@ -1,0 +1,1331 @@
+
+<!DOCTYPE html>
+
+<html>
+<head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><title>
+	Competiciones FEB
+</title><meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <script src="https://baloncestoenvivo.feb.es/scripts/jquery-1.11.0.js"></script>
+    <script src="https://baloncestoenvivo.feb.es/scripts/basics.js?v=23092020"></script>
+
+<!-- Start cookieyes banner --> <script id="cookieyes" type="text/javascript" src="https://cdn-cookieyes.com/client_data/a35cb4c6be15abd5570b413e1d031eb5/script.js"></script> <!-- End cookieyes banner -->
+    
+    <!--<link href="https://baloncestoenvivo.feb.es/styles/theme.css?v=02102020" rel="stylesheet" />-->
+	<link href="https://baloncestoenvivo.feb.es/styles/theme.css?v=30122024" rel="stylesheet" />
+
+
+    <link href="https://www.feb.es/favicon.ico" type="image/x-icon" rel="shortcut icon" />
+    <script src="https://baloncestoenvivo.feb.es/scripts/handlebars.js"></script>  
+    <script src="https://baloncestoenvivo.feb.es/scripts/moment.js"></script>  
+    <script src="https://baloncestoenvivo.feb.es/scripts/plug.carrusel.js?v=23092020"></script>
+    <script src="https://baloncestoenvivo.feb.es/scripts/widget.handlebars.helpers.js?v=20251020"></script>
+    <script src="https://baloncestoenvivo.feb.es/scripts/widget.launcher.js?v=20251022"></script>
+    
+    <script src="https://baloncestoenvivo.feb.es/scripts/ShotChart.js?v=23092020"></script>
+    <link href="https://baloncestoenvivo.feb.es/styles/shotcharts.css?v=23092020" rel="stylesheet" />
+ 
+<style> 
+    .porcentaje {
+        display:none;
+        color:red;
+    }
+    #EstaticoPanel.js_on,
+    #DirectoPanel.js_on{
+        display:block;
+    }
+    #EstaticoPanel.js_off,
+    #DirectoPanel.js_off{
+        display:none;
+    }    
+    @media print {
+    //@page {size: landscape}
+    * {
+       height: auto; 
+       margin: 0 !important; 
+       padding: 0 !important;
+       overflow: auto;
+       overflow: visible important!;
+    }
+    body * {
+       visibility: hidden;       
+    }
+    #loader-data, #loader-data * {
+       visibility: visible;
+    }   
+</style>
+
+<script>
+
+    $(function () {
+
+        $('.slider').on("click", function () {
+
+            if ($('.porcentaje:visible').length > 0) {
+                $('.porcentaje').hide();
+            }
+            else {
+                $('.porcentaje').show();
+            }
+
+        });
+
+    });
+</script>
+
+
+    <script>
+        $(function ($) {
+            $('#site-btn-menu').on('click', function () {
+                var container = $('#containermenu');
+
+                if (container.find('.wrapper-menu').hasClass('d_on')) {
+                    $('#site-btn-menu').removeClass('d_on');
+                    $('#site-btn-menu[class=""]').removeAttr('class');//if is empty
+
+                    container.find('.wrapper-menu').removeClass('d_on');
+                    container.find('.wrapper-menu[class=""]').removeAttr('class');//if is empty
+                    container.find('.wrapper-menu').removeAttr('style');//clean
+                    container.find('.site-menu').removeAttr('style');//clean
+                } else {
+                    $('#site-btn-menu').addClass('d_on');
+                    container.find('.wrapper-menu').addClass('d_on');
+                    var alto = $('body').outerHeight(true) - $('#site-head').outerHeight(true);
+                    container.find('.wrapper-menu').attr('style', 'min-height:' + alto + 'px;');
+                    container.find('.site-menu').attr('style', 'min-height:' + alto + 'px;');
+                }
+
+            });
+        });
+    </script>
+</head>
+<body>
+    <form name="aspnetForm" method="post" action="/partido/2486849" id="aspnetForm">
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="/wEPDwULLTE2NzQwNzA2ODUPZBYCZg9kFgICAw8WAh4GYWN0aW9uBRAvcGFydGlkby8yNDg2ODQ5FgQCAQ9kFgJmDxYCHgtfIUl0ZW1Db3VudAIYFjBmD2QWBAIBDw8WAh4ISW1hZ2VVcmwFLmh0dHBzOi8vaW1hZ2VuZXMuZmViLmVzL0ltYWdlbi5hc3B4P2c9NCZ0PTIwMjZkZAICDxUFCUxGIEVOREVTQVBodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL2VzdGFkaXN0aWNhcy5hc3B4P2c9NCZhbXA7dD0yMDI2JmFtcDtubT1sZmVuZGVzYU5odHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL3Jlc3VsdGFkb3MuYXNweD9nPTQmYW1wO3Q9MjAyNiZhbXA7bm09bGZlbmRlc2FOaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9jYWxlbmRhcmlvLmFzcHg/Zz00JmFtcDt0PTIwMjYmYW1wO25tPWxmZW5kZXNhTGh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvcmFua2luZ3MuYXNweD9nPTQmYW1wO3Q9MjAyNiZhbXA7bm09bGZlbmRlc2FkAgEPZBYEAgEPDxYCHwIFLmh0dHBzOi8vaW1hZ2VuZXMuZmViLmVzL0ltYWdlbi5hc3B4P2c9MSZ0PTIwMjZkZAICDxUFC1BSSU1FUkEgRkVCUmh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvZXN0YWRpc3RpY2FzLmFzcHg/Zz0xJmFtcDt0PTIwMjYmYW1wO25tPXByaW1lcmFmZWJQaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9yZXN1bHRhZG9zLmFzcHg/Zz0xJmFtcDt0PTIwMjYmYW1wO25tPXByaW1lcmFmZWJQaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9jYWxlbmRhcmlvLmFzcHg/Zz0xJmFtcDt0PTIwMjYmYW1wO25tPXByaW1lcmFmZWJOaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9yYW5raW5ncy5hc3B4P2c9MSZhbXA7dD0yMDI2JmFtcDtubT1wcmltZXJhZmViZAICD2QWBAIBDw8WAh8CBS9odHRwczovL2ltYWdlbmVzLmZlYi5lcy9JbWFnZW4uYXNweD9nPTY3JnQ9MjAyNmRkAgIPFQUMTEYgQ0hBTExFTkdFVGh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvZXN0YWRpc3RpY2FzLmFzcHg/Zz02NyZhbXA7dD0yMDI2JmFtcDtubT1sZmNoYWxsZW5nZVJodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL3Jlc3VsdGFkb3MuYXNweD9nPTY3JmFtcDt0PTIwMjYmYW1wO25tPWxmY2hhbGxlbmdlUmh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvY2FsZW5kYXJpby5hc3B4P2c9NjcmYW1wO3Q9MjAyNiZhbXA7bm09bGZjaGFsbGVuZ2VQaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9yYW5raW5ncy5hc3B4P2c9NjcmYW1wO3Q9MjAyNiZhbXA7bm09bGZjaGFsbGVuZ2VkAgMPZBYEAgEPDxYCHwIFLmh0dHBzOi8vaW1hZ2VuZXMuZmViLmVzL0ltYWdlbi5hc3B4P2c9MiZ0PTIwMjZkZAICDxUFC1NFR1VOREEgRkVCUmh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvZXN0YWRpc3RpY2FzLmFzcHg/Zz0yJmFtcDt0PTIwMjYmYW1wO25tPXNlZ3VuZGFmZWJQaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9yZXN1bHRhZG9zLmFzcHg/Zz0yJmFtcDt0PTIwMjYmYW1wO25tPXNlZ3VuZGFmZWJQaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9jYWxlbmRhcmlvLmFzcHg/Zz0yJmFtcDt0PTIwMjYmYW1wO25tPXNlZ3VuZGFmZWJOaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9yYW5raW5ncy5hc3B4P2c9MiZhbXA7dD0yMDI2JmFtcDtubT1zZWd1bmRhZmViZAIED2QWBAIBDw8WAh8CBS5odHRwczovL2ltYWdlbmVzLmZlYi5lcy9JbWFnZW4uYXNweD9nPTkmdD0yMDI2ZGQCAg8VBQZMLkYuLTJLaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9lc3RhZGlzdGljYXMuYXNweD9nPTkmYW1wO3Q9MjAyNiZhbXA7bm09bGYySWh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvcmVzdWx0YWRvcy5hc3B4P2c9OSZhbXA7dD0yMDI2JmFtcDtubT1sZjJJaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9jYWxlbmRhcmlvLmFzcHg/Zz05JmFtcDt0PTIwMjYmYW1wO25tPWxmMkdodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL3JhbmtpbmdzLmFzcHg/Zz05JmFtcDt0PTIwMjYmYW1wO25tPWxmMmQCBQ9kFgQCAQ8PFgIfAgUuaHR0cHM6Ly9pbWFnZW5lcy5mZWIuZXMvSW1hZ2VuLmFzcHg/Zz0zJnQ9MjAyNmRkAgIPFQULVEVSQ0VSQSBGRUJSaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9lc3RhZGlzdGljYXMuYXNweD9nPTMmYW1wO3Q9MjAyNiZhbXA7bm09dGVyY2VyYWZlYlBodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL3Jlc3VsdGFkb3MuYXNweD9nPTMmYW1wO3Q9MjAyNiZhbXA7bm09dGVyY2VyYWZlYlBodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL2NhbGVuZGFyaW8uYXNweD9nPTMmYW1wO3Q9MjAyNiZhbXA7bm09dGVyY2VyYWZlYk5odHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL3JhbmtpbmdzLmFzcHg/Zz0zJmFtcDt0PTIwMjYmYW1wO25tPXRlcmNlcmFmZWJkAgYPZBYEAgEPDxYCHwIFL2h0dHBzOi8vaW1hZ2VuZXMuZmViLmVzL0ltYWdlbi5hc3B4P2c9NzQmdD0yMDI1ZGQCAg8VBQZMSUdBIFVOaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9lc3RhZGlzdGljYXMuYXNweD9nPTc0JmFtcDt0PTIwMjUmYW1wO25tPWxpZ2F1TGh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvcmVzdWx0YWRvcy5hc3B4P2c9NzQmYW1wO3Q9MjAyNSZhbXA7bm09bGlnYXVMaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9jYWxlbmRhcmlvLmFzcHg/Zz03NCZhbXA7dD0yMDI1JmFtcDtubT1saWdhdUpodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL3JhbmtpbmdzLmFzcHg/Zz03NCZhbXA7dD0yMDI1JmFtcDtubT1saWdhdWQCBw9kFgQCAQ8PFgIfAgUvaHR0cHM6Ly9pbWFnZW5lcy5mZWIuZXMvSW1hZ2VuLmFzcHg/Zz03MyZ0PTIwMjZkZAICDxUFDENPUEEgRVNQQcORQVJodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL2VzdGFkaXN0aWNhcy5hc3B4P2c9NzMmYW1wO3Q9MjAyNiZhbXA7bm09Y29wYWVzcGFhUGh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvcmVzdWx0YWRvcy5hc3B4P2c9NzMmYW1wO3Q9MjAyNiZhbXA7bm09Y29wYWVzcGFhUGh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvY2FsZW5kYXJpby5hc3B4P2c9NzMmYW1wO3Q9MjAyNiZhbXA7bm09Y29wYWVzcGFhTmh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvcmFua2luZ3MuYXNweD9nPTczJmFtcDt0PTIwMjYmYW1wO25tPWNvcGFlc3BhYWQCCA9kFgQCAQ8PFgIfAgUvaHR0cHM6Ly9pbWFnZW5lcy5mZWIuZXMvSW1hZ2VuLmFzcHg/Zz0xOSZ0PTIwMjVkZAICDxUFEUNFIFNTQUEgTWluaSBNYXMuVmh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvZXN0YWRpc3RpY2FzLmFzcHg/Zz0xOSZhbXA7dD0yMDI1JmFtcDtubT1jZXNzYWFtaW5pbWFzVGh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvcmVzdWx0YWRvcy5hc3B4P2c9MTkmYW1wO3Q9MjAyNSZhbXA7bm09Y2Vzc2FhbWluaW1hc1RodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL2NhbGVuZGFyaW8uYXNweD9nPTE5JmFtcDt0PTIwMjUmYW1wO25tPWNlc3NhYW1pbmltYXNSaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9yYW5raW5ncy5hc3B4P2c9MTkmYW1wO3Q9MjAyNSZhbXA7bm09Y2Vzc2FhbWluaW1hc2QCCQ9kFgQCAQ8PFgIfAgUvaHR0cHM6Ly9pbWFnZW5lcy5mZWIuZXMvSW1hZ2VuLmFzcHg/Zz0yMCZ0PTIwMjVkZAICDxUFEUNFIFNTQUEgTWluaSBGZW0uVmh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvZXN0YWRpc3RpY2FzLmFzcHg/Zz0yMCZhbXA7dD0yMDI1JmFtcDtubT1jZXNzYWFtaW5pZmVtVGh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvcmVzdWx0YWRvcy5hc3B4P2c9MjAmYW1wO3Q9MjAyNSZhbXA7bm09Y2Vzc2FhbWluaWZlbVRodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL2NhbGVuZGFyaW8uYXNweD9nPTIwJmFtcDt0PTIwMjUmYW1wO25tPWNlc3NhYW1pbmlmZW1SaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9yYW5raW5ncy5hc3B4P2c9MjAmYW1wO3Q9MjAyNSZhbXA7bm09Y2Vzc2FhbWluaWZlbWQCCg9kFgQCAQ8PFgIfAgUvaHR0cHM6Ly9pbWFnZW5lcy5mZWIuZXMvSW1hZ2VuLmFzcHg/Zz00MCZ0PTIwMjVkZAICDxUFE0NFIFNTQUEgQ2FkZXRlIE1hcy5YaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9lc3RhZGlzdGljYXMuYXNweD9nPTQwJmFtcDt0PTIwMjUmYW1wO25tPWNlc3NhYWNhZGV0ZW1hc1ZodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL3Jlc3VsdGFkb3MuYXNweD9nPTQwJmFtcDt0PTIwMjUmYW1wO25tPWNlc3NhYWNhZGV0ZW1hc1ZodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL2NhbGVuZGFyaW8uYXNweD9nPTQwJmFtcDt0PTIwMjUmYW1wO25tPWNlc3NhYWNhZGV0ZW1hc1RodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL3JhbmtpbmdzLmFzcHg/Zz00MCZhbXA7dD0yMDI1JmFtcDtubT1jZXNzYWFjYWRldGVtYXNkAgsPZBYEAgEPDxYCHwIFL2h0dHBzOi8vaW1hZ2VuZXMuZmViLmVzL0ltYWdlbi5hc3B4P2c9NDEmdD0yMDI1ZGQCAg8VBRNDRSBTU0FBIENhZGV0ZSBGZW0uWGh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvZXN0YWRpc3RpY2FzLmFzcHg/Zz00MSZhbXA7dD0yMDI1JmFtcDtubT1jZXNzYWFjYWRldGVmZW1WaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9yZXN1bHRhZG9zLmFzcHg/Zz00MSZhbXA7dD0yMDI1JmFtcDtubT1jZXNzYWFjYWRldGVmZW1WaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9jYWxlbmRhcmlvLmFzcHg/Zz00MSZhbXA7dD0yMDI1JmFtcDtubT1jZXNzYWFjYWRldGVmZW1UaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9yYW5raW5ncy5hc3B4P2c9NDEmYW1wO3Q9MjAyNSZhbXA7bm09Y2Vzc2FhY2FkZXRlZmVtZAIMD2QWBAIBDw8WAh8CBS9odHRwczovL2ltYWdlbmVzLmZlYi5lcy9JbWFnZW4uYXNweD9nPTI1JnQ9MjAyNWRkAgIPFQUVQ0UgU1NBQSBJbmZhbnRpbCBNYXMuWmh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvZXN0YWRpc3RpY2FzLmFzcHg/Zz0yNSZhbXA7dD0yMDI1JmFtcDtubT1jZXNzYWFpbmZhbnRpbG1hc1hodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL3Jlc3VsdGFkb3MuYXNweD9nPTI1JmFtcDt0PTIwMjUmYW1wO25tPWNlc3NhYWluZmFudGlsbWFzWGh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvY2FsZW5kYXJpby5hc3B4P2c9MjUmYW1wO3Q9MjAyNSZhbXA7bm09Y2Vzc2FhaW5mYW50aWxtYXNWaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9yYW5raW5ncy5hc3B4P2c9MjUmYW1wO3Q9MjAyNSZhbXA7bm09Y2Vzc2FhaW5mYW50aWxtYXNkAg0PZBYEAgEPDxYCHwIFL2h0dHBzOi8vaW1hZ2VuZXMuZmViLmVzL0ltYWdlbi5hc3B4P2c9MjYmdD0yMDI1ZGQCAg8VBRVDRSBTU0FBIEluZmFudGlsIEZlbS5aaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9lc3RhZGlzdGljYXMuYXNweD9nPTI2JmFtcDt0PTIwMjUmYW1wO25tPWNlc3NhYWluZmFudGlsZmVtWGh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvcmVzdWx0YWRvcy5hc3B4P2c9MjYmYW1wO3Q9MjAyNSZhbXA7bm09Y2Vzc2FhaW5mYW50aWxmZW1YaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9jYWxlbmRhcmlvLmFzcHg/Zz0yNiZhbXA7dD0yMDI1JmFtcDtubT1jZXNzYWFpbmZhbnRpbGZlbVZodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL3JhbmtpbmdzLmFzcHg/Zz0yNiZhbXA7dD0yMDI1JmFtcDtubT1jZXNzYWFpbmZhbnRpbGZlbWQCDg9kFgQCAQ8PFgIfAgUvaHR0cHM6Ly9pbWFnZW5lcy5mZWIuZXMvSW1hZ2VuLmFzcHg/Zz01NSZ0PTIwMjVkZAICDxUFEk1JTklDT1BBIExGIEVOREVTQVlodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL2VzdGFkaXN0aWNhcy5hc3B4P2c9NTUmYW1wO3Q9MjAyNSZhbXA7bm09bWluaWNvcGFsZmVuZGVzYVdodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL3Jlc3VsdGFkb3MuYXNweD9nPTU1JmFtcDt0PTIwMjUmYW1wO25tPW1pbmljb3BhbGZlbmRlc2FXaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9jYWxlbmRhcmlvLmFzcHg/Zz01NSZhbXA7dD0yMDI1JmFtcDtubT1taW5pY29wYWxmZW5kZXNhVWh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvcmFua2luZ3MuYXNweD9nPTU1JmFtcDt0PTIwMjUmYW1wO25tPW1pbmljb3BhbGZlbmRlc2FkAg8PZBYEAgEPDxYCHwIFL2h0dHBzOi8vaW1hZ2VuZXMuZmViLmVzL0ltYWdlbi5hc3B4P2c9NDQmdD0yMDI1ZGQCAg8VBSBGYXNlIEZpbmFsIDHCqiBEaXZpc2nDs24gRmVtZW5pbmFodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL2VzdGFkaXN0aWNhcy5hc3B4P2c9NDQmYW1wO3Q9MjAyNSZhbXA7bm09ZmFzZWZpbmFsMWRpdmlzaW5mZW1lbmluX2h0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvcmVzdWx0YWRvcy5hc3B4P2c9NDQmYW1wO3Q9MjAyNSZhbXA7bm09ZmFzZWZpbmFsMWRpdmlzaW5mZW1lbmluX2h0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvY2FsZW5kYXJpby5hc3B4P2c9NDQmYW1wO3Q9MjAyNSZhbXA7bm09ZmFzZWZpbmFsMWRpdmlzaW5mZW1lbmluXWh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvcmFua2luZ3MuYXNweD9nPTQ0JmFtcDt0PTIwMjUmYW1wO25tPWZhc2VmaW5hbDFkaXZpc2luZmVtZW5pbmQCEA9kFgQCAQ8PFgIfAgUvaHR0cHM6Ly9pbWFnZW5lcy5mZWIuZXMvSW1hZ2VuLmFzcHg/Zz0yMSZ0PTIwMjVkZAICDxUFFEMgRVNQIENMVUJFUyBKUiBNQVNDWWh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvZXN0YWRpc3RpY2FzLmFzcHg/Zz0yMSZhbXA7dD0yMDI1JmFtcDtubT1jZXNwY2x1YmVzanJtYXNjV2h0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvcmVzdWx0YWRvcy5hc3B4P2c9MjEmYW1wO3Q9MjAyNSZhbXA7bm09Y2VzcGNsdWJlc2pybWFzY1dodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL2NhbGVuZGFyaW8uYXNweD9nPTIxJmFtcDt0PTIwMjUmYW1wO25tPWNlc3BjbHViZXNqcm1hc2NVaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9yYW5raW5ncy5hc3B4P2c9MjEmYW1wO3Q9MjAyNSZhbXA7bm09Y2VzcGNsdWJlc2pybWFzY2QCEQ9kFgQCAQ8PFgIfAgUvaHR0cHM6Ly9pbWFnZW5lcy5mZWIuZXMvSW1hZ2VuLmFzcHg/Zz0yMiZ0PTIwMjVkZAICDxUFE0MgRVNQIENMVUJFUyBKUiBGRU1YaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9lc3RhZGlzdGljYXMuYXNweD9nPTIyJmFtcDt0PTIwMjUmYW1wO25tPWNlc3BjbHViZXNqcmZlbVZodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL3Jlc3VsdGFkb3MuYXNweD9nPTIyJmFtcDt0PTIwMjUmYW1wO25tPWNlc3BjbHViZXNqcmZlbVZodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL2NhbGVuZGFyaW8uYXNweD9nPTIyJmFtcDt0PTIwMjUmYW1wO25tPWNlc3BjbHViZXNqcmZlbVRodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL3JhbmtpbmdzLmFzcHg/Zz0yMiZhbXA7dD0yMDI1JmFtcDtubT1jZXNwY2x1YmVzanJmZW1kAhIPZBYEAgEPDxYCHwIFL2h0dHBzOi8vaW1hZ2VuZXMuZmViLmVzL0ltYWdlbi5hc3B4P2c9MzUmdD0yMDI1ZGQCAg8VBRVDIEVTUCBDTFVCRVMgQ0FEIE1BU0NaaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9lc3RhZGlzdGljYXMuYXNweD9nPTM1JmFtcDt0PTIwMjUmYW1wO25tPWNlc3BjbHViZXNjYWRtYXNjWGh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvcmVzdWx0YWRvcy5hc3B4P2c9MzUmYW1wO3Q9MjAyNSZhbXA7bm09Y2VzcGNsdWJlc2NhZG1hc2NYaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9jYWxlbmRhcmlvLmFzcHg/Zz0zNSZhbXA7dD0yMDI1JmFtcDtubT1jZXNwY2x1YmVzY2FkbWFzY1ZodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL3JhbmtpbmdzLmFzcHg/Zz0zNSZhbXA7dD0yMDI1JmFtcDtubT1jZXNwY2x1YmVzY2FkbWFzY2QCEw9kFgQCAQ8PFgIfAgUvaHR0cHM6Ly9pbWFnZW5lcy5mZWIuZXMvSW1hZ2VuLmFzcHg/Zz0zNiZ0PTIwMjVkZAICDxUFFEMgRVNQIENMVUJFUyBDQUQgRkVNWWh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvZXN0YWRpc3RpY2FzLmFzcHg/Zz0zNiZhbXA7dD0yMDI1JmFtcDtubT1jZXNwY2x1YmVzY2FkZmVtV2h0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvcmVzdWx0YWRvcy5hc3B4P2c9MzYmYW1wO3Q9MjAyNSZhbXA7bm09Y2VzcGNsdWJlc2NhZGZlbVdodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL2NhbGVuZGFyaW8uYXNweD9nPTM2JmFtcDt0PTIwMjUmYW1wO25tPWNlc3BjbHViZXNjYWRmZW1VaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9yYW5raW5ncy5hc3B4P2c9MzYmYW1wO3Q9MjAyNSZhbXA7bm09Y2VzcGNsdWJlc2NhZGZlbWQCFA9kFgQCAQ8PFgIfAgUvaHR0cHM6Ly9pbWFnZW5lcy5mZWIuZXMvSW1hZ2VuLmFzcHg/Zz0zNyZ0PTIwMjVkZAICDxUFFUMgRVNQIENMVUJFUyBJTkYgTUFTQ1podHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL2VzdGFkaXN0aWNhcy5hc3B4P2c9MzcmYW1wO3Q9MjAyNSZhbXA7bm09Y2VzcGNsdWJlc2luZm1hc2NYaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9yZXN1bHRhZG9zLmFzcHg/Zz0zNyZhbXA7dD0yMDI1JmFtcDtubT1jZXNwY2x1YmVzaW5mbWFzY1hodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL2NhbGVuZGFyaW8uYXNweD9nPTM3JmFtcDt0PTIwMjUmYW1wO25tPWNlc3BjbHViZXNpbmZtYXNjVmh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvcmFua2luZ3MuYXNweD9nPTM3JmFtcDt0PTIwMjUmYW1wO25tPWNlc3BjbHViZXNpbmZtYXNjZAIVD2QWBAIBDw8WAh8CBS9odHRwczovL2ltYWdlbmVzLmZlYi5lcy9JbWFnZW4uYXNweD9nPTM4JnQ9MjAyNWRkAgIPFQUUQyBFU1AgQ0xVQkVTIElORiBGRU1ZaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9lc3RhZGlzdGljYXMuYXNweD9nPTM4JmFtcDt0PTIwMjUmYW1wO25tPWNlc3BjbHViZXNpbmZmZW1XaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9yZXN1bHRhZG9zLmFzcHg/Zz0zOCZhbXA7dD0yMDI1JmFtcDtubT1jZXNwY2x1YmVzaW5mZmVtV2h0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvY2FsZW5kYXJpby5hc3B4P2c9MzgmYW1wO3Q9MjAyNSZhbXA7bm09Y2VzcGNsdWJlc2luZmZlbVVodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL3JhbmtpbmdzLmFzcHg/Zz0zOCZhbXA7dD0yMDI1JmFtcDtubT1jZXNwY2x1YmVzaW5mZmVtZAIWD2QWBAIBDw8WAh8CBS9odHRwczovL2ltYWdlbmVzLmZlYi5lcy9JbWFnZW4uYXNweD9nPTcxJnQ9MjAyNWRkAgIPFQUWQyBFU1AgQ0xVQkVTIE1JTkkgTUFTQ1todHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL2VzdGFkaXN0aWNhcy5hc3B4P2c9NzEmYW1wO3Q9MjAyNSZhbXA7bm09Y2VzcGNsdWJlc21pbmltYXNjWWh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvcmVzdWx0YWRvcy5hc3B4P2c9NzEmYW1wO3Q9MjAyNSZhbXA7bm09Y2VzcGNsdWJlc21pbmltYXNjWWh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvY2FsZW5kYXJpby5hc3B4P2c9NzEmYW1wO3Q9MjAyNSZhbXA7bm09Y2VzcGNsdWJlc21pbmltYXNjV2h0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvcmFua2luZ3MuYXNweD9nPTcxJmFtcDt0PTIwMjUmYW1wO25tPWNlc3BjbHViZXNtaW5pbWFzY2QCFw9kFgQCAQ8PFgIfAgUvaHR0cHM6Ly9pbWFnZW5lcy5mZWIuZXMvSW1hZ2VuLmFzcHg/Zz03MiZ0PTIwMjVkZAICDxUFFUMgRVNQIENMVUJFUyBNSU5JIEZFTVpodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL2VzdGFkaXN0aWNhcy5hc3B4P2c9NzImYW1wO3Q9MjAyNSZhbXA7bm09Y2VzcGNsdWJlc21pbmlmZW1YaHR0cHM6Ly9iYWxvbmNlc3RvZW52aXZvLmZlYi5lcy9yZXN1bHRhZG9zLmFzcHg/Zz03MiZhbXA7dD0yMDI1JmFtcDtubT1jZXNwY2x1YmVzbWluaWZlbVhodHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL2NhbGVuZGFyaW8uYXNweD9nPTcyJmFtcDt0PTIwMjUmYW1wO25tPWNlc3BjbHViZXNtaW5pZmVtVmh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvcmFua2luZ3MuYXNweD9nPTcyJmFtcDt0PTIwMjUmYW1wO25tPWNlc3BjbHViZXNtaW5pZmVtZAICD2QWBAIBD2QWCAIBD2QWAmYPDxYCHwIFMmh0dHBzOi8vaW1hZ2VuZXMuZmViLmVzL0ltYWdlbi5hc3B4P3A9MjQ4Njg0OSZ0aT0wZGQCAw8WAh4EVGV4dAUXRXN0YWTDrXN0aWNhIGRlIHBhcnRpZG9kAgUPFgIfAwULU0VHVU5EQSBGRUJkAgcPFgIfAwUJMjAyNS8yMDI2ZAIFD2QWMmYPDxYCHwIFMWh0dHBzOi8vaW1hZ2VuZXMuZmViLmVzL0ltYWdlbi5hc3B4P2k9OTgxNTE0JnRpPTFkZAIBDw8WAh4LTmF2aWdhdGVVcmwFNGh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvRXF1aXBvLmFzcHg/aT05ODE1MTRkFgJmDw8WAh8DBRpTUEFOSVNIIEJBU0tFVEJBTEwgQUNBREVNWWRkAgIPFgIfAwUCNzhkAgMPFgIfAwUCNjZkAgQPDxYCHwQFNGh0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvRXF1aXBvLmFzcHg/aT05ODEyODFkFgJmDw8WAh8DBRRMT0JFIEhVRVNDQSBMQSBNQUdJQWRkAgUPDxYCHwIFMWh0dHBzOi8vaW1hZ2VuZXMuZmViLmVzL0ltYWdlbi5hc3B4P2k9OTgxMjgxJnRpPTFkZAIGDxYCHwMFAjIyZAIHDxYCHwMFAjE3ZAIIDxYCHwMFAjI4ZAIJDxYCHwMFAjExZAILDxYCHwMFAjIyZAIMDxYCHwMFAjE1ZAINDxYCHwMFAjE0ZAIODxYCHwMFAjE1ZAIQD2QWEAIBDxYCHwMFAjIyZAIDDxYCHwMFAjIyZAIFDxYCHwMFAjE3ZAIHDxYCHwMFAjE1ZAIJDxYCHwMFAjI4ZAILDxYCHwMFAjE0ZAINDxYCHwMFAjExZAIPDxYCHwMFAjE1ZAIRDxYCHwMFCjA0LzEwLzIwMjVkAhIPFgIfAwUFMTg6MzBkAhMPFgIfAwUZTEFOR0EgREUgTUFSVElOLCBBU1VOQ0lPTmQCFA8WAh8DBRpBUkdVRUxMRVMgRE9NSU5HVUVaLCBSVUJFTmQCFQ8WAh8DZWQCFg8WAh8DBR1Qb2xpZGVwb3J0aXZvIENhbmFsIElzYWJlbCBJSWQCFw8WAh8DBQZNYWRyaWRkAhgPFgIfAwUGTWFkcmlkZAIaD2QWAgIDDxYCHwECCRYUAgEPZBYIAgEPFgIeB1Zpc2libGVoZAICDxUBATJkAgMPDxYEHwMFFEFSUVVFUyBMT1BFWiwgRURVQVJEHwQFP2h0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvSnVnYWRvci5hc3B4P2k9OTgxNTE0JmM9MTU0OTc0MWRkAgQPFRMFMjI6NTACMTEnMi81IDxzcGFuIGNsYXNzPSdwb3JjZW50YWplJz40MCU8L3NwYW4+JzIvNCA8c3BhbiBjbGFzcz0ncG9yY2VudGFqZSc+NTAlPC9zcGFuPik0LzkgPHNwYW4gY2xhc3M9J3BvcmNlbnRhamUnPjQ0LDQlPC9zcGFuPicxLzQgPHNwYW4gY2xhc3M9J3BvcmNlbnRhamUnPjI1JTwvc3Bhbj4BMQEzATQBMQEwATEBMAEwATABMgEzATgDLTEwZAICD2QWBgICDxUBATZkAgMPDxYEHwMFDFBVSURFVCwgSkFBTh8EBT9odHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL0p1Z2Fkb3IuYXNweD9pPTk4MTUxNCZjPTI0MzY2NDBkZAIEDxUTBTM0OjAwAjExKDMvMyA8c3BhbiBjbGFzcz0ncG9yY2VudGFqZSc+MTAwJTwvc3Bhbj4mMC83IDxzcGFuIGNsYXNzPSdwb3JjZW50YWplJz4wJTwvc3Bhbj4oMy8xMCA8c3BhbiBjbGFzcz0ncG9yY2VudGFqZSc+MzAlPC9zcGFuPig1LzUgPHNwYW4gY2xhc3M9J3BvcmNlbnRhamUnPjEwMCU8L3NwYW4+ATEBNQE2AjEyATABMQEwATABMQEyATMCMjICMjFkAgMPZBYGAgIPFQEBN2QCAw8PFgQfAwUYVFJBT1JFLCBTT1VMRVlNQU5FIFBJTkRBHwQFP2h0dHBzOi8vYmFsb25jZXN0b2Vudml2by5mZWIuZXMvSnVnYWRvci5hc3B4P2k9OTgxNTE0JmM9MjMxMjEyNGRkAgQPFRMFMTY6MzIBNSYwLzAgPHNwYW4gY2xhc3M9J3BvcmNlbnRhamUnPjAlPC9zcGFuPiYwLzAgPHNwYW4gY2xhc3M9J3BvcmNlbnRhamUnPjAlPC9zcGFuPiYwLzAgPHNwYW4gY2xhc3M9J3BvcmNlbnRhamUnPjAlPC9zcGFuPik1LzYgPHNwYW4gY2xhc3M9J3BvcmNlbnRhamUnPjgzLDMlPC9zcGFuPgExATIBMwEwATABMQExATABMAEyATUCMTACMTNkAgQPZBYGAgIPFQECMTVkAgMPDxYEHwMFGFNBTlRBTk8gQkFSVE9MT01FLCBKRVNVUx8EBT9odHRwczovL2JhbG9uY2VzdG9lbnZpdm8uZmViLmVzL0p1Z2Fkb3IuYXNweD9pPTk4MTUxNCZjPTIwNjU0NTJkZAIEDxUTBTI0OjQ4ATkoNC80IDxzcGFuIGNsYXNzPSdwb3JjZW50YWplJz4xMDAlPC9zcGFuPiYwLzAgPHNwYW4gY2xhc3M9J3BvcmNlbnRhamUnPjAlPC9zcGFuPig0LzQgPHNwYW4gY2xhc3M9J3BvcmNlbnRhamUnPjEwMCU8L3NwYW4+JzEvMiA8c3BhbiBjbGFzcz0ncG9yY2VudGFqZSc+NTAlPC9zcGFuPgEx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" />
+
+<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="86A15FD3" />
+<input type="hidden" name="__EVENTVALIDATION" id="__EVENTVALIDATION" value="/wEdAAKG8ZqSrt+TJj8coAfBOjPOaTu7IOxh06lSkxFAxwGhEZRQvxcl6fS5qSzVWfe2/M6fqczRRCKXh9f9twMSY5sT" />
+        <div id="contentToken">
+            <input type="hidden" name="_ctl0:token" id="_ctl0_token" value="eyJhbGciOiJSUzI1NiIsImtpZCI6ImQzOWE5MzlhZTQyZmFlMTM5NWJjODNmYjcwZjc1ZDc3IiwidHlwIjoiSldUIn0.eyJuYmYiOjE3ODc0ODA3NTYsImV4cCI6MTc4NzU2NzE1NiwiaXNzIjoiaHR0cHM6Ly9pbnRyYWZlYi5mZWIuZXMvaWRlbnRpdHkuYXBpIiwiYXVkIjpbImh0dHBzOi8vaW50cmFmZWIuZmViLmVzL2lkZW50aXR5LmFwaS9yZXNvdXJjZXMiLCJsaXZlc3RhdHMuYXBpIl0sImNsaWVudF9pZCI6ImJhbG9uY2VzdG9lbnZpdm9hcHAiLCJpZGFtYml0byI6IjEiLCJyb2xlIjpbIk92ZXJWaWV3IiwiVGVhbVN0YXRzIiwiU2hvdENoYXJ0IiwiUmFua2luZyIsIktleUZhY3RzIiwiQm94U2NvcmUiXSwic2NvcGUiOlsibGl2ZXN0YXRzLmFwaSJdfQ.SVCb9vHnMe01KXRfu271lETErF5vUihVDqTrcbQshCgIhGpGKavBighWcU_uhXJAX23q1oHihQO59Y8HQZMi0pfbEVJYYZBtuKlCp1Itn6KseyJvPWhS41MyggDGPxlqpidIinLLVHRGof-oiqftjXIA5gqS1sMQMOJWWjtvLPDC2gHcLOGd4VqLFGc1uF09lL2CJakn-ShhPOhyyOL43d_ZpOCzDOoGooyDCCKMCoe1_yz0YQ4K06nXeVF1dft1Zbfq6jC87nO8HunhNyHkf2RsHouyFhiJqqMHniajo2d9J1Yh53h4qVQNJBmLf8AZSC7okUyAQcx0pb0rkJiPwA" />
+        </div>
+        <div id="site-head">
+            <span id="site-btn-menu"><span class="icon"></span></span>
+            <a id="site-logo" href="https://baloncestoenvivo.feb.es/home.aspx">
+                <img src="https://baloncestoenvivo.feb.es/Imagenes/Estructura/feblivescore_logo negativo.png?v=01012019">
+            </a>
+        </div>
+        <div id="containermenu">
+            
+
+ <div class="wrapper-menu">
+    <div class="site-menu">
+        <div id="site-menu-caption"><img src="https://baloncestoenvivo.feb.es/Imagenes/Estructura/FEB-LOGO-HORIZONTAL-WEB-NEGATIVO.png"></div>
+          
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=4&amp;t=2026" border="0" /></div>
+                    <span class="menu-item-liga">LF ENDESA</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=4&amp;t=2026&amp;nm=lfendesa" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=4&amp;t=2026&amp;nm=lfendesa" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=4&amp;t=2026&amp;nm=lfendesa" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=4&amp;t=2026&amp;nm=lfendesa" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=1&amp;t=2026" border="0" /></div>
+                    <span class="menu-item-liga">PRIMERA FEB</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=1&amp;t=2026&amp;nm=primerafeb" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=1&amp;t=2026&amp;nm=primerafeb" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=1&amp;t=2026&amp;nm=primerafeb" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=1&amp;t=2026&amp;nm=primerafeb" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=67&amp;t=2026" border="0" /></div>
+                    <span class="menu-item-liga">LF CHALLENGE</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=67&amp;t=2026&amp;nm=lfchallenge" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=67&amp;t=2026&amp;nm=lfchallenge" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=67&amp;t=2026&amp;nm=lfchallenge" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=67&amp;t=2026&amp;nm=lfchallenge" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=2&amp;t=2026" border="0" /></div>
+                    <span class="menu-item-liga">SEGUNDA FEB</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=2&amp;t=2026&amp;nm=segundafeb" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=2&amp;t=2026&amp;nm=segundafeb" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=2&amp;t=2026&amp;nm=segundafeb" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=2&amp;t=2026&amp;nm=segundafeb" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=9&amp;t=2026" border="0" /></div>
+                    <span class="menu-item-liga">L.F.-2</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=9&amp;t=2026&amp;nm=lf2" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=9&amp;t=2026&amp;nm=lf2" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=9&amp;t=2026&amp;nm=lf2" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=9&amp;t=2026&amp;nm=lf2" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=3&amp;t=2026" border="0" /></div>
+                    <span class="menu-item-liga">TERCERA FEB</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=3&amp;t=2026&amp;nm=tercerafeb" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=3&amp;t=2026&amp;nm=tercerafeb" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=3&amp;t=2026&amp;nm=tercerafeb" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=3&amp;t=2026&amp;nm=tercerafeb" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=74&amp;t=2025" border="0" /></div>
+                    <span class="menu-item-liga">LIGA U</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=74&amp;t=2025&amp;nm=ligau" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=74&amp;t=2025&amp;nm=ligau" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=74&amp;t=2025&amp;nm=ligau" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=74&amp;t=2025&amp;nm=ligau" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=73&amp;t=2026" border="0" /></div>
+                    <span class="menu-item-liga">COPA ESPAÑA</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=73&amp;t=2026&amp;nm=copaespaa" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=73&amp;t=2026&amp;nm=copaespaa" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=73&amp;t=2026&amp;nm=copaespaa" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=73&amp;t=2026&amp;nm=copaespaa" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=19&amp;t=2025" border="0" /></div>
+                    <span class="menu-item-liga">CE SSAA Mini Mas.</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=19&amp;t=2025&amp;nm=cessaaminimas" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=19&amp;t=2025&amp;nm=cessaaminimas" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=19&amp;t=2025&amp;nm=cessaaminimas" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=19&amp;t=2025&amp;nm=cessaaminimas" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=20&amp;t=2025" border="0" /></div>
+                    <span class="menu-item-liga">CE SSAA Mini Fem.</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=20&amp;t=2025&amp;nm=cessaaminifem" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=20&amp;t=2025&amp;nm=cessaaminifem" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=20&amp;t=2025&amp;nm=cessaaminifem" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=20&amp;t=2025&amp;nm=cessaaminifem" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=40&amp;t=2025" border="0" /></div>
+                    <span class="menu-item-liga">CE SSAA Cadete Mas.</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=40&amp;t=2025&amp;nm=cessaacadetemas" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=40&amp;t=2025&amp;nm=cessaacadetemas" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=40&amp;t=2025&amp;nm=cessaacadetemas" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=40&amp;t=2025&amp;nm=cessaacadetemas" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=41&amp;t=2025" border="0" /></div>
+                    <span class="menu-item-liga">CE SSAA Cadete Fem.</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=41&amp;t=2025&amp;nm=cessaacadetefem" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=41&amp;t=2025&amp;nm=cessaacadetefem" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=41&amp;t=2025&amp;nm=cessaacadetefem" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=41&amp;t=2025&amp;nm=cessaacadetefem" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=25&amp;t=2025" border="0" /></div>
+                    <span class="menu-item-liga">CE SSAA Infantil Mas.</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=25&amp;t=2025&amp;nm=cessaainfantilmas" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=25&amp;t=2025&amp;nm=cessaainfantilmas" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=25&amp;t=2025&amp;nm=cessaainfantilmas" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=25&amp;t=2025&amp;nm=cessaainfantilmas" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=26&amp;t=2025" border="0" /></div>
+                    <span class="menu-item-liga">CE SSAA Infantil Fem.</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=26&amp;t=2025&amp;nm=cessaainfantilfem" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=26&amp;t=2025&amp;nm=cessaainfantilfem" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=26&amp;t=2025&amp;nm=cessaainfantilfem" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=26&amp;t=2025&amp;nm=cessaainfantilfem" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=55&amp;t=2025" border="0" /></div>
+                    <span class="menu-item-liga">MINICOPA LF ENDESA</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=55&amp;t=2025&amp;nm=minicopalfendesa" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=55&amp;t=2025&amp;nm=minicopalfendesa" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=55&amp;t=2025&amp;nm=minicopalfendesa" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=55&amp;t=2025&amp;nm=minicopalfendesa" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=44&amp;t=2025" border="0" /></div>
+                    <span class="menu-item-liga">Fase Final 1ª División Femenin</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=44&amp;t=2025&amp;nm=fasefinal1divisinfemenin" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=44&amp;t=2025&amp;nm=fasefinal1divisinfemenin" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=44&amp;t=2025&amp;nm=fasefinal1divisinfemenin" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=44&amp;t=2025&amp;nm=fasefinal1divisinfemenin" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=21&amp;t=2025" border="0" /></div>
+                    <span class="menu-item-liga">C ESP CLUBES JR MASC</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=21&amp;t=2025&amp;nm=cespclubesjrmasc" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=21&amp;t=2025&amp;nm=cespclubesjrmasc" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=21&amp;t=2025&amp;nm=cespclubesjrmasc" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=21&amp;t=2025&amp;nm=cespclubesjrmasc" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=22&amp;t=2025" border="0" /></div>
+                    <span class="menu-item-liga">C ESP CLUBES JR FEM</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=22&amp;t=2025&amp;nm=cespclubesjrfem" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=22&amp;t=2025&amp;nm=cespclubesjrfem" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=22&amp;t=2025&amp;nm=cespclubesjrfem" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=22&amp;t=2025&amp;nm=cespclubesjrfem" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=35&amp;t=2025" border="0" /></div>
+                    <span class="menu-item-liga">C ESP CLUBES CAD MASC</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=35&amp;t=2025&amp;nm=cespclubescadmasc" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=35&amp;t=2025&amp;nm=cespclubescadmasc" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=35&amp;t=2025&amp;nm=cespclubescadmasc" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=35&amp;t=2025&amp;nm=cespclubescadmasc" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=36&amp;t=2025" border="0" /></div>
+                    <span class="menu-item-liga">C ESP CLUBES CAD FEM</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=36&amp;t=2025&amp;nm=cespclubescadfem" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=36&amp;t=2025&amp;nm=cespclubescadfem" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=36&amp;t=2025&amp;nm=cespclubescadfem" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=36&amp;t=2025&amp;nm=cespclubescadfem" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=37&amp;t=2025" border="0" /></div>
+                    <span class="menu-item-liga">C ESP CLUBES INF MASC</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=37&amp;t=2025&amp;nm=cespclubesinfmasc" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=37&amp;t=2025&amp;nm=cespclubesinfmasc" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=37&amp;t=2025&amp;nm=cespclubesinfmasc" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=37&amp;t=2025&amp;nm=cespclubesinfmasc" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=38&amp;t=2025" border="0" /></div>
+                    <span class="menu-item-liga">C ESP CLUBES INF FEM</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=38&amp;t=2025&amp;nm=cespclubesinffem" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=38&amp;t=2025&amp;nm=cespclubesinffem" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=38&amp;t=2025&amp;nm=cespclubesinffem" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=38&amp;t=2025&amp;nm=cespclubesinffem" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=71&amp;t=2025" border="0" /></div>
+                    <span class="menu-item-liga">C ESP CLUBES MINI MASC</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=71&amp;t=2025&amp;nm=cespclubesminimasc" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=71&amp;t=2025&amp;nm=cespclubesminimasc" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=71&amp;t=2025&amp;nm=cespclubesminimasc" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=71&amp;t=2025&amp;nm=cespclubesminimasc" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+                <div class="menu-item">
+                    <div class="menu-item-logo"><img src="https://imagenes.feb.es/Imagen.aspx?g=72&amp;t=2025" border="0" /></div>
+                    <span class="menu-item-liga">C ESP CLUBES MINI FEM</span>
+
+
+                    
+
+                    <div class="menu-item-links">
+                        <a href="https://baloncestoenvivo.feb.es/estadisticas.aspx?g=72&amp;t=2025&amp;nm=cespclubesminifem" class="link">Estadisticas</a>
+                        <a href="https://baloncestoenvivo.feb.es/resultados.aspx?g=72&amp;t=2025&amp;nm=cespclubesminifem" class="link">Resultados</a>
+                        <a href="https://baloncestoenvivo.feb.es/calendario.aspx?g=72&amp;t=2025&amp;nm=cespclubesminifem" class="link">Calendario</a>
+                        <a href="https://baloncestoenvivo.feb.es/rankings.aspx?g=72&amp;t=2025&amp;nm=cespclubesminifem" class="link">Rankings</a>
+                    </div>
+                </div>
+              
+    </div>
+</div> 
+
+
+
+
+
+        </div>
+        <div id="wrapper-seccion">
+            
+            
+
+    
+
+<div class="wrapper-tituloSeccion">
+    <div class="tituloSeccion">
+        <div id="_ctl0_MainContentPlaceHolderMaster_ControlTituloSeccion_logoCategoriaPanel" class="wrapper-logo">
+	<img id="logoCategoriaImage" src="https://imagenes.feb.es/Imagen.aspx?p=2486849&amp;ti=0" border="0" />
+</div>
+        <div class="wrapper-text">
+            <span class="titulo">Estadística de partido</span>
+            <span class="liga">SEGUNDA FEB </span>
+            <span class="temporada">2025/2026</span>
+        </div>
+    </div>
+</div>
+
+
+
+
+    <div class="wrapper-seccion-contents" id="page-partido">
+
+    <div id="DirectoPanel" class="js_on">
+	
+        
+        <div class="menu contextual tipo tabs de cinco botones">
+            <a href="#" class="btn-tab" data-action="keyfacts">Directo</a>
+            <a href="#" class="btn-tab" data-action="ranking">Rankings</a>
+            <a href="#" class="btn-tab" data-action="boxscore">Ficha</a>        
+            <a href="#" class="btn-tab" data-action="shotchart">Gráfico de tiro</a>
+            <a href="#" class="btn-tab" data-action="teamstats">Estadísticas</a>            
+        </div>
+
+        <div id="loader-data"></div>
+
+
+    <script>
+        $(function () {
+            $('#loader-data').widgetlauncher({ initLoad: "boxscore", idPartido: "2486849" });
+        });
+    </script>
+
+
+    
+</div>
+
+
+
+    <div id="EstaticoPanel" class="js_off">
+	
+        
+
+    <div class="box-marcador tableLayout de tres columnas">
+        <div class="fila">
+            <div class="columna equipo local">
+                <img id="_ctl0_MainContentPlaceHolderMaster_equipoLocalLogo" src="https://imagenes.feb.es/Imagen.aspx?i=981514&amp;ti=1" border="0" />
+                <span class="nombre">
+                    <a id="_ctl0_MainContentPlaceHolderMaster_equipoLocalHyperLink" href="https://baloncestoenvivo.feb.es/Equipo.aspx?i=981514"><span id="_ctl0_MainContentPlaceHolderMaster_equipoLocalNombre">SPANISH BASKETBALL ACADEMY</span></a>
+                </span>
+                <span class="resultado">78</span>
+            </div>
+            <div class="columna info-tiempo">
+                <div class="wrapper">
+                    <span class="periodos">
+                        <span class="cuarto play"></span>
+                        <span class="cuarto play"></span>
+                        <span class="cuarto play"></span>
+                        <span class="cuarto play"></span>
+                        <span class="prorroga noPlay">p</span>
+                    </span>
+                </div>
+            </div>
+            <div class="columna equipo visitante">
+                <span class="resultado">66</span>
+                <span class="nombre">
+                    <a id="_ctl0_MainContentPlaceHolderMaster_equipoVisitanteHyperLink" href="https://baloncestoenvivo.feb.es/Equipo.aspx?i=981281"><span id="_ctl0_MainContentPlaceHolderMaster_equipoVisitanteNombre">LOBE HUESCA LA MAGIA</span></a>
+                </span>
+                <img id="_ctl0_MainContentPlaceHolderMaster_equipoVisitanteLogo" src="https://imagenes.feb.es/Imagen.aspx?i=981281&amp;ti=1" border="0" />
+            </div>
+        </div>
+        <div class="fila parciales">
+            <div class="columna equipo local" >
+                <span>22</span>
+                <span>17</span>
+                <span>28</span>
+                <span>11</span>
+                
+            </div>
+            <div class="columna info-tiempo">
+                &nbsp;
+            </div>
+            <div class="columna equipo visitante" >
+                <span>22</span>
+                <span>15</span>
+                <span>14</span>
+                <span>15</span>
+                
+            </div>
+        </div>
+    </div>
+
+    
+
+        <div class="box-cuartos">
+                <div class="nodo">
+                    <span class="cuarto">1º C</span><span class="marcador">22/22</span>
+                </div>
+                <div class="nodo">
+                    <span class="cuarto">2º C</span><span class="marcador">17/15</span>
+                </div>
+                <div class="nodo">
+                    <span class="cuarto">3º C</span><span class="marcador">28/14</span>
+                </div>
+                <div class="nodo">
+                    <span class="cuarto">4º C</span><span class="marcador">11/15</span>
+                </div>
+                
+            </div>
+    
+
+    <div class="box-datos-partido">
+        <div class="fecha">
+            <span class="label">Fecha</span> 
+            <span class="txt">04/10/2025 - 18:30</span>
+        </div>
+        <div class="arbitros">
+            <span class="label">Árbitros</span> 
+            <span class="txt referee">LANGA DE MARTIN, ASUNCION</span> 
+            <span class="txt referee">ARGUELLES DOMINGUEZ, RUBEN</span>
+            <span class="txt referee"></span>
+        </div>
+        <div class="pista">
+            <span class="label">Pista</span>
+            <span class="txt pabellon">Polideportivo Canal Isabel II</span>
+            <span class="txt direccion">Madrid (Madrid)</span>
+        </div> 
+    </div>
+
+ 
+
+    
+    <div class="wrapper-switch right">
+        <label class="switch">
+          <input id="checkboxInput" type="checkbox">
+          <span class="slider round"></span>
+        </label>
+        <span class="text">%</span>
+    </div>
+
+        
+
+<h1 class="titulo-modulo">
+    SPANISH BASKETBALL ACADEMY
+</h1>
+        <div class="responsive-scroll">
+            <table cellpadding="0" cellspacing="0">
+                
+                        <tr>
+                            <th class="empty" colspan="9"></th>
+                            <th class="rebotes" colspan="3" title="Rebotes">Rebotes</th>
+                            <th class="empty" colspan="3"></th>
+                            <th class="tapones" colspan="2" title="Tapones">Tapones</th>
+                            <th class="empty"></th>
+                            <th class="faltas" colspan="2" title="Faltas">Faltas</th>
+                            <th class="empty" colspan="2"></th>
+                        </tr>
+                        <tr>
+                            <th class="inicial" title="5 inicial">I</th>
+                            <th class="dorsal" title="Dorsal">D</th>
+                            <th class="nombre jugador" title="Jugador">Jugador</th>
+                            <th class="minutos" title="Minutos">MIN</th>
+                            <th class="puntos" title="Puntos">PT</th>
+                            <th class="tiros dos" title="2 puntos">T2</th>
+                            <th class="tiros tres" title="3 puntos">T3</th>
+                            <th class="tiros campo" title="Tiros de Campo">TC</th>
+                            <th class="tiros libres" title="Tiros Libres">TL</th>
+			                <th class="rebotes ofensivos" title="Rebotes Ofensivos">RO</th>
+                            <th class="rebotes defensivos" title="Rebotes Defensivos">RD</th>
+			                <th class="rebotes total" title="Rebotes Totales">RT</th>
+                            <th class="asistencias" title="Asistencias">AS</th>
+                            <th class="recuperaciones" title="Balones Robados">BR</th>
+                            <th class="perdidas" title="Balones Perdidos">BP</th>
+                            <th class="tapones favor" title="Tapones Favor">TF</th>
+			                <th class="tapones contra" title="Tapones Contra">TC</th>
+                            <th class="mates" title="Mates">MT</th>
+                            <th class="faltas cometidas" title="Faltas Cometidas">FC</th>
+			                <th class="faltas recibidas" title="Faltas Recibidas">FR</th>
+                            <th class="valoracion" title="Valoración">VA</th>
+                            <th class="balance" title="balance">+/-</th>
+                        </tr>
+                    
+                        <tr>
+                            <td class="inicial"></td>
+                            <td class="dorsal">2</td>
+                            <td class="nombre jugador"><a href="https://baloncestoenvivo.feb.es/Jugador.aspx?i=981514&amp;c=1549741">ARQUES LOPEZ, EDUARD</a></td>
+                            <td class="minutos">22:50</td>
+                            <td class="puntos">11</td>
+                            <td class="tiros dos">2/5 <span class='porcentaje'>40%</span></td>
+                            <td class="tiros tres">2/4 <span class='porcentaje'>50%</span></td>
+                            <td class="tiros campo">4/9 <span class='porcentaje'>44,4%</span></td>
+                            <td class="tiros libres">1/4 <span class='porcentaje'>25%</span></td>
+			                <td class="rebotes ofensivos">1</td>
+                            <td class="rebotes defensivos">3</td>
+			                <td class="rebotes total">4</td>
+                            <td class="asistencias"> 1</td>
+                            <td class="recuperaciones">0</td>
+                            <td class="perdidas"> 1</td>
+                            <td class="tapones favor">0</td>
+			                <td class="tapones contra">0</td>
+                            <td class="mates">0</td>
+                            <td class="faltas cometidas">2</td>
+			                <td class="faltas recibidas">3</td>
+                            <td class="valoracion">8</td>
+                            <td class="balance">-10</td>
+                        </tr>
+                    
+                        <tr>
+                            <td class="inicial">*</td>
+                            <td class="dorsal">6</td>
+                            <td class="nombre jugador"><a href="https://baloncestoenvivo.feb.es/Jugador.aspx?i=981514&amp;c=2436640">PUIDET, JAAN</a></td>
+                            <td class="minutos">34:00</td>
+                            <td class="puntos">11</td>
+                            <td class="tiros dos">3/3 <span class='porcentaje'>100%</span></td>
+                            <td class="tiros tres">0/7 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros campo">3/10 <span class='porcentaje'>30%</span></td>
+                            <td class="tiros libres">5/5 <span class='porcentaje'>100%</span></td>
+			                <td class="rebotes ofensivos">1</td>
+                            <td class="rebotes defensivos">5</td>
+			                <td class="rebotes total">6</td>
+                            <td class="asistencias"> 12</td>
+                            <td class="recuperaciones">0</td>
+                            <td class="perdidas"> 1</td>
+                            <td class="tapones favor">0</td>
+			                <td class="tapones contra">0</td>
+                            <td class="mates">1</td>
+                            <td class="faltas cometidas">2</td>
+			                <td class="faltas recibidas">3</td>
+                            <td class="valoracion">22</td>
+                            <td class="balance">21</td>
+                        </tr>
+                    
+                        <tr>
+                            <td class="inicial">*</td>
+                            <td class="dorsal">7</td>
+                            <td class="nombre jugador"><a href="https://baloncestoenvivo.feb.es/Jugador.aspx?i=981514&amp;c=2312124">TRAORE, SOULEYMANE PINDA</a></td>
+                            <td class="minutos">16:32</td>
+                            <td class="puntos">5</td>
+                            <td class="tiros dos">0/0 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros tres">0/0 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros campo">0/0 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros libres">5/6 <span class='porcentaje'>83,3%</span></td>
+			                <td class="rebotes ofensivos">1</td>
+                            <td class="rebotes defensivos">2</td>
+			                <td class="rebotes total">3</td>
+                            <td class="asistencias"> 0</td>
+                            <td class="recuperaciones">0</td>
+                            <td class="perdidas"> 1</td>
+                            <td class="tapones favor">1</td>
+			                <td class="tapones contra">0</td>
+                            <td class="mates">0</td>
+                            <td class="faltas cometidas">2</td>
+			                <td class="faltas recibidas">5</td>
+                            <td class="valoracion">10</td>
+                            <td class="balance">13</td>
+                        </tr>
+                    
+                        <tr>
+                            <td class="inicial">*</td>
+                            <td class="dorsal">15</td>
+                            <td class="nombre jugador"><a href="https://baloncestoenvivo.feb.es/Jugador.aspx?i=981514&amp;c=2065452">SANTANO BARTOLOME, JESUS</a></td>
+                            <td class="minutos">24:48</td>
+                            <td class="puntos">9</td>
+                            <td class="tiros dos">4/4 <span class='porcentaje'>100%</span></td>
+                            <td class="tiros tres">0/0 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros campo">4/4 <span class='porcentaje'>100%</span></td>
+                            <td class="tiros libres">1/2 <span class='porcentaje'>50%</span></td>
+			                <td class="rebotes ofensivos">1</td>
+                            <td class="rebotes defensivos">3</td>
+			                <td class="rebotes total">4</td>
+                            <td class="asistencias"> 1</td>
+                            <td class="recuperaciones">2</td>
+                            <td class="perdidas"> 0</td>
+                            <td class="tapones favor">0</td>
+			                <td class="tapones contra">0</td>
+                            <td class="mates">0</td>
+                            <td class="faltas cometidas">1</td>
+			                <td class="faltas recibidas">1</td>
+                            <td class="valoracion">15</td>
+                            <td class="balance">24</td>
+                        </tr>
+                    
+                        <tr>
+                            <td class="inicial"></td>
+                            <td class="dorsal">19</td>
+                            <td class="nombre jugador"><a href="https://baloncestoenvivo.feb.es/Jugador.aspx?i=981514&amp;c=2816555">SAVIKJEVIKJ, LUKA</a></td>
+                            <td class="minutos">16:41</td>
+                            <td class="puntos">0</td>
+                            <td class="tiros dos">0/0 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros tres">0/1 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros campo">0/1 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros libres">0/0 <span class='porcentaje'>0%</span></td>
+			                <td class="rebotes ofensivos">0</td>
+                            <td class="rebotes defensivos">1</td>
+			                <td class="rebotes total">1</td>
+                            <td class="asistencias"> 5</td>
+                            <td class="recuperaciones">0</td>
+                            <td class="perdidas"> 0</td>
+                            <td class="tapones favor">0</td>
+			                <td class="tapones contra">0</td>
+                            <td class="mates">0</td>
+                            <td class="faltas cometidas">3</td>
+			                <td class="faltas recibidas">1</td>
+                            <td class="valoracion">3</td>
+                            <td class="balance">-12</td>
+                        </tr>
+                    
+                        <tr>
+                            <td class="inicial"></td>
+                            <td class="dorsal">21</td>
+                            <td class="nombre jugador"><a href="https://baloncestoenvivo.feb.es/Jugador.aspx?i=981514&amp;c=1374966">MORENO TRUJILLO, ALBERTO</a></td>
+                            <td class="minutos">17:08</td>
+                            <td class="puntos">9</td>
+                            <td class="tiros dos">3/6 <span class='porcentaje'>50%</span></td>
+                            <td class="tiros tres">1/6 <span class='porcentaje'>16,7%</span></td>
+                            <td class="tiros campo">4/12 <span class='porcentaje'>33,3%</span></td>
+                            <td class="tiros libres">0/0 <span class='porcentaje'>0%</span></td>
+			                <td class="rebotes ofensivos">1</td>
+                            <td class="rebotes defensivos">1</td>
+			                <td class="rebotes total">2</td>
+                            <td class="asistencias"> 1</td>
+                            <td class="recuperaciones">3</td>
+                            <td class="perdidas"> 2</td>
+                            <td class="tapones favor">0</td>
+			                <td class="tapones contra">1</td>
+                            <td class="mates">0</td>
+                            <td class="faltas cometidas">4</td>
+			                <td class="faltas recibidas">0</td>
+                            <td class="valoracion">1</td>
+                            <td class="balance">-5</td>
+                        </tr>
+                    
+                        <tr>
+                            <td class="inicial">*</td>
+                            <td class="dorsal">33</td>
+                            <td class="nombre jugador"><a href="https://baloncestoenvivo.feb.es/Jugador.aspx?i=981514&amp;c=2816737">SIMEUNOVIC, DORDE</a></td>
+                            <td class="minutos">30:33</td>
+                            <td class="puntos">13</td>
+                            <td class="tiros dos">6/11 <span class='porcentaje'>54,5%</span></td>
+                            <td class="tiros tres">0/4 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros campo">6/15 <span class='porcentaje'>40%</span></td>
+                            <td class="tiros libres">1/2 <span class='porcentaje'>50%</span></td>
+			                <td class="rebotes ofensivos">4</td>
+                            <td class="rebotes defensivos">8</td>
+			                <td class="rebotes total">12</td>
+                            <td class="asistencias"> 3</td>
+                            <td class="recuperaciones">2</td>
+                            <td class="perdidas"> 2</td>
+                            <td class="tapones favor">0</td>
+			                <td class="tapones contra">1</td>
+                            <td class="mates">1</td>
+                            <td class="faltas cometidas">2</td>
+			                <td class="faltas recibidas">3</td>
+                            <td class="valoracion">19</td>
+                            <td class="balance">3</td>
+                        </tr>
+                    
+                        <tr>
+                            <td class="inicial"></td>
+                            <td class="dorsal">77</td>
+                            <td class="nombre jugador"><a href="https://baloncestoenvivo.feb.es/Jugador.aspx?i=981514&amp;c=2752020">MEDINA ROA, ENRIQUE ARTURO</a></td>
+                            <td class="minutos">12:37</td>
+                            <td class="puntos">12</td>
+                            <td class="tiros dos">6/6 <span class='porcentaje'>100%</span></td>
+                            <td class="tiros tres">0/0 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros campo">6/6 <span class='porcentaje'>100%</span></td>
+                            <td class="tiros libres">0/0 <span class='porcentaje'>0%</span></td>
+			                <td class="rebotes ofensivos">0</td>
+                            <td class="rebotes defensivos">1</td>
+			                <td class="rebotes total">1</td>
+                            <td class="asistencias"> 0</td>
+                            <td class="recuperaciones">0</td>
+                            <td class="perdidas"> 2</td>
+                            <td class="tapones favor">1</td>
+			                <td class="tapones contra">0</td>
+                            <td class="mates">2</td>
+                            <td class="faltas cometidas">3</td>
+			                <td class="faltas recibidas">0</td>
+                            <td class="valoracion">9</td>
+                            <td class="balance">4</td>
+                        </tr>
+                    
+                        <tr>
+                            <td class="inicial">*</td>
+                            <td class="dorsal">99</td>
+                            <td class="nombre jugador"><a href="https://baloncestoenvivo.feb.es/Jugador.aspx?i=981514&amp;c=1825944">GARCIA SALAME, RAFAEL</a></td>
+                            <td class="minutos">24:51</td>
+                            <td class="puntos">8</td>
+                            <td class="tiros dos">1/5 <span class='porcentaje'>20%</span></td>
+                            <td class="tiros tres">1/4 <span class='porcentaje'>25%</span></td>
+                            <td class="tiros campo">2/9 <span class='porcentaje'>22,2%</span></td>
+                            <td class="tiros libres">3/4 <span class='porcentaje'>75%</span></td>
+			                <td class="rebotes ofensivos">2</td>
+                            <td class="rebotes defensivos">5</td>
+			                <td class="rebotes total">7</td>
+                            <td class="asistencias"> 2</td>
+                            <td class="recuperaciones">1</td>
+                            <td class="perdidas"> 3</td>
+                            <td class="tapones favor">0</td>
+			                <td class="tapones contra">0</td>
+                            <td class="mates">0</td>
+                            <td class="faltas cometidas">2</td>
+			                <td class="faltas recibidas">7</td>
+                            <td class="valoracion">12</td>
+                            <td class="balance">22</td>
+                        </tr>
+                    
+                        <tr class="row-total">
+                            <td class="inicial"></td>
+                            <td class="dorsal"> </td>
+                            <td class="nombre jugador"></td>
+                            <td class="minutos">200:00</td>
+                            <td class="puntos">78</td>
+                            <td class="tiros dos">25/40 <span class='porcentaje'>62,5%</span></td>
+                            <td class="tiros tres">4/26 <span class='porcentaje'>15,4%</span></td>
+                            <td class="tiros campo">29/66 <span class='porcentaje'>43,9%</span></td>
+                            <td class="tiros libres">16/23 <span class='porcentaje'>69,6%</span></td>
+                            <td class="rebotes ofensivos">11</td>  
+                            <td class="rebotes defensivos">29</td>
+                            <td class="rebotes total">40</td>
+                            <td class="asistencias">25</td>
+                            <td class="recuperaciones">8</td>
+                            <td class="perdidas">12</td>
+                            <td class="tapones favor">2</td>
+                            <td class="tapones contra">2</td>
+                            <td class="mates">4</td>
+                            <td class="faltas cometidas">21</td>
+                            <td class="faltas recibidas">23</td>
+                            <td class="valoracion">99</td>
+                            <td class="balance"></td>
+                        </tr>
+                    
+            </table>
+        </div>
+    
+
+    
+
+<h1 class="titulo-modulo">
+    LOBE HUESCA LA MAGIA
+</h1>
+        <div class="responsive-scroll">
+            <table cellpadding="0" cellspacing="0">
+                
+                        <tr>
+                            <th class="empty" colspan="9"></th>
+                            <th class="rebotes" colspan="3" title="Rebotes">Rebotes</th>
+                            <th class="empty" colspan="3"></th>
+                            <th class="tapones" colspan="2" title="Tapones">Tapones</th>
+                            <th class="empty"></th>
+                            <th class="faltas" colspan="2" title="Faltas">Faltas</th>
+                            <th class="empty" colspan="2"></th>
+                        </tr>
+                        <tr>
+                            <th class="inicial" title="5 inicial">I</th>
+                            <th class="dorsal" title="Dorsal">D</th>
+                            <th class="nombre jugador" title="Jugador">Jugador</th>
+                            <th class="minutos" title="Minutos">MIN</th>
+                            <th class="puntos" title="Puntos">PT</th>
+                            <th class="tiros dos" title="2 puntos">T2</th>
+                            <th class="tiros tres" title="3 puntos">T3</th>
+                            <th class="tiros campo" title="Tiros de Campo">TC</th>
+                            <th class="tiros libres" title="Tiros Libres">TL</th>
+			                <th class="rebotes ofensivos" title="Rebotes Ofensivos">RO</th>
+                            <th class="rebotes defensivos" title="Rebotes Defensivos">RD</th>
+			                <th class="rebotes total" title="Rebotes Totales">RT</th>
+                            <th class="asistencias" title="Asistencias">AS</th>
+                            <th class="recuperaciones" title="Balones Robados">BR</th>
+                            <th class="perdidas" title="Balones Perdidos">BP</th>
+                            <th class="tapones favor" title="Tapones Favor">TF</th>
+			                <th class="tapones contra" title="Tapones Contra">TC</th>
+                            <th class="mates" title="Mates">MT</th>
+                            <th class="faltas cometidas" title="Faltas Cometidas">FC</th>
+			                <th class="faltas recibidas" title="Faltas Recibidas">FR</th>
+                            <th class="valoracion" title="Valoración">VA</th>
+                            <th class="balance" title="balance">+/-</th>
+                        </tr>
+                    
+                        <tr>
+                            <td class="inicial"></td>
+                            <td class="dorsal">0</td>
+                            <td class="nombre jugador"><a href="https://baloncestoenvivo.feb.es/Jugador.aspx?i=981281&amp;c=2151562">THIAM PEDRERA, OMAR</a></td>
+                            <td class="minutos">17:35</td>
+                            <td class="puntos">7</td>
+                            <td class="tiros dos">0/2 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros tres">2/6 <span class='porcentaje'>33,3%</span></td>
+                            <td class="tiros campo">2/8 <span class='porcentaje'>25%</span></td>
+                            <td class="tiros libres">1/2 <span class='porcentaje'>50%</span></td>
+			                <td class="rebotes ofensivos">2</td>
+                            <td class="rebotes defensivos">2</td>
+			                <td class="rebotes total">4</td>
+                            <td class="asistencias"> 0</td>
+                            <td class="recuperaciones">0</td>
+                            <td class="perdidas"> 0</td>
+                            <td class="tapones favor">0</td>
+			                <td class="tapones contra">0</td>
+                            <td class="mates">0</td>
+                            <td class="faltas cometidas">0</td>
+			                <td class="faltas recibidas">1</td>
+                            <td class="valoracion">5</td>
+                            <td class="balance">-2</td>
+                        </tr>
+                    
+                        <tr>
+                            <td class="inicial">*</td>
+                            <td class="dorsal">1</td>
+                            <td class="nombre jugador"><a href="https://baloncestoenvivo.feb.es/Jugador.aspx?i=981281&amp;c=2273469">BIESHAAR, OLIVER JEROME ROBERT</a></td>
+                            <td class="minutos">22:34</td>
+                            <td class="puntos">2</td>
+                            <td class="tiros dos">0/1 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros tres">0/1 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros campo">0/2 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros libres">2/2 <span class='porcentaje'>100%</span></td>
+			                <td class="rebotes ofensivos">0</td>
+                            <td class="rebotes defensivos">1</td>
+			                <td class="rebotes total">1</td>
+                            <td class="asistencias"> 1</td>
+                            <td class="recuperaciones">1</td>
+                            <td class="perdidas"> 2</td>
+                            <td class="tapones favor">0</td>
+			                <td class="tapones contra">0</td>
+                            <td class="mates">0</td>
+                            <td class="faltas cometidas">3</td>
+			                <td class="faltas recibidas">1</td>
+                            <td class="valoracion">-1</td>
+                            <td class="balance">-13</td>
+                        </tr>
+                    
+                        <tr>
+                            <td class="inicial"></td>
+                            <td class="dorsal">2</td>
+                            <td class="nombre jugador"><a href="https://baloncestoenvivo.feb.es/Jugador.aspx?i=981281&amp;c=2815547">WELLS, JADEN LEON</a></td>
+                            <td class="minutos">21:14</td>
+                            <td class="puntos">14</td>
+                            <td class="tiros dos">3/4 <span class='porcentaje'>75%</span></td>
+                            <td class="tiros tres">2/7 <span class='porcentaje'>28,6%</span></td>
+                            <td class="tiros campo">5/11 <span class='porcentaje'>45,5%</span></td>
+                            <td class="tiros libres">2/2 <span class='porcentaje'>100%</span></td>
+			                <td class="rebotes ofensivos">0</td>
+                            <td class="rebotes defensivos">2</td>
+			                <td class="rebotes total">2</td>
+                            <td class="asistencias"> 2</td>
+                            <td class="recuperaciones">0</td>
+                            <td class="perdidas"> 1</td>
+                            <td class="tapones favor">0</td>
+			                <td class="tapones contra">0</td>
+                            <td class="mates">0</td>
+                            <td class="faltas cometidas">3</td>
+			                <td class="faltas recibidas">1</td>
+                            <td class="valoracion">9</td>
+                            <td class="balance">-4</td>
+                        </tr>
+                    
+                        <tr>
+                            <td class="inicial">*</td>
+                            <td class="dorsal">5</td>
+                            <td class="nombre jugador"><a href="https://baloncestoenvivo.feb.es/Jugador.aspx?i=981281&amp;c=1756469">FIGUEROA ÁLVAREZ, HÉCTOR</a></td>
+                            <td class="minutos">20:50</td>
+                            <td class="puntos">12</td>
+                            <td class="tiros dos">0/1 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros tres">4/8 <span class='porcentaje'>50%</span></td>
+                            <td class="tiros campo">4/9 <span class='porcentaje'>44,4%</span></td>
+                            <td class="tiros libres">0/0 <span class='porcentaje'>0%</span></td>
+			                <td class="rebotes ofensivos">0</td>
+                            <td class="rebotes defensivos">0</td>
+			                <td class="rebotes total">0</td>
+                            <td class="asistencias"> 0</td>
+                            <td class="recuperaciones">1</td>
+                            <td class="perdidas"> 2</td>
+                            <td class="tapones favor">0</td>
+			                <td class="tapones contra">0</td>
+                            <td class="mates">0</td>
+                            <td class="faltas cometidas">1</td>
+			                <td class="faltas recibidas">2</td>
+                            <td class="valoracion">7</td>
+                            <td class="balance">-12</td>
+                        </tr>
+                    
+                        <tr>
+                            <td class="inicial">*</td>
+                            <td class="dorsal">6</td>
+                            <td class="nombre jugador"><a href="https://baloncestoenvivo.feb.es/Jugador.aspx?i=981281&amp;c=1759956">CORRALIZA COBA, ISMAEL</a></td>
+                            <td class="minutos">29:05</td>
+                            <td class="puntos">19</td>
+                            <td class="tiros dos">6/10 <span class='porcentaje'>60%</span></td>
+                            <td class="tiros tres">1/4 <span class='porcentaje'>25%</span></td>
+                            <td class="tiros campo">7/14 <span class='porcentaje'>50%</span></td>
+                            <td class="tiros libres">4/6 <span class='porcentaje'>66,7%</span></td>
+			                <td class="rebotes ofensivos">1</td>
+                            <td class="rebotes defensivos">1</td>
+			                <td class="rebotes total">2</td>
+                            <td class="asistencias"> 2</td>
+                            <td class="recuperaciones">3</td>
+                            <td class="perdidas"> 3</td>
+                            <td class="tapones favor">1</td>
+			                <td class="tapones contra">1</td>
+                            <td class="mates">0</td>
+                            <td class="faltas cometidas">0</td>
+			                <td class="faltas recibidas">5</td>
+                            <td class="valoracion">20</td>
+                            <td class="balance">-5</td>
+                        </tr>
+                    
+                        <tr>
+                            <td class="inicial"></td>
+                            <td class="dorsal">9</td>
+                            <td class="nombre jugador"><a href="https://baloncestoenvivo.feb.es/Jugador.aspx?i=981281&amp;c=2815923">CARREIRA KREPS, MALCOLM MANDELA</a></td>
+                            <td class="minutos">12:02</td>
+                            <td class="puntos">4</td>
+                            <td class="tiros dos">2/2 <span class='porcentaje'>100%</span></td>
+                            <td class="tiros tres">0/2 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros campo">2/4 <span class='porcentaje'>50%</span></td>
+                            <td class="tiros libres">0/1 <span class='porcentaje'>0%</span></td>
+			                <td class="rebotes ofensivos">3</td>
+                            <td class="rebotes defensivos">1</td>
+			                <td class="rebotes total">4</td>
+                            <td class="asistencias"> 2</td>
+                            <td class="recuperaciones">1</td>
+                            <td class="perdidas"> 3</td>
+                            <td class="tapones favor">1</td>
+			                <td class="tapones contra">0</td>
+                            <td class="mates">0</td>
+                            <td class="faltas cometidas">2</td>
+			                <td class="faltas recibidas">1</td>
+                            <td class="valoracion">5</td>
+                            <td class="balance">-5</td>
+                        </tr>
+                    
+                        <tr>
+                            <td class="inicial"></td>
+                            <td class="dorsal">10</td>
+                            <td class="nombre jugador"><a href="https://baloncestoenvivo.feb.es/Jugador.aspx?i=981281&amp;c=2823388">FRITZ, JACCO DENNIS</a></td>
+                            <td class="minutos">09:43</td>
+                            <td class="puntos">2</td>
+                            <td class="tiros dos">1/3 <span class='porcentaje'>33,3%</span></td>
+                            <td class="tiros tres">0/1 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros campo">1/4 <span class='porcentaje'>25%</span></td>
+                            <td class="tiros libres">0/2 <span class='porcentaje'>0%</span></td>
+			                <td class="rebotes ofensivos">0</td>
+                            <td class="rebotes defensivos">2</td>
+			                <td class="rebotes total">2</td>
+                            <td class="asistencias"> 1</td>
+                            <td class="recuperaciones">0</td>
+                            <td class="perdidas"> 0</td>
+                            <td class="tapones favor">0</td>
+			                <td class="tapones contra">1</td>
+                            <td class="mates">0</td>
+                            <td class="faltas cometidas">3</td>
+			                <td class="faltas recibidas">2</td>
+                            <td class="valoracion">-1</td>
+                            <td class="balance">2</td>
+                        </tr>
+                    
+                        <tr>
+                            <td class="inicial">*</td>
+                            <td class="dorsal">11</td>
+                            <td class="nombre jugador"><a href="https://baloncestoenvivo.feb.es/Jugador.aspx?i=981281&amp;c=2815543">BADMUS, ADEMIDE RASAQUE DEAN</a></td>
+                            <td class="minutos">22:04</td>
+                            <td class="puntos">0</td>
+                            <td class="tiros dos">0/3 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros tres">0/2 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros campo">0/5 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros libres">0/4 <span class='porcentaje'>0%</span></td>
+			                <td class="rebotes ofensivos">4</td>
+                            <td class="rebotes defensivos">5</td>
+			                <td class="rebotes total">9</td>
+                            <td class="asistencias"> 5</td>
+                            <td class="recuperaciones">0</td>
+                            <td class="perdidas"> 3</td>
+                            <td class="tapones favor">0</td>
+			                <td class="tapones contra">0</td>
+                            <td class="mates">0</td>
+                            <td class="faltas cometidas">3</td>
+			                <td class="faltas recibidas">3</td>
+                            <td class="valoracion">2</td>
+                            <td class="balance">-1</td>
+                        </tr>
+                    
+                        <tr>
+                            <td class="inicial"></td>
+                            <td class="dorsal">15</td>
+                            <td class="nombre jugador"><a href="https://baloncestoenvivo.feb.es/Jugador.aspx?i=981281&amp;c=1761508">LOPEZ-SANVICENTE RETA, PEDRO</a></td>
+                            <td class="minutos">14:34</td>
+                            <td class="puntos">2</td>
+                            <td class="tiros dos">1/3 <span class='porcentaje'>33,3%</span></td>
+                            <td class="tiros tres">0/2 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros campo">1/5 <span class='porcentaje'>20%</span></td>
+                            <td class="tiros libres">0/0 <span class='porcentaje'>0%</span></td>
+			                <td class="rebotes ofensivos">1</td>
+                            <td class="rebotes defensivos">1</td>
+			                <td class="rebotes total">2</td>
+                            <td class="asistencias"> 1</td>
+                            <td class="recuperaciones">0</td>
+                            <td class="perdidas"> 0</td>
+                            <td class="tapones favor">0</td>
+			                <td class="tapones contra">0</td>
+                            <td class="mates">0</td>
+                            <td class="faltas cometidas">3</td>
+			                <td class="faltas recibidas">0</td>
+                            <td class="valoracion">-2</td>
+                            <td class="balance">-9</td>
+                        </tr>
+                    
+                        <tr>
+                            <td class="inicial"></td>
+                            <td class="dorsal">24</td>
+                            <td class="nombre jugador"><a href="https://baloncestoenvivo.feb.es/Jugador.aspx?i=981281&amp;c=2061400">RUBIN DE CELIS FERRANDO, ALEX</a></td>
+                            <td class="minutos">12:33</td>
+                            <td class="puntos">1</td>
+                            <td class="tiros dos">0/0 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros tres">0/0 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros campo">0/0 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros libres">1/4 <span class='porcentaje'>25%</span></td>
+			                <td class="rebotes ofensivos">1</td>
+                            <td class="rebotes defensivos">2</td>
+			                <td class="rebotes total">3</td>
+                            <td class="asistencias"> 2</td>
+                            <td class="recuperaciones">0</td>
+                            <td class="perdidas"> 1</td>
+                            <td class="tapones favor">0</td>
+			                <td class="tapones contra">0</td>
+                            <td class="mates">0</td>
+                            <td class="faltas cometidas">1</td>
+			                <td class="faltas recibidas">4</td>
+                            <td class="valoracion">5</td>
+                            <td class="balance">-4</td>
+                        </tr>
+                    
+                        <tr>
+                            <td class="inicial">*</td>
+                            <td class="dorsal">77</td>
+                            <td class="nombre jugador"><a href="https://baloncestoenvivo.feb.es/Jugador.aspx?i=981281&amp;c=2054954">VAZQUEZ VALLEJO, GUILLEM</a></td>
+                            <td class="minutos">17:46</td>
+                            <td class="puntos">3</td>
+                            <td class="tiros dos">0/1 <span class='porcentaje'>0%</span></td>
+                            <td class="tiros tres">1/3 <span class='porcentaje'>33,3%</span></td>
+                            <td class="tiros campo">1/4 <span class='porcentaje'>25%</span></td>
+                            <td class="tiros libres">0/2 <span class='porcentaje'>0%</span></td>
+			                <td class="rebotes ofensivos">1</td>
+                            <td class="rebotes defensivos">2</td>
+			                <td class="rebotes total">3</td>
+                            <td class="asistencias"> 1</td>
+                            <td class="recuperaciones">0</td>
+                            <td class="perdidas"> 1</td>
+                            <td class="tapones favor">0</td>
+			                <td class="tapones contra">0</td>
+                            <td class="mates">0</td>
+                            <td class="faltas cometidas">4</td>
+			                <td class="faltas recibidas">1</td>
+                            <td class="valoracion">-2</td>
+                            <td class="balance">-7</td>
+                        </tr>
+                    
+                        <tr class="row-total">
+                            <td class="inicial"></td>
+                            <td class="dorsal"> </td>
+                            <td class="nombre jugador"></td>
+                            <td class="minutos">200:00</td>
+                            <td class="puntos">66</td>
+                            <td class="tiros dos">13/30 <span class='porcentaje'>43,3%</span></td>
+                            <td class="tiros tres">10/36 <span class='porcentaje'>27,8%</span></td>
+                            <td class="tiros campo">23/66 <span class='porcentaje'>34,8%</span></td>
+                            <td class="tiros libres">10/25 <span class='porcentaje'>40%</span></td>
+                            <td class="rebotes ofensivos">13</td>  
+                            <td class="rebotes defensivos">19</td>
+                            <td class="rebotes total">32</td>
+                            <td class="asistencias">17</td>
+                            <td class="recuperaciones">6</td>
+                            <td class="perdidas">16</td>
+                            <td class="tapones favor">2</td>
+                            <td class="tapones contra">2</td>
+                            <td class="mates">0</td>
+                            <td class="faltas cometidas">23</td>
+                            <td class="faltas recibidas">21</td>
+                            <td class="valoracion">47</td>
+                            <td class="balance"></td>
+                        </tr>
+                    
+            </table>
+        </div>  
+    
+
+
+    
+</div>
+
+    </div>
+
+
+
+
+
+
+
+        </div>
+        <div id="wrap-footer">
+            <div id="page-footer">
+                <div class="textoPie">
+			&copy; <span id="year"></span>&nbsp;Federación Española de Baloncesto · <a href="contacto.html" target="_blank">Contacto</a> · <a href="politicaPrivacidad.html" target="_blank">Política de privacidad</a> · <a href="politicaCookies.html" target="_blank">Política de cookies</a> · <a href="avisoLegal.html" target="_blank">Aviso Legal</a>
+    		</div>
+            </div>
+                        
+        </div>
+        <div class="wrap-rrss">
+            <a href="http://www.youtube.com/feb" class="link-rrss youtube" target="_blank" title="Youtube FEB"><span class="content">Youtube</span>
+            </a><a href="http://www.facebook.com/BaloncestoFEB" class="link-rrss facebook" target="_blank" title="Facebook FEB"><span class="content">Facebook</span>
+            </a><a href="http://www.flickr.com/photos/febgaleriaphotos/" class="link-rrss flickr" target="_blank" title="flickr FEB"><span class="content">flickr</span>
+            </a><a href="https://www.instagram.com/baloncestoesp/" class="link-rrss instagram" target="_blank" title="Instagram FEB"><span class="content">Instagram</span>
+            </a><a href="https://twitter.com/BaloncestoESP" class="link-rrss twitter" target="_blank" title="Twitter baloncestoFEB"><span class="content">Twitter</span>
+            </a>
+        </div>
+    </form>
+    <script type="text/javascript">
+        var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+        document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+    </script>
+    
+	<!-- Google tag (gtag.js) -->
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-N0CZQG3TNR"></script>
+	<script>
+	  window.dataLayer = window.dataLayer || [];
+	  function gtag(){dataLayer.push(arguments);}
+	  gtag('js', new Date());
+
+	  gtag('config', 'G-N0CZQG3TNR');
+	</script>
+
+</body>
+</html>
+

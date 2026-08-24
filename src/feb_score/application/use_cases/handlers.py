@@ -783,24 +783,38 @@ class BackfillCatalogHandler:
 
         do_players = entity in ("players", "both")
         do_teams = entity in ("teams", "both")
+        # "public" (default): names from the public boxscore pages — any season,
+        # no token, no calendar season-gate. "official": legacy LiveStats(+JWT)
+        # players + public-calendar teams (single configured season only).
+        source = payload.get("source", "public")
         entities = tuple(
             name for name, on in (("players", do_players), ("teams", do_teams)) if on
         )
 
         player_names = self._player_names
         if player_names is None and do_players:
-            from .player_name_resolver import (  # noqa: PLC0415 (lazy, connector may be absent)
-                OfficialPlayerNameResolver,
-            )
+            if source == "public":
+                from .public_name_resolver import PublicBoxscoreNameResolver  # noqa: PLC0415
 
-            token = os.environ.get("FEB_TOKEN") or None  # optional override; auto-token otherwise
-            player_names = OfficialPlayerNameResolver(
-                self._match_repo, self._stats_repo, str(season), token=token
-            )
+                player_names = PublicBoxscoreNameResolver(self._match_repo, str(season), "players")
+            else:
+                from .player_name_resolver import (  # noqa: PLC0415 (lazy, connector may be absent)
+                    OfficialPlayerNameResolver,
+                )
+
+                token = os.environ.get("FEB_TOKEN") or None  # optional override; auto-token otherwise
+                player_names = OfficialPlayerNameResolver(
+                    self._match_repo, self._stats_repo, str(season), token=token
+                )
 
         team_names = self._team_names
         if team_names is None and do_teams:
-            team_names = _ServerTeamNameResolver(self._match_repo, str(season))
+            if source == "public":
+                from .public_name_resolver import PublicBoxscoreNameResolver  # noqa: PLC0415
+
+                team_names = PublicBoxscoreNameResolver(self._match_repo, str(season), "teams")
+            else:
+                team_names = _ServerTeamNameResolver(self._match_repo, str(season))
 
         from .catalog_backfill_service import (  # noqa: PLC0415
             CatalogBackfillService,
