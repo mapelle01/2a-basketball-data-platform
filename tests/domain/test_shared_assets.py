@@ -54,3 +54,36 @@ def test_saving_is_the_point():
     served = inline_shared_assets(svg)
     saved = 1 - len(svg) / len(served)
     assert saved > 0.95, f"expected >95% smaller when stored, got {saved:.1%}"
+
+
+# --- headline fitting -------------------------------------------------------
+
+def test_headline_never_overflows_the_column():
+    """Section labels range from 12 to 33 characters, so a fixed big size would
+    push the long ones past the safe margin. Measured advance is ~0.636 em."""
+    from feb_score.infrastructure.rendering.component_templates import (
+        CONTENT_W, _fit_headline,
+    )
+
+    for label in ("Triple-doble", "Jugador de la jornada",
+                  "Máximo anotador de la temporada",
+                  "Máximo reboteador de la temporada"):
+        size = _fit_headline(label, CONTENT_W)
+        width = len(label) * size * 0.636 - (len(label) - 1) * 0.5
+        assert width <= CONTENT_W, f"{label!r} overflows at {size}px"
+
+
+def test_short_labels_get_the_maximum_size():
+    from feb_score.infrastructure.rendering.component_templates import (
+        _HEAD_MAX, _HEAD_MIN, CONTENT_W, _fit_headline,
+    )
+
+    assert _fit_headline("MVP", CONTENT_W) == _HEAD_MAX
+    # and an absurd label still lands on a usable size, never 0
+    assert _fit_headline("X" * 400, CONTENT_W) == _HEAD_MIN
+
+
+def test_headline_sits_on_a_scrim():
+    """The blueprint's red diagonals cut through the words without one."""
+    svg = _card()
+    assert 'fill-opacity="0.72"' in svg

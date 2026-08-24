@@ -381,6 +381,22 @@ def _season_label(season_code: str) -> str:
     return season_code or ""
 
 
+# Headline sizing. The advance was MEASURED off rendered cards (0.623 em for a
+# 21-char label, 0.636 for a 33-char one, Inter ExtraBold in caps); 0.66 keeps a
+# margin so a label can never reach the safe edge. Tracking is added per gap in
+# absolute px — folding it into the em factor is what made the first attempt
+# overflow the column by up to 37px.
+_HEAD_MAX, _HEAD_MIN, _HEAD_ADVANCE = 76, FontSize.H3, 0.66
+
+
+def _fit_headline(label: str, width: float,
+                  tracking: float = LetterSpacing.HEADLINE) -> int:
+    """Largest size at which ``label`` fits one line of ``width``."""
+    n = max(1, len(label))
+    usable = width - (n - 1) * tracking
+    return int(max(_HEAD_MIN, min(_HEAD_MAX, usable / (n * _HEAD_ADVANCE))))
+
+
 def render_player_of_round(data: Dict[str, Any]) -> str:
     facts = data["story"]["facts"]
     display = data.get("display", {})
@@ -392,19 +408,28 @@ def render_player_of_round(data: Dict[str, Any]) -> str:
 
     body: List[str] = []
     section = facts.get("section_label", "Jugador de la jornada")
-    # Prominent kicker: the highlighted-datum descriptor set big and bright, with
-    # the round (or the SEASON, for season-leader cards) on its OWN line so it
-    # reads clearly (not crammed after a middot).
-    body.append(C.accent_bar(CONTENT_X, MARGIN, 56, Line.HEAVY))
-    body.append(C.text(CONTENT_X, MARGIN + 50, section.upper(), size=FontSize.H3,
-                       weight=FontWeight.DISPLAY, fill=Color.WHITE,
-                       tracking=LetterSpacing.HEADLINE, upper=True))
     if story_type in _SEASON_LEADER_STORIES:
         kicker = f"TEMPORADA {_season_label(data['story'].get('season_code', ''))}"
     else:
         kicker = f"JORNADA {round_number}"
-    body.append(C.text(CONTENT_X, MARGIN + 92, kicker, size=FontSize.LABEL,
-                       weight=FontWeight.LABEL, fill=Color.GREY,
+
+    # The descriptor is the card's first hit, so it is set as big as it fits —
+    # fitted, not fixed, because these labels range from "JUGADOR DE LA JORNADA"
+    # to "MÁXIMO REBOTEADOR DE LA TEMPORADA" and a fixed size would overflow the
+    # long ones. A full-bleed scrim sits under it: the blueprint's red diagonals
+    # otherwise cut straight through the words (same technique as the footer).
+    head_size = _fit_headline(section, CONTENT_W)
+    head_base = MARGIN + 44 + head_size * 0.74
+    body.append(
+        f'<rect x="0" y="{MARGIN + 30}" width="{CANVAS.width}"'
+        f' height="{head_size * 1.34 + 46:.0f}" fill="{Color.BLACK}" fill-opacity="0.72"/>'
+    )
+    body.append(C.accent_bar(CONTENT_X, MARGIN, 56, Line.HEAVY))
+    body.append(C.text(CONTENT_X, head_base, section.upper(), size=head_size,
+                       weight=FontWeight.DISPLAY, fill=Color.WHITE,
+                       tracking=LetterSpacing.HEADLINE, upper=True))
+    body.append(C.text(CONTENT_X, head_base + FontSize.LABEL + 16, kicker,
+                       size=FontSize.LABEL, weight=FontWeight.LABEL, fill=Color.GREY,
                        tracking=LetterSpacing.CAPS, upper=True))
     if not red_mood:  # the red top corner can't host the dark mark cleanly
         body.append(_corner_mark())
