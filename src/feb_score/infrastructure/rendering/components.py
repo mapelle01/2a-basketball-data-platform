@@ -469,9 +469,10 @@ def _stat_stacked(x, y, width, primary, primary_label, secondary, fg, variant, c
     parts: List[SVG] = []
     parts.append(text(ox, baseline, str(primary), size=num_size,
                       weight=FontWeight.HERO, fill=fg, anchor=anchor, tracking=LetterSpacing.HERO))
-    # Sit the unit close under the figure — a fixed 30px gap reads as detached
-    # under a 168px number.
-    label_y = baseline + label_size * 0.95
+    # Sit the unit under the figure: close enough to belong to it, but clear of
+    # the digits. Scaled to the label so the clearance holds at any hero size —
+    # 0.95 put the caps ~7px under the baseline and read as a collision.
+    label_y = baseline + label_size * 1.30
     parts.append(text(ox, label_y, primary_label.upper(), size=label_size,
                       weight=FontWeight.DISPLAY, fill=Color.RED, anchor=anchor,
                       tracking=LetterSpacing.CAPS, upper=True))
