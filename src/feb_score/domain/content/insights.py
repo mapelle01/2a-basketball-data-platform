@@ -151,7 +151,7 @@ def detect_player_of_round(
 
     best = max(player_lines, key=lambda p: (p.impact_score, p.points))
 
-    facts = _player_facts(best)
+    facts = player_facts(best)
     return StoryObject(
         story_type=StoryType.PLAYER_OF_ROUND,
         season_code=season_code,
@@ -296,7 +296,7 @@ def detect_notable_performances(
         if doubles < 2:
             continue
         story_type = StoryType.TRIPLE_DOUBLE if doubles >= 3 else StoryType.DOUBLE_DOUBLE
-        facts = _player_facts(p)
+        facts = player_facts(p)
         facts["double_digit_count"] = doubles
         stories.append(StoryObject(
             story_type=story_type,
@@ -397,8 +397,8 @@ def _rating_of(p: PlayerLineInput) -> Optional[float]:
     )
 
 
-def _player_facts(p: PlayerLineInput) -> Dict[str, Any]:
-    """The canonical fact set for a player-card story.
+def player_facts(p: PlayerLineInput) -> Dict[str, Any]:
+    """THE canonical fact set for a player-card story.
 
     Includes the FEB Rating: it is a derived, versioned, deterministic fact (like
     impact_score), so every player card can show the signature mark and the
@@ -429,7 +429,7 @@ def _player_facts(p: PlayerLineInput) -> Dict[str, Any]:
 
 def _player_story(story_type: StoryType, season_code: str, round_number: int,
                   p: PlayerLineInput, extra: Dict[str, Any]) -> StoryObject:
-    facts = _player_facts(p)
+    facts = player_facts(p)
     facts.update(extra)
     return StoryObject(
         story_type=story_type,

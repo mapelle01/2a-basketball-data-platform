@@ -179,3 +179,31 @@ def test_season_fold_accumulates_defensive_stats():
     agg = build_season_aggregate("2024-2025", [[line()], [line(steals=3, blocks=0, turnovers=1)]])
     p = agg.players[0]
     assert (p.steals, p.blocks, p.turnovers) == (4, 1, 3)
+
+
+def test_every_player_card_story_carries_the_rating():
+    """Regression guard. The FEB Rating went missing on season_high because that
+    detector built its facts by hand instead of using the canonical builder — the
+    third time that duplication cost us the mark. Any story mapped to the player
+    card must carry a rating (or None when the line genuinely can't be graded),
+    never omit the key."""
+    from feb_score.domain.content.insights import PlayerLineInput, player_facts
+    from feb_score.domain.content.season_insights import SeasonContext, detect_season_highs
+    from feb_score.domain.content.story import STORY_TO_TEMPLATE, StoryType
+
+    line = PlayerLineInput(
+        "p1", "P. Uno", "t1", "Team", "m1", points=32, rebounds=6, assists=3,
+        steals=1, blocks=0, turnovers=2, minutes=30.0,
+        field_goals_made=12, field_goals_attempted=18, three_points_made=3,
+        three_points_attempted=6, free_throws_made=5, free_throws_attempted=6,
+        fouls=2, fouls_received=4,
+    )
+    assert player_facts(line)["rating"] is not None
+
+    ctx = SeasonContext(player_history={"p1": (10, 12, 15, 11, 32)})  # needs a real baseline
+    stories = detect_season_highs("2024-2025", 25, [line], ctx)
+    assert stories, "expected a season high"
+    for s in stories:
+        if STORY_TO_TEMPLATE.get(s.story_type) == "player_of_round":
+            assert "rating" in s.facts, f"{s.story_type} lost the rating"
+            assert s.facts["rating"] is not None

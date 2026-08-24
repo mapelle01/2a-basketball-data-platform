@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from .insights import MatchFactsInput, PlayerLineInput
+from .insights import MatchFactsInput, PlayerLineInput, player_facts
 from .story import StoryEntities, StoryObject, StoryType
 
 
@@ -83,17 +83,9 @@ def detect_season_highs(
                 match_external_id=p.match_external_id,
             ),
             facts={
-                "player_external_id": p.player_external_id,
-                "player_name": p.player_name,
-                "team_external_id": p.team_external_id,
-                "team_name": p.team_name,
-                "points": p.points,
-                "rebounds": p.rebounds,
-                "assists": p.assists,
-                "impact_score": round(p.impact_score, 1),
+                **player_facts(p),
                 "previous_best": previous_best,
                 "games_played": len(history),
-                "match_external_id": p.match_external_id,
             },
             source_refs={
                 "player_season_stats": (
