@@ -72,6 +72,8 @@ class CommandRunner:
                 command=command_name,
                 command_id=getattr(command, "command_id", None),
                 error=type(exc).__name__,
+                detail=str(exc)[:500],
+                cause=repr(getattr(exc, "__cause__", None))[:500],
                 request_id=request_id,
             )
             raise
