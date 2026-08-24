@@ -56,7 +56,7 @@ def build_commands(box: "PPB.PublicBoxscore", task: MatchTask,
         ("upsert_match_stats", PPB.to_stats_command(
             box, season_code, competition_id, played_at=task.scheduled_at)),
         ("finalize_match", PPB.to_finalize_command(
-            str(task.external_id), season_code, competition_id)),
+            box, season_code, competition_id)),
     ]
 
 

@@ -83,6 +83,19 @@ def test_create_and_finalize_commands_are_schema_valid():
     validate_command(by_type["finalize_match"], "commands/finalize_match.v1.json")
 
 
+def test_finalize_command_carries_score_and_periods():
+    fetch = _fake_fetch({"2486849": _html("2486849")})
+    post = _Recorder()
+    BF.run_backfill(_tasks("2486849"), season_code=SEASON, competition_id=COMP,
+                    fetch=fetch, post=post, sleep_s=0, log=lambda *_: None)
+    fin = next(cmd for t, cmd in post.calls if t == "finalize_match")
+    ss = fin["payload"]["score_summary"]
+    assert (ss["home_score"], ss["away_score"]) == (78, 66)
+    if "periods" in ss:  # included only when quarters reconcile with the score
+        assert sum(p["home"] for p in ss["periods"]) == 78
+        assert sum(p["away"] for p in ss["periods"]) == 66
+
+
 def test_old_season_create_and_finalize_also_valid():
     fetch = _fake_fetch({"29232": _html("29232")})
     post = _Recorder()

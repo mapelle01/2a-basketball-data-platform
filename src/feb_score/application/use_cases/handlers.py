@@ -240,6 +240,19 @@ class FinalizeMatchHandler:
         self.match_repository = match_repository
         self.idempotency_repository = idempotency_repository
 
+    @staticmethod
+    def _score_summary(raw: Optional[Dict[str, object]]) -> Optional[ScoreSummary]:
+        """Build a ScoreSummary from the (optional) finalize payload. Periods are
+        included only when present; the VO enforces that they sum to the score."""
+        if raw is None:
+            return None
+        periods = tuple(
+            PeriodScore(period=int(p["period"]), home=int(p["home"]), away=int(p["away"]))
+            for p in raw.get("periods", [])
+        )
+        return ScoreSummary(home_score=int(raw["home_score"]),
+                            away_score=int(raw["away_score"]), periods=periods)
+
     @contract_validated("commands/finalize_match.v1.json")
     def handle(self, command: FinalizeMatchCommand) -> List[object]:
         if self.idempotency_repository and self.idempotency_repository.has_processed(command.command_id):
@@ -264,7 +277,9 @@ class FinalizeMatchHandler:
 
         try:
             strict = payload.get("validation_context", {}).get("strict", False)
-            match.finalize(finalized_at=command.meta.issued_at, actor_id=command.actor.id, strict=strict)
+            score_summary = self._score_summary(payload.get("score_summary"))
+            match.finalize(score_summary=score_summary, finalized_at=command.meta.issued_at,
+                           actor_id=command.actor.id, strict=strict)
         except Exception as exc:
             failed_event = ValidationFailed(
                 event_id=str(uuid.uuid4()),

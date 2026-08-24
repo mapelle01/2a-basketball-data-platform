@@ -306,15 +306,36 @@ def to_match_command(box: PublicBoxscore, season_code: str, competition_id: str,
     }
 
 
-def to_finalize_command(match_external_id: str, season_code: str, competition_id: str,
+def _score_summary_payload(box: PublicBoxscore) -> Dict[str, Any]:
+    """Final score (+ per-quarter periods) for the finalize command.
+
+    Periods are included ONLY when both teams' quarter tallies sum exactly to
+    their final score (the ScoreSummary invariant): overtime or a data quirk
+    would otherwise break finalization, so we fall back to score-only.
+    """
+    ss: Dict[str, Any] = {"home_score": box.home.score, "away_score": box.away.score}
+    hq, aq = box.home.quarters, box.away.quarters
+    if hq and aq and len(hq) == len(aq) \
+            and sum(hq) == box.home.score and sum(aq) == box.away.score:
+        ss["periods"] = [{"period": i + 1, "home": h, "away": a}
+                         for i, (h, a) in enumerate(zip(hq, aq))]
+    return ss
+
+
+def to_finalize_command(box: PublicBoxscore, season_code: str, competition_id: str,
                         strict: bool = False, issued_at: Optional[str] = None) -> Dict[str, Any]:
     """Build the ``finalize_match`` command — a backfilled match is definitively
-    played, so it should end FINALIZED (the content engine needs that state)."""
+    played, so it ends FINALIZED (the content engine needs that state). Carries
+    the final score + quarters so the aggregate can satisfy validate_finalization."""
     return {
-        "command_id": _finalize_command_id(season_code, competition_id, match_external_id),
+        "command_id": _finalize_command_id(season_code, competition_id, box.match_external_id),
         "meta": {"version": _COMMAND_VERSION, "issued_at": issued_at or _now_iso()},
         "actor": dict(_ACTOR),
-        "payload": {"match_external_id": match_external_id, "validation_context": {"strict": strict}},
+        "payload": {
+            "match_external_id": box.match_external_id,
+            "score_summary": _score_summary_payload(box),
+            "validation_context": {"strict": strict},
+        },
     }
 
 
