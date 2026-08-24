@@ -64,7 +64,7 @@
         "three_points_attempted":{"type":["integer","null"],"minimum":0},
         "free_throws_made":{"type":["integer","null"],"minimum":0},
         "free_throws_attempted":{"type":["integer","null"],"minimum":0},
-        "fouls":{"type":["integer","null"],"minimum":0},
+        "fouls":{"type":["integer","null"],"minimum":0},"fouls_received":{"type":["integer","null"],"minimum":0},
         "plus_minus":{"type":["integer","null"]}
       },
       "additionalProperties": false

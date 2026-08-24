@@ -81,3 +81,16 @@ def test_old_match_also_maps_and_validates():
     _, cmd = _command("29232")  # 2005-06
     validate_command(cmd, SCHEMA)
     assert any(r["three_points_attempted"] for r in cmd["payload"]["player_stats"])
+
+
+def test_fouls_received_reaches_the_command():
+    """Fouls drawn are in the public boxscore and feed the rating (v2.1);
+    they must survive the mapper and the contract."""
+    _, cmd = _command()
+    validate_command(cmd, SCHEMA)
+    row = next(p for p in cmd["payload"]["player_stats"] if p["player_external_id"] == "1549741")
+    assert "fouls_received" in row
+    assert row["fouls_received"] is not None
+
+    ps = UpsertMatchStatsHandler._player_stats(row)
+    assert ps.fouls_received == row["fouls_received"]

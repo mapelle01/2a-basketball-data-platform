@@ -375,6 +375,7 @@ def _player_stats_payload(p: PublicPlayerLine, played_at: Optional[str]) -> Dict
         "free_throws_made": p.free_throws.made,
         "free_throws_attempted": p.free_throws.attempted,
         "fouls": p.fouls_committed,
+        "fouls_received": p.fouls_received,
         "plus_minus": p.plus_minus,
     }
 

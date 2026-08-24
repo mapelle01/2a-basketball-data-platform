@@ -28,6 +28,7 @@ class PlayerStats:
     free_throws_made: Optional[int] = None
     free_throws_attempted: Optional[int] = None
     fouls: Optional[int] = None
+    fouls_received: Optional[int] = None
     plus_minus: Optional[int] = None
 
     _SHOTS = (
@@ -72,6 +73,7 @@ class PlayerStats:
             "free_throws_made": self.free_throws_made,
             "free_throws_attempted": self.free_throws_attempted,
             "fouls": self.fouls,
+            "fouls_received": self.fouls_received,
             "plus_minus": self.plus_minus,
         }
 

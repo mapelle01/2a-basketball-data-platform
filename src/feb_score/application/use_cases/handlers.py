@@ -231,6 +231,7 @@ class UpsertMatchStatsHandler:
             free_throws_made=_opt_int("free_throws_made"),
             free_throws_attempted=_opt_int("free_throws_attempted"),
             fouls=_opt_int("fouls"),
+            fouls_received=_opt_int("fouls_received"),
             plus_minus=_opt_int("plus_minus"),
         )
 

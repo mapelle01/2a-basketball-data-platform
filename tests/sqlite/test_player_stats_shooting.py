@@ -75,3 +75,11 @@ def test_validation():
         _ps(field_goals_made=-1)
     with pytest.raises(ValueError):
         _ps(fouls=-1)
+
+
+def test_fouls_received_survives_roundtrip(sqlite_db, db_path):
+    """Rides in the same data blob as the shooting fields — no migration."""
+    repo = SqliteMatchStatsRepository(sqlite_db)
+    repo.save_player_stats("m2", SEASON, [_ps(fouls=2, fouls_received=5)])
+    got = list(SqliteMatchStatsRepository(SqliteDatabase(db_path)).list_player_stats("m2"))
+    assert got[0].fouls_received == 5

@@ -265,6 +265,7 @@ class LiveContentAdapter:
                 free_throws_made=ps.free_throws_made,
                 free_throws_attempted=ps.free_throws_attempted,
                 fouls=ps.fouls,
+                fouls_received=ps.fouls_received,
             )
             for mid, ps in raw
         ]

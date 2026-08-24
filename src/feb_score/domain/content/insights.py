@@ -74,6 +74,7 @@ class PlayerLineInput:
     free_throws_made: Optional[int] = None
     free_throws_attempted: Optional[int] = None
     fouls: Optional[int] = None
+    fouls_received: Optional[int] = None
 
     @property
     def impact_score(self) -> float:
@@ -392,6 +393,7 @@ def _rating_of(p: PlayerLineInput) -> Optional[float]:
         free_throws_attempted=p.free_throws_attempted or 0,
         three_points_made=p.three_points_made or 0,
         fouls=p.fouls or 0,
+        fouls_received=p.fouls_received or 0,
     )
 
 
