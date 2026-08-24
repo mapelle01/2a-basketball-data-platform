@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import dataclasses
+import logging
 import os
 import uuid
 from datetime import datetime
@@ -77,6 +79,8 @@ from ...domain.standings.model import StandingSnapshot
 from ...domain.statistics.model import PlayerStats, TeamStats
 from ...domain.errors import EntityNotFound, MatchNotFound
 from ..validation import contract_validated
+
+_log = logging.getLogger(__name__)
 
 
 class CreateOrUpdateMatchHandler:
@@ -795,7 +799,12 @@ class BackfillCatalogHandler:
                 self._player_repo, self._stats_repo,
                 PublicProfileBioResolver(self._stats_repo, str(season)),
             )
-            svc.run(season, dry_run=dry_run)
+            stats = svc.run(season, dry_run=dry_run)
+            # The operator needs to SEE what a backfill did; without this the
+            # counters are computed and thrown away, and a run that resolved
+            # nothing looks identical to one that filled every profile.
+            _log.info("backfill_catalog bio season=%s dry_run=%s %s",
+                      season, dry_run, dataclasses.asdict(stats))
             return []
 
         do_players = entity in ("players", "both")
@@ -845,4 +854,6 @@ class BackfillCatalogHandler:
             team_names=team_names,
         )
         stats = svc.run(season, entities=entities, dry_run=dry_run)
-        return []  # no domain events; results are reported via the response/logs
+        _log.info("backfill_catalog %s season=%s dry_run=%s %s",
+                  ",".join(entities), season, dry_run, dataclasses.asdict(stats))
+        return []  # no domain events; the counters go to the logs (above)
