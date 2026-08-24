@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from .insights import PlayerLineInput
+from .rating import FEB_RATING_VERSION as _RATING_VERSION
 from .story import StoryEntities, StoryObject, StoryType
 
 
@@ -26,10 +27,31 @@ class PlayerSeasonLine:
     player_name: Optional[str] = None
     team_external_id: Optional[str] = None
     team_name: Optional[str] = None
+    steals: int = 0
+    blocks: int = 0
+    turnovers: int = 0
 
     @property
     def ppg(self) -> float:
         return round(self.points / self.games, 1) if self.games else 0.0
+
+    @property
+    def rating(self) -> Optional[float]:
+        """The FEB Rating of this player's AVERAGE game over the season.
+
+        The mark grades one boxscore line, so a season mark is the rating of the
+        per-game averages — not a sum. Returns None with no games played, so a
+        card never shows an invented note.
+        """
+        if not self.games:
+            return None
+        from .rating import feb_rating
+
+        g = self.games
+        return feb_rating(
+            round(self.points / g), round(self.rebounds / g), round(self.assists / g),
+            round(self.steals / g), round(self.blocks / g), round(self.turnovers / g),
+        )
 
 
 @dataclass(frozen=True)
@@ -49,11 +71,15 @@ def build_season_aggregate(
             a = acc.setdefault(p.player_external_id, {
                 "player_name": None, "team_external_id": p.team_external_id,
                 "team_name": None, "games": 0, "points": 0, "rebounds": 0, "assists": 0,
+                "steals": 0, "blocks": 0, "turnovers": 0,
             })
             a["games"] = int(a["games"]) + 1
             a["points"] = int(a["points"]) + p.points
             a["rebounds"] = int(a["rebounds"]) + p.rebounds
             a["assists"] = int(a["assists"]) + p.assists
+            a["steals"] = int(a["steals"]) + p.steals
+            a["blocks"] = int(a["blocks"]) + p.blocks
+            a["turnovers"] = int(a["turnovers"]) + p.turnovers
             if p.player_name:
                 a["player_name"] = p.player_name
             if p.team_name:
@@ -65,6 +91,8 @@ def build_season_aggregate(
             team_external_id=a["team_external_id"], team_name=a["team_name"],  # type: ignore[arg-type]
             games=int(a["games"]), points=int(a["points"]),
             rebounds=int(a["rebounds"]), assists=int(a["assists"]),
+            steals=int(a["steals"]), blocks=int(a["blocks"]),
+            turnovers=int(a["turnovers"]),
         )
         for pid, a in acc.items()
     )
@@ -112,6 +140,10 @@ def _season_leader(
         "games_played": leader.games,
         "season_total": total,
         "per_game": per_game,
+        # The FEB Rating of the leader's average game, so the season cards carry
+        # the signature mark like every other player card (None → no band drawn).
+        "rating": leader.rating,
+        "rating_version": _RATING_VERSION,
         "impact_score": round(leader.points + leader.rebounds * 1.2 + leader.assists * 1.5, 1),
         # Player-card hero hints (reuses player_of_round, framed as the season lead).
         "hero_value": total, "hero_label": hero_label,

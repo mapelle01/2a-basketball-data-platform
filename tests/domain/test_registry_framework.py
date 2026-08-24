@@ -132,3 +132,52 @@ class TestEndToEnd:
             "assets": {"player_initials": "CS"}, "copy": {}, "meta": {},
         }
         ET.fromstring(render_template("player_of_round", data))
+
+
+# --- FEB Rating on season cards (regression) --------------------------------
+
+def test_season_line_rating_is_the_average_game_not_a_sum():
+    """The mark grades ONE boxscore line, so a season rating is the rating of the
+    per-game averages. A volume scorer with heavy turnovers must NOT score elite.
+    """
+    from feb_score.domain.content.rating import feb_rating
+    from feb_score.domain.content.season_aggregate import PlayerSeasonLine
+
+    line = PlayerSeasonLine(
+        player_external_id="p1", games=26, points=450, rebounds=112,
+        assists=72, steals=23, blocks=1, turnovers=77,
+    )
+    # equals the rating of the rounded per-game line, never the season totals
+    assert line.rating == feb_rating(17, 4, 3, 1, 0, 3)
+    assert line.rating < 8.0  # volume alone is not elite
+    assert PlayerSeasonLine("p2", games=0, points=0, rebounds=0, assists=0).rating is None
+
+
+def test_season_leader_story_carries_the_rating():
+    from feb_score.domain.content.season_aggregate import (
+        PlayerSeasonLine, SeasonAggregate, detect_season_scoring_leader,
+    )
+
+    agg = SeasonAggregate("2024-2025", (PlayerSeasonLine(
+        player_external_id="p1", games=26, points=450, rebounds=112,
+        assists=72, steals=23, blocks=1, turnovers=77, player_name="X"),))
+    story = detect_season_scoring_leader("2024-2025", 26, agg)[0]
+    assert story.facts["rating"] is not None
+    assert story.facts["rating_version"]
+
+
+def test_season_fold_accumulates_defensive_stats():
+    from feb_score.domain.content.insights import PlayerLineInput
+    from feb_score.domain.content.season_aggregate import build_season_aggregate
+
+    def line(**kw):
+        base = dict(player_external_id="p1", team_external_id="t1", points=10,
+                    rebounds=4, assists=2, steals=1, blocks=1, turnovers=2,
+                    minutes=20.0, match_external_id="m",
+                    player_name="X", team_name="T")
+        base.update(kw)
+        return PlayerLineInput(**base)
+
+    agg = build_season_aggregate("2024-2025", [[line()], [line(steals=3, blocks=0, turnovers=1)]])
+    p = agg.players[0]
+    assert (p.steals, p.blocks, p.turnovers) == (4, 1, 3)
