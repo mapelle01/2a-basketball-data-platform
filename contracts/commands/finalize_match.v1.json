@@ -14,7 +14,7 @@
     "command_id":{"$ref":"#/$defs/uuid"},
     "meta":{"type":"object","required":["version","issued_at"],"properties":{"version":{"type":"string","pattern":"^\\d+\\.\\d+$"},"issued_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
     "actor":{"$ref":"#/$defs/actor"},
-    "payload":{"type":"object","required":["match_external_id"],"properties":{"match_external_id":{"type":"string"},"validation_context":{"type":"object","properties":{"strict":{"type":"boolean"}},"additionalProperties":false}},"additionalProperties":false}
+    "payload":{"type":"object","required":["match_external_id"],"properties":{"match_external_id":{"type":"string"},"score_summary":{"type":"object","required":["home_score","away_score"],"properties":{"home_score":{"type":"integer","minimum":0},"away_score":{"type":"integer","minimum":0},"periods":{"type":"array","items":{"type":"object","required":["period","home","away"],"properties":{"period":{"type":"integer","minimum":1},"home":{"type":"integer","minimum":0},"away":{"type":"integer","minimum":0}},"additionalProperties":false}}},"additionalProperties":false},"validation_context":{"type":"object","properties":{"strict":{"type":"boolean"}},"additionalProperties":false}},"additionalProperties":false}
   },
   "examples":[
     {

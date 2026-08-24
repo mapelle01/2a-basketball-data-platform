@@ -188,6 +188,31 @@ def test_finalize_match_missing_score_persists_no_new_state():
     assert repo.get_by_external_id(ExternalId("2513600")).status.value == "SCHEDULED"
 
 
+def test_finalize_match_with_score_in_command_finalizes_provisional_match():
+    """A provisional match (create + upsert stats) has team stats but NO score;
+    the finalize command carries the score so it can reach FINALIZED. Regression
+    guard for the backfill: without a score in the command, finalize is a no-op."""
+    repo = InMemoryMatchRepository()
+    match = _ready_to_finalize()
+    match.score_summary = None  # provisional: score not recorded by create/upsert
+    repo.save(match)
+
+    events = FinalizeMatchHandler(repo).handle(
+        FinalizeMatchCommand(**cmd({
+            "match_external_id": "2513600",
+            "score_summary": {"home_score": 80, "away_score": 77,
+                              "periods": [{"period": 1, "home": 40, "away": 38},
+                                          {"period": 2, "home": 40, "away": 39}]},
+            "validation_context": {"strict": False},
+        }, role="system"))
+    )
+    assert "MatchFinalized" in [e.__class__.__name__ for e in events]
+    finalized = repo.get_by_external_id(ExternalId("2513600"))
+    assert finalized.status.value == "FINALIZED"
+    assert finalized.score_summary.home_score == 80
+    assert len(finalized.score_summary.periods) == 2
+
+
 # --- ProposeCorrection / ApproveCorrection ---
 def test_approve_correction_valid_updates_both_aggregates_and_emits_events():
     crepo = InMemoryCorrectionRepository()
