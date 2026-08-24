@@ -145,12 +145,26 @@ def run_backfill(
 # ---------------------------------------------------------------------------
 
 
-def _discover_tasks(season_code: str, competition: str, group: str) -> List[MatchTask]:
+def _discover_tasks(season_code: str, competition: str, group: str,
+                    conference: str = "ESTE") -> List[MatchTask]:
+    """Matches of one CONFERENCE of the competition.
+
+    Segunda FEB is split in two conferences (ESTE / OESTE) and the calendar GET
+    returns only the first, so a backfill that ignores this silently ingests HALF
+    a league — which then makes any "season leader" a leader of one conference
+    only. The second is reached through the page's own ASP.NET group dropdown,
+    which is read from the fetched page and therefore works for past seasons too
+    (``discover_matches.fetch_calendar_group`` cannot be used here: it is gated
+    to the single configured season).
+    """
     import discover_matches as DM
 
     year = season_code.split("-")[0]
     url = f"https://baloncestoenvivo.feb.es/calendario.aspx?g={group}&t={year}&nm={competition}"
-    by_round = DM.parse_calendar(DM.fetch_calendar(url))
+    page = DM.fetch_calendar(url)
+    if conference.upper() != "ESTE":
+        page = DM._post_grupo(url, page, conference.upper())
+    by_round = DM.parse_calendar(page)
     tasks: List[MatchTask] = []
     for rnum in sorted(by_round):
         for ref in by_round[rnum]:
@@ -197,13 +211,15 @@ def main() -> int:
     ap.add_argument("--season", required=True, help="e.g. 2018-2019")
     ap.add_argument("--competition", default="segundafeb")
     ap.add_argument("--group", default="2")
+    ap.add_argument("--conference", default="ESTE", choices=["ESTE","OESTE"],
+                    help="Segunda FEB conference; the calendar GET only returns ESTE")
     ap.add_argument("--rounds", default=None, help="csv of round numbers to limit to")
     ap.add_argument("--limit", type=int, default=None, help="max matches")
     ap.add_argument("--sleep", type=float, default=1.0, help="seconds between matches")
     ap.add_argument("--dry-run", action="store_true", help="fetch+parse only, no POST")
     args = ap.parse_args()
 
-    tasks = _discover_tasks(args.season, args.competition, args.group)
+    tasks = _discover_tasks(args.season, args.competition, args.group, args.conference)
     if args.rounds:
         want = {int(x) for x in args.rounds.split(",")}
         tasks = [t for t in tasks if t.round_number in want]
