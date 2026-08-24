@@ -634,7 +634,6 @@ def render_team_streak(data: Dict[str, Any]) -> str:
     facts = data["story"]["facts"]
     assets = data.get("assets", {})
     season = data["story"].get("season_code")
-    round_number = data["story"].get("round_number")
     team = facts.get("team_name") or facts.get("team_external_id", "Equipo")
     is_win = facts.get("streak_kind", "win") == "win"
     length = int(facts.get("streak_length", 0))
@@ -644,12 +643,13 @@ def render_team_streak(data: Dict[str, Any]) -> str:
     body: List[str] = []
     cx = CANVAS.width / 2
 
-    # Kicker (same prominent style as the player card).
+    # Kicker (same prominent style as the player card). A streak is a
+    # season-spanning run, so the kicker frames the season, not a single round.
     body.append(C.accent_bar(CONTENT_X, MARGIN, 56, Line.HEAVY))
     body.append(C.text(CONTENT_X, MARGIN + 50, section.upper(), size=FontSize.H3,
                        weight=FontWeight.DISPLAY, fill=Color.WHITE,
                        tracking=LetterSpacing.HEADLINE, upper=True))
-    body.append(C.text(CONTENT_X, MARGIN + 92, f"JORNADA {round_number}", size=FontSize.LABEL,
+    body.append(C.text(CONTENT_X, MARGIN + 92, f"TEMPORADA {_season_label(season)}", size=FontSize.LABEL,
                        weight=FontWeight.LABEL, fill=Color.GREY,
                        tracking=LetterSpacing.CAPS, upper=True))
     body.append(_corner_mark())
