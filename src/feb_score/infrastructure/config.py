@@ -85,6 +85,12 @@ class Settings:
     # (_env_int) so a malformed value surfaces as ConfigurationError at boot,
     # never as a bare ValueError at import time.
     rate_limit_per_minute: int = 120
+    # Content Engine: directory holding the versioned .svg templates. Defaults
+    # to the repo's templates/content; override in deployments that ship the
+    # templates elsewhere.
+    content_templates_dir: str = os.environ.get(
+        "FEB_SCORE_CONTENT_TEMPLATES_DIR", "templates/content"
+    )
 
     def validate(self) -> None:
         """Fail fast on invalid configuration. Safe to call at boot."""
@@ -133,4 +139,7 @@ def settings_from_env() -> Settings:
         pg_statement_timeout_ms=_env_int("FEB_SCORE_PG_STATEMENT_TIMEOUT", 30000),
         rate_limit_enabled=os.environ.get("FEB_SCORE_RATE_LIMIT", "true").lower() in {"1", "true", "yes"},
         rate_limit_per_minute=_env_int("FEB_SCORE_RATE_LIMIT_PER_MINUTE", 120),
+        content_templates_dir=os.environ.get(
+            "FEB_SCORE_CONTENT_TEMPLATES_DIR", "templates/content"
+        ),
     )

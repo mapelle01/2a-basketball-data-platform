@@ -106,3 +106,8 @@ class SeasonBackfillCompleted(DomainEvent):
 @dataclass(frozen=True)
 class DomainAlert(DomainEvent):
     pass
+
+
+@dataclass(frozen=True)
+class ContentGenerated(DomainEvent):
+    pass

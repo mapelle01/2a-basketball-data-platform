@@ -1,0 +1,857 @@
+"""FEB SCORE! — Template compositions.
+
+Templates are no longer static SVG files with placeholders: they are functions
+that assemble Component Library pieces on an official background, in a vertical
+flow with system spacing. Same data contract the pipeline already produces
+(``{story, copy, assets, display, meta}``); the output is a full 1080x1350 SVG.
+
+Template anatomy (template board): HEADER → MAIN CONTENT → SECONDARY DATA →
+BRANDING. Each maps to a component.
+"""
+
+from __future__ import annotations
+
+import base64
+from functools import lru_cache
+from pathlib import Path
+from typing import Any, Callable, Dict, List
+
+from . import components as C
+from .design_system import (
+    Background,
+    Brand,
+    Canvases,
+    Color,
+    Font,
+    FontSize,
+    FontWeight,
+    Icons,
+    LetterSpacing,
+    Line,
+    Radius,
+    Spacing,
+)
+
+CANVAS = Canvases.POST_PORTRAIT
+MARGIN = CANVAS.safe_margin
+CONTENT_X = MARGIN
+CONTENT_W = CANVAS.width - 2 * MARGIN
+FOOTER_Y = CANVAS.height - MARGIN - 40
+
+
+# ---------------------------------------------------------------------------
+# Backgrounds
+# ---------------------------------------------------------------------------
+
+
+# The official brand background images (blueprint moods), embedded as data URIs
+# so the SVG is self-contained. Three moods share the same court-blueprint
+# language: dark (default), light (editorial), red (impact — MVP/records).
+# TODO(perf): when a PNG rasterizer lands, compose the background there and keep
+# the persisted SVG light instead of embedding ~1.4MB per item.
+BG_DARK = "court_dark"     # default: black blueprint, clean centre
+BG_LIGHT = "court_light"   # editorial white blueprint
+BG_RED = "court_red"       # red-impact blueprint (high-energy pieces)
+IMAGE_BACKGROUND = BG_DARK
+
+# Every embeddable image background (the moods + the earlier assets, kept for
+# back-compat). Anything here is embedded; other names fall to procedural.
+_IMAGE_BACKGROUNDS = {
+    BG_DARK, BG_LIGHT, BG_RED,
+    "tactical_blueprint", "tactical_blueprint_alt",
+    "editorial_light", "editorial_light_alt", "red_accent",
+}
+_ASSET_DIR = Path(__file__).with_name("assets")
+
+
+@lru_cache(maxsize=8)
+def _asset_data_uri(name: str) -> str:
+    raw = (_ASSET_DIR / f"{name}.png").read_bytes()
+    return "data:image/png;base64," + base64.b64encode(raw).decode("ascii")
+
+
+# alias kept for the background call site
+def _background_data_uri(name: str) -> str:
+    return _asset_data_uri(name)
+
+
+# The Segunda FEB competition mark (symbol only, no wordmark). RGBA, so it sits
+# on the dark background cleanly. Cropped to its alpha bounding box via a nested
+# viewBox so it's tight and centered wherever placed.
+COMPETITION_MARK = "segunda_feb_mark"
+_MARK_BBOX = (74, 16, 161, 209)  # x, y, w, h in the 316x316 source
+
+
+def competition_mark(x: float, y: float, height: float) -> str:
+    """Place the Segunda FEB symbol as a small competition seal."""
+    bx, by, bw, bh = _MARK_BBOX
+    width = height * (bw / bh)
+    uri = _asset_data_uri(COMPETITION_MARK)
+    return (
+        f'<svg x="{x}" y="{y}" width="{width:.1f}" height="{height:.1f}"'
+        f' viewBox="{bx} {by} {bw} {bh}" overflow="visible">'
+        f'<image href="{uri}" x="0" y="0" width="316" height="316"/></svg>'
+    )
+
+
+def _corner_mark(height: float = 52) -> str:
+    """The Segunda FEB mark in the top-right corner — a consistent competition
+    signature for cards whose header doesn't already carry it."""
+    mw = height * (_MARK_BBOX[2] / _MARK_BBOX[3])
+    return competition_mark(CONTENT_X + CONTENT_W - mw, MARGIN - 4, height)
+
+
+def context_tab(x: float, y: float, label: str, *, with_mark: bool = True,
+                badge: Any = None, chevron: bool = False, height: float = 60):
+    """A subtle filter/context tab: [lead] label [▾], boxed with a hairline
+    border. The lead is EITHER a small red value chip (``badge``, e.g. "10" or
+    "TOP 5" — a criteria) OR the competition mark (``with_mark`` — a scope). The
+    editorial way to carry filters/criteria inside a ranking header.
+    Returns (svg, width)."""
+    pad = C.Spacing.MD
+    lead_h = height - 28
+    gap = 12
+    if badge is not None:
+        b_pad = 10
+        badge_w = b_pad * 2 + len(str(badge)) * (C.FontSize.LABEL * 0.62)
+        lead_w = badge_w
+    elif with_mark:
+        lead_w = lead_h * (_MARK_BBOX[2] / _MARK_BBOX[3])
+    else:
+        lead_w, gap = 0, 0
+    text_w = len(label) * (C.FontSize.LABEL * 0.54)
+    chev_w = 30 if chevron else 0
+    w = pad * 2 + lead_w + gap + text_w + chev_w
+
+    parts = [
+        C.rect(x, y, w, height, C.Color.INK, radius=C.Radius.MD),
+        f'<rect x="{x}" y="{y}" width="{w:.1f}" height="{height}" fill="none"'
+        f' stroke="{C.Color.GREY}" stroke-opacity="0.4" stroke-width="{C.Line.THIN}"'
+        f' rx="{C.Radius.MD}"/>',
+    ]
+    cx = x + pad
+    ly = y + (height - lead_h) / 2
+    if badge is not None:
+        # A small red brand chip carrying the criteria value (not semantic).
+        parts.append(C.rect(cx, ly, lead_w, lead_h, C.Color.RED, radius=C.Radius.SM))
+        parts.append(C.text(cx + lead_w / 2, ly + lead_h / 2 + 7, str(badge),
+                            size=C.FontSize.LABEL, weight=C.FontWeight.DISPLAY,
+                            fill=C.Color.WHITE, anchor="middle"))
+        cx += lead_w + gap
+    elif with_mark:
+        parts.append(competition_mark(cx, ly, lead_h))
+        cx += lead_w + gap
+    parts.append(C.text(cx, y + height / 2 + 8, label, size=C.FontSize.LABEL,
+                        weight=C.FontWeight.LABEL, fill=C.Color.WHITE))
+    if chevron:
+        chx, chy = x + w - pad - 6, y + height / 2
+        parts.append(
+            f'<path d="M{chx-8},{chy-4} L{chx},{chy+5} L{chx+8},{chy-4}" fill="none"'
+            f' stroke="{C.Color.GREY}" stroke-width="{C.Line.MEDIUM}"'
+            f' stroke-linecap="round" stroke-linejoin="round"/>'
+        )
+    return "".join(parts), w
+
+
+def filter_bar(x: float, y: float, tabs: List[Dict[str, Any]], *,
+               gap: float = Spacing.SM, height: float = 60):
+    """A row of context/filter tabs (criteria + scope), laid left to right — the
+    SofaScore-style two-tab filter, in the FEB SCORE! identity. Each entry is the
+    kwargs of one ``context_tab``. Returns (svg, total_width)."""
+    parts: List[str] = []
+    cx = x
+    for tab in tabs:
+        svg, w = context_tab(cx, y, height=height, **tab)
+        parts.append(svg)
+        cx += w + gap
+    return "".join(parts), (cx - gap - x)
+
+
+def _background(name: str) -> str:
+    """Compose a background. The brand image background (tactical blueprint) is
+    embedded and already carries the court lines, technical marks and red
+    accents — so no geometric treatment is drawn over it."""
+    if name in _IMAGE_BACKGROUNDS:
+        uri = _background_data_uri(name)
+        return (
+            f'<image href="{uri}" x="0" y="0" width="{CANVAS.width}"'
+            f' height="{CANVAS.height}" preserveAspectRatio="xMidYMid slice"/>'
+        )
+
+    # Fallback: procedural backgrounds (palette colors at low opacity).
+    base = Background.BASE.get(name, Color.BLACK)
+    parts = [C.rect(0, 0, CANVAS.width, CANVAS.height, base)]
+    if name == Background.BLACK_RED_ACCENT:
+        parts.append(_court_watermark(opacity=0.05))
+        parts.append(_red_diagonal())
+    elif name == Background.BLACK_COURT:
+        parts.append(_court_watermark(opacity=0.09))
+    elif name == Background.STATISTICS_DARK:
+        parts.append(_statistics_grid())
+    elif name == Background.BLACK_STRUCTURAL:
+        parts.append(_structural_grid())
+    return "".join(parts)
+
+
+def _red_diagonal() -> str:
+    """A single solid red diagonal wedge, top-right. The licensed accent shape."""
+    w = CANVAS.width
+    return f'<polygon points="{w - 240},0 {w},0 {w},240" fill="{Color.RED}"/>'
+
+
+def _court_watermark(opacity: float = 0.08) -> str:
+    """A stylized half-court, drawn faint (grey at low opacity) for depth — the
+    'black + court' treatment. Basket at top-center, half-court arc below."""
+    cx = CANVAS.width / 2
+    top = 120                      # baseline / backboard height
+    paint_w, paint_h = 300, 380    # the key
+    ft_r = 150                     # free-throw circle radius
+    three_r = 470                  # 3-point arc radius
+    stroke = (f'stroke="{Color.GREY}" stroke-opacity="{opacity}" fill="none"'
+              f' stroke-width="{Line.MEDIUM}" stroke-linecap="round"')
+    p = [
+        f'<g {stroke}>',
+        f'<line x1="{MARGIN}" y1="{top}" x2="{CANVAS.width - MARGIN}" y2="{top}"/>',  # baseline
+        f'<rect x="{cx - paint_w/2}" y="{top}" width="{paint_w}" height="{paint_h}"/>',  # key
+        f'<circle cx="{cx}" cy="{top + paint_h}" r="{ft_r}"/>',                          # FT circle
+        f'<circle cx="{cx}" cy="{top + 34}" r="20"/>',                                    # hoop
+        # 3-point arc: a wide arc sweeping under the basket
+        f'<path d="M{cx - three_r},{top} A{three_r},{three_r} 0 0 0 {cx + three_r},{top}"/>',
+        f'<circle cx="{cx}" cy="{CANVAS.height - 40}" r="200"/>',                          # mid-court circle
+        '</g>',
+    ]
+    return "".join(p)
+
+
+def _statistics_grid() -> str:
+    """Faint horizontal rules — the 'statistics dark' data-table treatment."""
+    stroke = f'stroke="{Color.GREY}" stroke-opacity="0.10" stroke-width="{Line.THIN}"'
+    lines = "".join(
+        f'<line x1="{MARGIN}" y1="{y}" x2="{CANVAS.width - MARGIN}" y2="{y}" {stroke}/>'
+        for y in range(600, CANVAS.height - MARGIN, 180)
+    )
+    return lines
+
+
+def _structural_grid() -> str:
+    stroke = f'stroke="{Color.GREY}" stroke-opacity="0.07" stroke-width="{Line.THIN}"'
+    cols = "".join(
+        f'<line x1="{x}" y1="{MARGIN}" x2="{x}" y2="{CANVAS.height - MARGIN}" {stroke}/>'
+        for x in range(MARGIN, CANVAS.width, (CANVAS.width - 2 * MARGIN) // 4)
+    )
+    return cols
+
+
+def _svg_document(body: str, favicon_bg: str) -> str:
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {CANVAS.width} {CANVAS.height}"'
+        f' width="{CANVAS.width}" height="{CANVAS.height}" font-family="{Font.FAMILY}">'
+        f'{_background(favicon_bg)}{body}</svg>'
+    )
+
+
+# ---------------------------------------------------------------------------
+# Composition engine — the layer stack
+# ---------------------------------------------------------------------------
+# Every template is composed as an ordered stack of layers, painted back to
+# front. Any layer may be empty (a template that has no photo simply passes ""),
+# and asset-driven layers (IDENTITY / PHOTO) degrade to monochrome chrome when
+# the crest/cutout isn't available — so a piece is always valid and never
+# invents an asset it doesn't have.
+#
+#   BASE       the official background (image or procedural)   ← _background
+#   IDENTITY   team echo / crest as texture (asset slot)       [awaits crests]
+#   PHOTO      player cutout (asset slot)                       C.avatar / player_hero
+#   GEOMETRY   frames, court lines, brackets (brand chrome)     C.corner_frame …
+#   DATA       scores, stats, ratings, ranking rows             components
+#   ACCENT     the single red accent / brand footer             C.accent_bar …
+
+_LAYER_ORDER = ("base", "identity", "photo", "geometry", "data", "accent")
+
+
+def compose(background: str, **layers: str) -> str:
+    """Assemble a template from named layers, painted in the canonical z-order
+    (see ``_LAYER_ORDER``). ``background`` selects the BASE layer; the rest are
+    optional SVG fragments. Unknown/empty layers are skipped."""
+    body = "".join(layers.get(name, "") or "" for name in _LAYER_ORDER[1:])
+    return _svg_document(body, background)
+
+
+# ---------------------------------------------------------------------------
+# Template: MATCH FINAL
+# ---------------------------------------------------------------------------
+
+
+def render_match_final(data: Dict[str, Any]) -> str:
+    facts = data["story"]["facts"]
+    display = data.get("display", {})
+    season = data["story"].get("season_code")
+    round_number = data["story"].get("round_number")
+    home_score = facts.get("home_score", 0)
+    away_score = facts.get("away_score", 0)
+    home_win = home_score >= away_score
+    margin = abs(home_score - away_score)
+    # Delight: a blowout (20+) ignites the Red-Impact mood; a normal game stays
+    # on the dark blueprint. On red, red is the background, so the winner reads
+    # white and the loser grey (brightness), not red.
+    blowout = margin >= 20
+    bg = BG_RED if blowout else IMAGE_BACKGROUND
+    sb_colors = dict(winner_color=Color.WHITE, loser_color=Color.GREY) if blowout else {}
+
+    body: List[str] = []
+    # HEADER (top) with the official Segunda FEB competition mark on the left.
+    mark_h = 60
+    mark_w = mark_h * (_MARK_BBOX[2] / _MARK_BBOX[3])
+    body.append(competition_mark(CONTENT_X, MARGIN - 6, mark_h))
+    hdr, _ = C.match_header(
+        CONTENT_X, MARGIN, CONTENT_W,
+        competition="Segunda FEB", round_label=f"Jornada {round_number}", status="FINAL",
+        left_inset=mark_w + 18,
+    )
+    body.append(hdr)
+
+    # SCOREBOARD — the content. Centered between header and footer; the margin is
+    # the one non-redundant extra (round is in the header, season in the footer).
+    sb, _ = C.scoreboard(
+        CONTENT_X, 460, CONTENT_W,
+        home=C.TeamSide(display.get("home_team", "Local"), home_score, is_winner=home_win),
+        away=C.TeamSide(display.get("away_team", "Visitante"), away_score, is_winner=not home_win),
+        variant="hero", **sb_colors,
+    )
+    body.append(sb)
+
+    # A single editorial datum under the scoreboard: the margin.
+    # Red discipline: the winner's score is the one red datum on this card, so
+    # the margin reads in white (was a second red).
+    mid_x = CANVAS.width / 2
+    body.append(C.text(mid_x, 792, f"+{margin}", size=FontSize.H2, weight=FontWeight.HERO,
+                       fill=Color.WHITE, anchor="middle"))
+    body.append(C.text(mid_x, 826, "DIFERENCIA", size=FontSize.MICRO, weight=FontWeight.LABEL,
+                       fill=Color.GREY, anchor="middle", tracking=LetterSpacing.CAPS, upper=True))
+
+    # BRANDING (bottom)
+    ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB", season=season)
+    body.append(ft)
+    return _svg_document("".join(body), bg)
+
+
+# ---------------------------------------------------------------------------
+# Template: PLAYER OF THE ROUND
+# ---------------------------------------------------------------------------
+
+
+# High-energy player story types get the Red-Impact mood, so a feed of player
+# cards doesn't read as one dark template; routine ones stay on the blueprint.
+_RED_PLAYER_STORIES = {"perfect_night", "sharpshooter", "triple_double", "season_high"}
+# Season-scope leader cards frame the whole season, not a single round: their
+# kicker is the season, never "JORNADA N".
+_SEASON_LEADER_STORIES = {"top_scorer", "top_rebounder", "top_assist_provider"}
+
+
+def _season_label(season_code: str) -> str:
+    """'2024-2025' -> '2024-25' (fallback: the raw code)."""
+    parts = (season_code or "").split("-")
+    if len(parts) == 2 and len(parts[1]) == 4:
+        return f"{parts[0]}-{parts[1][2:]}"
+    return season_code or ""
+
+
+def render_player_of_round(data: Dict[str, Any]) -> str:
+    facts = data["story"]["facts"]
+    display = data.get("display", {})
+    assets = data.get("assets", {})
+    round_number = data["story"].get("round_number")
+    story_type = data["story"].get("story_type")
+    red_mood = story_type in _RED_PLAYER_STORIES
+    bg = BG_RED if red_mood else IMAGE_BACKGROUND
+
+    body: List[str] = []
+    section = facts.get("section_label", "Jugador de la jornada")
+    # Prominent kicker: the highlighted-datum descriptor set big and bright, with
+    # the round (or the SEASON, for season-leader cards) on its OWN line so it
+    # reads clearly (not crammed after a middot).
+    body.append(C.accent_bar(CONTENT_X, MARGIN, 56, Line.HEAVY))
+    body.append(C.text(CONTENT_X, MARGIN + 50, section.upper(), size=FontSize.H3,
+                       weight=FontWeight.DISPLAY, fill=Color.WHITE,
+                       tracking=LetterSpacing.HEADLINE, upper=True))
+    if story_type in _SEASON_LEADER_STORIES:
+        kicker = f"TEMPORADA {_season_label(data['story'].get('season_code', ''))}"
+    else:
+        kicker = f"JORNADA {round_number}"
+    body.append(C.text(CONTENT_X, MARGIN + 92, kicker, size=FontSize.LABEL,
+                       weight=FontWeight.LABEL, fill=Color.GREY,
+                       tracking=LetterSpacing.CAPS, upper=True))
+    if not red_mood:  # the red top corner can't host the dark mark cleanly
+        body.append(_corner_mark())
+
+    # The hero stat is chosen by the detector (points by default, but assists /
+    # minutes / threes for the curious & shooting angles) via facts hints, so the
+    # same card frames a different story.
+    hero_value = facts.get("hero_value", facts.get("points", 0))
+    hero_label = facts.get("hero_label", "PTS")
+    sec_hint = facts.get("secondary") or [
+        [facts.get("rebounds", 0), "REB"], [facts.get("assists", 0), "AST"]
+    ]
+    secondary = [(str(v), str(lab)) for v, lab in sec_hint]
+    hero_kwargs = dict(
+        name=display.get("player", "Jugador"),
+        team=display.get("team", ""),
+        primary_stat=str(hero_value), primary_label=hero_label,
+        secondary_stats=secondary,
+        initials=assets.get("player_initials"),
+        photo_uri=assets.get("player_photo"),
+        badge=facts.get("badge_label", "MVP"),
+    )
+    # Place the hero below the kicker, biased upward so the kicker→portrait gap
+    # stays tight (the slack falls to the bottom, where the footer anchors it).
+    _, hero_h = C.player_hero(CONTENT_X, 0, CONTENT_W, **hero_kwargs)
+    top, bottom = MARGIN + 116, FOOTER_Y - Spacing.MD
+    y0 = top + max(0, int((bottom - top - hero_h) * 0.28))
+    ph, _ = C.player_hero(CONTENT_X, y0, CONTENT_W, **hero_kwargs)
+    body.append(ph)
+
+    ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W,
+                           competition="Segunda FEB", season=data["story"].get("season_code"))
+    body.append(ft)
+    return _svg_document("".join(body), bg)
+
+
+# ---------------------------------------------------------------------------
+# Template: ROUND RECAP
+# ---------------------------------------------------------------------------
+
+
+def render_round_recap(data: Dict[str, Any]) -> str:
+    facts = data["story"]["facts"]
+    display = data.get("display", {})
+    season = data["story"].get("season_code")
+    round_number = data["story"].get("round_number")
+    matches_played = facts.get("matches_played", 0)
+
+    body: List[str] = []
+    # HEADER — season lives in the footer, so keep this to the section name.
+    hdr, _ = C.match_header(
+        CONTENT_X, MARGIN, CONTENT_W,
+        competition="Segunda FEB", round_label="Resumen de la jornada",
+    )
+    body.append(hdr)
+    body.append(_corner_mark())
+
+    # HERO — giant round number + matches played.
+    body.append(C.text(CONTENT_X, 200, "JORNADA", size=FontSize.LABEL, weight=FontWeight.LABEL,
+                       fill=Color.GREY, tracking=LetterSpacing.EYEBROW, upper=True))
+    body.append(C.text(CONTENT_X, 370, str(round_number), size=FontSize.HERO + 40,
+                       weight=FontWeight.HERO, fill=Color.WHITE, tracking=LetterSpacing.HERO))
+    body.append(C.text(CONTENT_X, 448, f"{matches_played} partidos disputados",
+                       size=FontSize.BODY, weight=FontWeight.TITLE, fill=Color.WHITE))
+
+    # HIGHLIGHTS — three editorial rows that fill the vertical space; the key
+    # value sits right in red. Top scorer row shown only when known.
+    rows = []
+    top = display.get("top_scorer")
+    if top and top != "—":
+        rows.append(("Máximo anotador", top, f"{facts.get('top_scorer_points', '')} PTS"))
+    rows.append(("Mayor diferencia", None, f"+{facts.get('biggest_win_margin', 0)}"))
+    rows.append(("Partido más ajustado", None, f"{facts.get('closest_game_margin', 0)} PTS"))
+
+    # Red discipline: only the headline row (the first — top scorer when present)
+    # carries the red value; the rest read in white, so one red datum leads.
+    # Density: start the rows right after the hero and distribute to the footer,
+    # closing the empty band between the round number and the highlights.
+    ry = 540
+    step = min(220, (FOOTER_Y - 40 - ry) // max(1, len(rows)))
+    for i, (label, subject, value) in enumerate(rows):
+        value_color = Color.RED if i == 0 else Color.WHITE
+        body.append(C.hline(CONTENT_X, ry, CONTENT_W, weight=Line.THIN, color=Color.GREY, opacity=0.28))
+        body.append(C.text(CONTENT_X, ry + 46, label.upper(), size=FontSize.MICRO,
+                           weight=FontWeight.LABEL, fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True))
+        if subject:
+            body.append(C.text(CONTENT_X, ry + 100, subject.upper(), size=FontSize.H3,
+                               weight=FontWeight.TITLE, fill=Color.WHITE, upper=True))
+        body.append(C.text(CONTENT_X + CONTENT_W, ry + 92, value, size=FontSize.H2,
+                           weight=FontWeight.HERO, fill=value_color, anchor="end"))
+        ry += step
+
+    ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB", season=season)
+    body.append(ft)
+    return _svg_document("".join(body), IMAGE_BACKGROUND)
+
+
+# ---------------------------------------------------------------------------
+# Template: STAT LEADERBOARD (top scorers ranking, with FEB Rating chips)
+# ---------------------------------------------------------------------------
+
+
+def render_stat_leaderboard(data: Dict[str, Any]) -> str:
+    facts = data["story"]["facts"]
+    season = data["story"].get("season_code")
+    round_number = data["story"].get("round_number")
+    leaders = facts.get("leaders", [])
+
+    # LIGHT DATA mood: rankings read best on the editorial white blueprint, so
+    # text inverts to dark and the rating chip uses its on-light tiers.
+    ink, sub = Color.BLACK, Color.GREY
+
+    body: List[str] = []
+    # Title + subtitle
+    body.append(C.text(CONTENT_X, 180, "Máximos anotadores", size=FontSize.H1,
+                       weight=FontWeight.DISPLAY, fill=ink, tracking=LetterSpacing.HEADLINE))
+    body.append(C.text(CONTENT_X, 232, "LA JORNADA EN CIFRAS", size=FontSize.LABEL,
+                       weight=FontWeight.LABEL, fill=sub, tracking=LetterSpacing.CAPS, upper=True))
+
+    # Two-tab filter bar: criteria (a red count chip) + scope (competition mark).
+    bar, _ = filter_bar(CONTENT_X, 288, [
+        {"label": f"Top {len(leaders)}", "badge": len(leaders), "with_mark": False, "chevron": True},
+        {"label": f"Jornada {round_number}", "with_mark": True, "chevron": True},
+    ])
+    body.append(bar)
+
+    # Column note so the rating chip reads as a 0..10 score, not a bare number.
+    body.append(C.text(CONTENT_X + CONTENT_W, 400, "FEB RATING /10", size=FontSize.MICRO,
+                       weight=FontWeight.LABEL, fill=sub, anchor="end",
+                       tracking=LetterSpacing.LABEL, upper=True))
+
+    # Ranking rows: rank · avatar · name/team · points · FEB Rating chip.
+    # The avatar is a SLOT — initials today, a real cutout when photos land.
+    ry = 430
+    n = max(1, len(leaders))
+    step = min(132, (FOOTER_Y - 60 - ry) // n)
+    chip = 88
+    av_r = 42
+    av_cx = CONTENT_X + 40 + av_r
+    name_x = av_cx + av_r + Spacing.LG
+    for row in leaders:
+        name = row.get("player_name") or row.get("player_external_id", "—")
+        team = row.get("team_name") or row.get("team_external_id", "")
+        body.append(C.hline(CONTENT_X, ry - 24, CONTENT_W, weight=Line.THIN, color=Color.INK, opacity=0.15))
+        body.append(C.text(CONTENT_X, ry + 20, str(row.get("rank", "")), size=FontSize.H3,
+                           weight=FontWeight.HERO, fill=sub))
+        body.append(C.avatar(av_cx, ry + 8, av_r, initials=C.initials_of(name),
+                             photo_uri=row.get("photo_uri"), badge_uri=row.get("badge_uri")))
+        body.append(C.text(name_x, ry + 16, name.upper(), size=FontSize.H3,
+                           weight=FontWeight.TITLE, fill=ink, upper=True))
+        if team:
+            body.append(C.text(name_x, ry + 46, team.upper(), size=FontSize.MICRO,
+                               weight=FontWeight.LABEL, fill=sub, tracking=LetterSpacing.LABEL, upper=True))
+        body.append(C.text(CONTENT_X + CONTENT_W - chip - 40, ry + 22, str(row.get("points", 0)),
+                           size=FontSize.H2, weight=FontWeight.HERO, fill=ink, anchor="end",
+                           tracking=LetterSpacing.DISPLAY))
+        rating_svg, _ = C.rating_badge(CONTENT_X + CONTENT_W - chip, ry - 24, float(row.get("rating", 0)),
+                                       variant="chip", on_dark=False)
+        body.append(rating_svg)
+        ry += step
+
+    ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB",
+                           season=season, variant="light")
+    body.append(ft)
+    return _svg_document("".join(body), BG_LIGHT)
+
+
+# ---------------------------------------------------------------------------
+# Template: BEST FIVE (the round's ideal lineup, on a court diagram)
+# ---------------------------------------------------------------------------
+
+
+def _court_diagram(x: float, y: float, w: float, h: float, *, opacity: float = 0.22) -> str:
+    """A clean half-court drawn as thin lines — both the GEOMETRY layer and the
+    coordinate system the five players are placed on. Basket at top. Procedural,
+    no asset: the court is code, so positions always align to it."""
+    cx = x + w / 2
+    key_w, key_h = w * 0.30, h * 0.32
+    ft_r = key_w * 0.5
+    three_r = w * 0.52
+    stroke = (f'stroke="{Color.GREY}" stroke-opacity="{opacity}" fill="none"'
+              f' stroke-width="{Line.MEDIUM}" stroke-linecap="round" stroke-linejoin="round"')
+    p = [
+        f'<g {stroke}>',
+        f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="4"/>',              # court box
+        f'<rect x="{cx - key_w/2}" y="{y}" width="{key_w}" height="{key_h}"/>',  # the key
+        f'<circle cx="{cx}" cy="{y + 28}" r="14"/>',                            # hoop
+        f'<circle cx="{cx}" cy="{y + key_h}" r="{ft_r}"/>',                     # FT circle
+        f'<path d="M{cx - three_r},{y} A{three_r},{three_r} 0 0 0 {cx + three_r},{y}"/>',  # 3pt arc
+        f'<line x1="{x}" y1="{y + h}" x2="{x + w}" y2="{y + h}"/>',             # half-court line
+        '</g>',
+    ]
+    return "".join(p)
+
+
+# Five spots as fractions of the court box (basket at top): a center near the
+# rim, two forwards on the wings, two guards up top on the perimeter.
+_LINEUP_SPOTS = [
+    ("C", 0.50, 0.12),
+    ("PF", 0.19, 0.42), ("SF", 0.81, 0.42),
+    ("PG", 0.32, 0.76), ("SG", 0.68, 0.76),
+]
+
+
+def render_best_five(data: Dict[str, Any]) -> str:
+    facts = data["story"]["facts"]
+    season = data["story"].get("season_code")
+    round_number = data["story"].get("round_number")
+    lineup = facts.get("lineup", [])
+
+    # Header (DATA layer, above the court).
+    head: List[str] = []
+    head.append(C.text(CONTENT_X, 150, "El quinteto ideal", size=FontSize.H1,
+                       weight=FontWeight.DISPLAY, fill=Color.WHITE, tracking=LetterSpacing.HEADLINE))
+    head.append(C.text(CONTENT_X, 196, "LA MEJOR ALINEACIÓN DE LA JORNADA", size=FontSize.LABEL,
+                       weight=FontWeight.LABEL, fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True))
+    bar, _ = filter_bar(CONTENT_X, 240, [
+        {"label": "Mejor 5", "badge": 5, "with_mark": False, "chevron": True},
+        {"label": f"Jornada {round_number}", "with_mark": True, "chevron": True},
+    ])
+    head.append(bar)
+    head.append(_corner_mark())
+
+    # Court (GEOMETRY layer) + the five players placed on it (DATA layer).
+    bx, by, bw, bh = CONTENT_X, 372, CONTENT_W, 792
+    court = _court_diagram(bx, by, bw, bh)
+
+    players: List[str] = []
+    r = 60
+    for (pos, fx, fy), row in zip(_LINEUP_SPOTS, lineup):
+        px, py = bx + bw * fx, by + bh * fy
+        name = row.get("player_name") or row.get("player_external_id", "—")
+        rating = float(row.get("rating", 0))
+        players.append(C.avatar(px, py, r, initials=C.initials_of(name),
+                                photo_uri=row.get("photo_uri"), badge_uri=row.get("badge_uri")))
+        players.append(C.text(px, py + r + 34, name.upper(), size=FontSize.MICRO,
+                              weight=FontWeight.TITLE, fill=Color.WHITE, anchor="middle", upper=True))
+        chip, _ = C.rating_badge(px - 23, py + r + 48, rating, variant="mini")
+        players.append(chip)
+
+    ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB", season=season)
+    return compose(Background.STATISTICS_DARK, geometry=court,
+                   data="".join(head) + "".join(players) + ft)
+
+
+# ---------------------------------------------------------------------------
+# Template: TEAM STREAK (a team card — the win/loss run visualized)
+# ---------------------------------------------------------------------------
+
+
+def render_team_streak(data: Dict[str, Any]) -> str:
+    facts = data["story"]["facts"]
+    assets = data.get("assets", {})
+    season = data["story"].get("season_code")
+    team = facts.get("team_name") or facts.get("team_external_id", "Equipo")
+    is_win = facts.get("streak_kind", "win") == "win"
+    length = int(facts.get("streak_length", 0))
+    word = "VICTORIAS" if is_win else "DERROTAS"
+    section = "Racha de victorias" if is_win else "Racha de derrotas"
+
+    body: List[str] = []
+    cx = CANVAS.width / 2
+
+    # Kicker (same prominent style as the player card). A streak is a
+    # season-spanning run, so the kicker frames the season, not a single round.
+    body.append(C.accent_bar(CONTENT_X, MARGIN, 56, Line.HEAVY))
+    body.append(C.text(CONTENT_X, MARGIN + 50, section.upper(), size=FontSize.H3,
+                       weight=FontWeight.DISPLAY, fill=Color.WHITE,
+                       tracking=LetterSpacing.HEADLINE, upper=True))
+    body.append(C.text(CONTENT_X, MARGIN + 92, f"TEMPORADA {_season_label(season)}", size=FontSize.LABEL,
+                       weight=FontWeight.LABEL, fill=Color.GREY,
+                       tracking=LetterSpacing.CAPS, upper=True))
+    body.append(_corner_mark())
+
+    # Crest SLOT — a square with the team initials (a real crest drops in later).
+    cs, cy0 = 220, 240
+    px = cx - cs / 2
+    crest = assets.get("team_crest")
+    if crest:
+        cid = f"cr{int(px)}_{cy0}"
+        body.append(f'<clipPath id="{cid}"><rect x="{px:.0f}" y="{cy0}" width="{cs}" height="{cs}"/></clipPath>')
+        body.append(C.rect(px, cy0, cs, cs, Color.INK))
+        body.append(f'<image href="{crest}" x="{px:.0f}" y="{cy0}" width="{cs}" height="{cs}"'
+                    f' clip-path="url(#{cid})" preserveAspectRatio="xMidYMid meet"/>')
+    else:
+        body.append(C.rect(px, cy0, cs, cs, Color.INK))
+        body.append(C.text(cx, cy0 + cs * 0.66, C.initials_of(team), size=FontSize.DISPLAY,
+                           weight=FontWeight.HERO, fill=Color.GREY, anchor="middle",
+                           tracking=LetterSpacing.HERO))
+    body.append(
+        f'<rect x="{px:.0f}" y="{cy0}" width="{cs}" height="{cs}" fill="none"'
+        f' stroke="{Color.GREY}" stroke-opacity="0.35" stroke-width="{Line.THIN}"/>'
+    )
+    body.append(C.accent_bar(px, cy0, 64))
+    body.append(C.corner_frame(px, cy0, cs, cs, arm=44, corners=("tl", "br")))
+
+    # Team name (steps down a size for long names so it never overflows).
+    name_size = FontSize.H1 if len(team) <= 14 else FontSize.H2
+    body.append(C.text(cx, cy0 + cs + 80, team.upper(), size=name_size, weight=FontWeight.DISPLAY,
+                       fill=Color.WHITE, anchor="middle", tracking=LetterSpacing.HEADLINE, upper=True))
+
+    # Hero streak number + label (number white — red stays the brand accent, on
+    # the run chips below, never a semantic "good/bad").
+    ny = cy0 + cs + 300
+    body.append(C.text(cx, ny, str(length), size=FontSize.HERO, weight=FontWeight.HERO,
+                       fill=Color.WHITE, anchor="middle", tracking=LetterSpacing.HERO))
+    body.append(C.text(cx, ny + 40, f"{word} SEGUIDAS", size=FontSize.LABEL, weight=FontWeight.LABEL,
+                       fill=Color.RED, anchor="middle", tracking=LetterSpacing.CAPS, upper=True))
+
+    # The run, visualized: one mark per game. Red squares for wins, grey-outline
+    # for losses. Capped so a long run still fits (a "+N" tail carries the rest).
+    shown = min(length, 8)
+    chip, gap = 72, Spacing.SM
+    extra = length - shown
+    tail_w = 44 if extra > 0 else 0
+    total = shown * chip + (shown - 1) * gap + (tail_w + gap if extra > 0 else 0)
+    sx = cx - total / 2
+    ry = ny + 96
+    letter = "V" if is_win else "D"
+    for i in range(shown):
+        x = sx + i * (chip + gap)
+        if is_win:
+            body.append(C.rect(x, ry, chip, chip, Color.RED, radius=Radius.SM))
+            body.append(C.text(x + chip / 2, ry + chip / 2 + 12, letter, size=FontSize.H3,
+                               weight=FontWeight.HERO, fill=Color.WHITE, anchor="middle"))
+        else:
+            body.append(C.rect(x, ry, chip, chip, Color.INK, radius=Radius.SM))
+            body.append(f'<rect x="{x:.0f}" y="{ry}" width="{chip}" height="{chip}" fill="none"'
+                        f' stroke="{Color.GREY}" stroke-opacity="0.6" stroke-width="{Line.MEDIUM}" rx="{Radius.SM}"/>')
+            body.append(C.text(x + chip / 2, ry + chip / 2 + 12, letter, size=FontSize.H3,
+                               weight=FontWeight.HERO, fill=Color.GREY, anchor="middle"))
+    if extra > 0:
+        tx = sx + shown * (chip + gap)
+        body.append(C.text(tx + tail_w / 2, ry + chip / 2 + 10, f"+{extra}", size=FontSize.H3,
+                           weight=FontWeight.HERO, fill=Color.GREY, anchor="middle"))
+
+    ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB", season=season)
+    body.append(ft)
+    return _svg_document("".join(body), IMAGE_BACKGROUND)
+
+
+# ---------------------------------------------------------------------------
+# Template: BEST DUO (two teammates + their combined total)
+# ---------------------------------------------------------------------------
+
+
+def _rating_scale_card(x: float, y: float, w: float, value: float) -> tuple:
+    """Boxed FEB RATING with a 0..10 segmented meter (the duo mockup's card)."""
+    h = 118
+    pad = Spacing.MD
+    parts = [
+        f'<rect x="{x:.0f}" y="{y}" width="{w:.0f}" height="{h}" fill="none"'
+        f' stroke="{Color.GREY}" stroke-opacity="0.4" stroke-width="{Line.THIN}" rx="{Radius.MD}"/>',
+        C.text(x + pad, y + 36, "FEB RATING", size=FontSize.MICRO, weight=FontWeight.LABEL,
+               fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True),
+        C.text(x + pad, y + 92, C._fmt_rating(value), size=FontSize.H2, weight=FontWeight.HERO,
+               fill=Color.WHITE),
+    ]
+    mx = x + pad + 116
+    mw = w - (mx - x) - pad
+    my = y + 58
+    seg, gap = 10, 5
+    sw = (mw - (seg - 1) * gap) / seg
+    filled = int(round(value))
+    for i in range(seg):
+        sx = mx + i * (sw + gap)
+        if i < filled:
+            parts.append(f'<rect x="{sx:.1f}" y="{my}" width="{sw:.1f}" height="18" fill="{Color.RED}" rx="2"/>')
+        else:
+            parts.append(f'<rect x="{sx:.1f}" y="{my}" width="{sw:.1f}" height="18" fill="{Color.GREY}"'
+                         f' fill-opacity="0.3" rx="2"/>')
+    for tick in (0, 5, 10):
+        tx = mx + mw * (tick / 10)
+        parts.append(C.text(tx, my + 44, str(tick), size=FontSize.MICRO, weight=FontWeight.LABEL,
+                            fill=Color.GREY, anchor="middle"))
+    return "".join(parts), h
+
+
+def _duo_column(cx: float, avatar_cy: float, col_w: float, name: str, pts, rating: float,
+                *, initials: str, photo_uri=None, badge_uri=None) -> str:
+    r = 108
+    parts = [C.avatar(cx, avatar_cy, r, initials=initials, photo_uri=photo_uri, badge_uri=badge_uri)]
+    side = 2 * r + 44
+    parts.append(C.corner_frame(cx - side / 2, avatar_cy - side / 2, side, side,
+                                arm=46, corners=("tl", "tr", "bl", "br")))
+    ny = avatar_cy + r + 70
+    parts.append(C.text(cx, ny, name.upper(), size=FontSize.H3, weight=FontWeight.DISPLAY,
+                        fill=Color.WHITE, anchor="middle", tracking=LetterSpacing.HEADLINE, upper=True))
+    bx, by, bh = cx - col_w / 2, ny + 42, 92
+    parts.append(f'<rect x="{bx:.0f}" y="{by}" width="{col_w:.0f}" height="{bh}" fill="none"'
+                 f' stroke="{Color.GREY}" stroke-opacity="0.4" stroke-width="{Line.THIN}" rx="{Radius.MD}"/>')
+    parts.append(C.text(cx - 16, by + 66, str(pts), size=FontSize.H1, weight=FontWeight.HERO,
+                        fill=Color.WHITE, anchor="end", tracking=LetterSpacing.DISPLAY))
+    parts.append(C.text(cx + 6, by + 62, "PTS", size=FontSize.LABEL, weight=FontWeight.LABEL,
+                        fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True))
+    card, _ = _rating_scale_card(bx, by + bh + Spacing.SM, col_w, rating)
+    parts.append(card)
+    return "".join(parts)
+
+
+def render_best_duo(data: Dict[str, Any]) -> str:
+    facts = data["story"]["facts"]
+    season = data["story"].get("season_code")
+    round_number = data["story"].get("round_number")
+    n1 = facts.get("p1_name") or facts.get("p1_external_id", "Jugador 1")
+    n2 = facts.get("p2_name") or facts.get("p2_external_id", "Jugador 2")
+    assets = data.get("assets", {})
+
+    body: List[str] = []
+    # Kicker.
+    body.append(C.accent_bar(CONTENT_X, MARGIN, 210, Line.HEAVY))
+    body.append(C.text(CONTENT_X, MARGIN + 92, "EL MEJOR DÚO", size=FontSize.H1,
+                       weight=FontWeight.DISPLAY, fill=Color.WHITE, tracking=LetterSpacing.HEADLINE, upper=True))
+    body.append(C.text(CONTENT_X, MARGIN + 138, f"JORNADA {round_number}", size=FontSize.LABEL,
+                       weight=FontWeight.LABEL, fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True))
+
+    # Two columns (teammates, not a versus).
+    left_cx = CONTENT_X + CONTENT_W * 0.25
+    right_cx = CONTENT_X + CONTENT_W * 0.75
+    col_w, avatar_cy = 384, 400
+    body.append(_duo_column(left_cx, avatar_cy, col_w, n1, facts.get("p1_points", 0),
+                            float(facts.get("p1_rating", 0)), initials=C.initials_of(n1),
+                            photo_uri=assets.get("p1_photo"), badge_uri=assets.get("team_crest")))
+    body.append(_duo_column(right_cx, avatar_cy, col_w, n2, facts.get("p2_points", 0),
+                            float(facts.get("p2_rating", 0)), initials=C.initials_of(n2),
+                            photo_uri=assets.get("p2_photo"), badge_uri=assets.get("team_crest")))
+    # The uniting "+" on the center line, level with the stat boxes.
+    body.append(C.text(CANVAS.width / 2, avatar_cy + 300, "+", size=FontSize.DISPLAY,
+                       weight=FontWeight.HERO, fill=Color.WHITE, anchor="middle"))
+
+    # Separator + center ball, then the combined total (the protagonist).
+    sep_y = 902
+    body.append(C.hline(CONTENT_X, sep_y, CONTENT_W, weight=Line.THIN, color=Color.GREY, opacity=0.25))
+    body.append(C.icon(CANVAS.width / 2 - 18, sep_y - 18, Icons.BALL, size=36, color=Color.RED))
+
+    combined = facts.get("combined_points", 0)
+    box_w, box_h, box_y = 500, 210, 972
+    box_x = CANVAS.width / 2 - box_w / 2
+    body.append(C.corner_frame(box_x, box_y, box_w, box_h, arm=56, color=Color.RED,
+                               corners=("tl", "tr", "bl", "br")))
+    body.append(C.text(CANVAS.width / 2, box_y + 150, str(combined), size=FontSize.HERO,
+                       weight=FontWeight.HERO, fill=Color.WHITE, anchor="middle", tracking=LetterSpacing.HERO))
+    body.append(C.text(CANVAS.width / 2, box_y + 200, "PTS COMBINADOS", size=FontSize.LABEL,
+                       weight=FontWeight.LABEL, fill=Color.RED, anchor="middle",
+                       tracking=LetterSpacing.CAPS, upper=True))
+
+    ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB", season=season)
+    body.append(ft)
+    return _svg_document("".join(body), BG_RED)  # high-energy mood for the duo
+
+
+# ---------------------------------------------------------------------------
+# Dispatcher
+# ---------------------------------------------------------------------------
+
+_RENDERERS: Dict[str, Callable[[Dict[str, Any]], str]] = {
+    "match_final": render_match_final,
+    "player_of_round": render_player_of_round,
+    "round_recap": render_round_recap,
+    "stat_leaderboard": render_stat_leaderboard,
+    "best_five": render_best_five,
+    "team_streak": render_team_streak,
+    "best_duo": render_best_duo,
+}
+
+
+def render_template(template_id: str, data: Dict[str, Any]) -> str:
+    fn = _RENDERERS.get(template_id)
+    if fn is None:
+        raise KeyError(f"no component template for {template_id!r}")
+    return fn(data)
+
+
+def has_template(template_id: str) -> bool:
+    return template_id in _RENDERERS

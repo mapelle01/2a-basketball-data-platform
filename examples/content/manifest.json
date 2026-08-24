@@ -1,0 +1,197 @@
+{
+  "season_code": "2025-2026",
+  "round_number": 12,
+  "generated_at": "2026-08-20T20:28:38.292182",
+  "design_system_version": "2.0",
+  "items": [
+    {
+      "story_type": "match_final",
+      "filename": "match_final_2025-2026_R12.svg",
+      "content_id": "2b3639ea-6fb4-4adb-8b99-e8c053ed7e8c",
+      "status": "approved",
+      "priority": 61,
+      "fact_validation_ok": true,
+      "visual_validation_ok": true,
+      "identity_key": "7db7445b124cf3ed",
+      "copy": {
+        "headline": "Alicante Cimarrones 104-72 Melilla Baloncesto",
+        "subtitle": "Alicante Cimarrones se lleva el partido de forma contundente · Jornada 12",
+        "caption": "Alicante Cimarrones vence 104-72 en la jornada 12 de Segunda FEB.",
+        "hashtags": [
+          "SegundaFEB",
+          "Baloncesto",
+          "2aFEBScore",
+          "AlicanteCimarrones",
+          "MelillaBaloncesto"
+        ],
+        "facts_used": [
+          "home_team_name",
+          "away_team_name",
+          "home_score",
+          "away_score",
+          "round_number"
+        ],
+        "locale": "es",
+        "generator": "deterministic-v1"
+      },
+      "story": {
+        "story_type": "match_final",
+        "season_code": "2025-2026",
+        "round_number": 12,
+        "entities": {
+          "home_team_external_id": "989002",
+          "away_team_external_id": "967421",
+          "match_external_id": "feb_match_2025_2026_R12_M04"
+        },
+        "facts": {
+          "home_team_external_id": "989002",
+          "away_team_external_id": "967421",
+          "home_team_name": "Alicante Cimarrones",
+          "away_team_name": "Melilla Baloncesto",
+          "home_score": 104,
+          "away_score": 72,
+          "margin": 32,
+          "scheduled_at": "2026-01-25T18:00:00"
+        },
+        "source_refs": {
+          "match": "2afeb_score://matches/feb_match_2025_2026_R12_M04"
+        },
+        "detected_at": "2026-08-20T20:28:38.225754",
+        "status": "selected",
+        "priority": 61,
+        "template_id": "match_final",
+        "identity_key": "7db7445b124cf3ed",
+        "facts_hash": "c1ca689a404db924"
+      }
+    },
+    {
+      "story_type": "player_of_round",
+      "filename": "player_of_round_2025-2026_R12.svg",
+      "content_id": "a8439389-35ba-4e81-816d-7373a4ef3ec0",
+      "status": "pending_review",
+      "priority": 84,
+      "fact_validation_ok": true,
+      "visual_validation_ok": true,
+      "identity_key": "6d3123bba34d6153",
+      "copy": {
+        "headline": "C. Sáez",
+        "subtitle": "Jugador de la jornada 12 · valoración 52.8",
+        "caption": "C. Sáez lidera la jornada 12 con 31 puntos, 9 rebotes y 5 asistencias. Valoración 52.8.",
+        "hashtags": [
+          "SegundaFEB",
+          "Baloncesto",
+          "2aFEBScore",
+          "PlayerOfTheRound",
+          "AlicanteCimarrones"
+        ],
+        "facts_used": [
+          "player_name",
+          "team_name",
+          "points",
+          "rebounds",
+          "assists",
+          "impact_score",
+          "round_number"
+        ],
+        "locale": "es",
+        "generator": "deterministic-v1"
+      },
+      "story": {
+        "story_type": "player_of_round",
+        "season_code": "2025-2026",
+        "round_number": 12,
+        "entities": {
+          "player_external_id": "2812203",
+          "team_external_id": "989002",
+          "match_external_id": "feb_match_2025_2026_R12_M04"
+        },
+        "facts": {
+          "player_external_id": "2812203",
+          "player_name": "C. Sáez",
+          "team_external_id": "989002",
+          "team_name": "Alicante Cimarrones",
+          "points": 31,
+          "rebounds": 9,
+          "assists": 5,
+          "steals": 2,
+          "blocks": 1,
+          "turnovers": 2,
+          "minutes": 29.8,
+          "impact_score": 52.8,
+          "match_external_id": "feb_match_2025_2026_R12_M04"
+        },
+        "source_refs": {
+          "player_stats": "2afeb_score://match_player_stats/feb_match_2025_2026_R12_M04/2812203"
+        },
+        "detected_at": "2026-08-20T20:28:38.225771",
+        "status": "selected",
+        "priority": 84,
+        "template_id": "player_of_round",
+        "identity_key": "6d3123bba34d6153",
+        "facts_hash": "6bf0e347d7457cbd"
+      }
+    },
+    {
+      "story_type": "round_recap",
+      "filename": "round_recap_2025-2026_R12.svg",
+      "content_id": "a2f91f71-f9b5-478e-b0c9-da0a0d3f1ad1",
+      "status": "pending_review",
+      "priority": 72,
+      "fact_validation_ok": true,
+      "visual_validation_ok": true,
+      "identity_key": "527e85267cbc075b",
+      "copy": {
+        "headline": "Jornada 12",
+        "subtitle": "4 partidos · el resumen",
+        "caption": "Resumen de la jornada 12: 4 partidos disputados. C. Sáez (31 pts) máximo anotador; mayor diferencia: 32 puntos.",
+        "hashtags": [
+          "SegundaFEB",
+          "Baloncesto",
+          "2aFEBScore",
+          "Jornada"
+        ],
+        "facts_used": [
+          "matches_played",
+          "biggest_win_margin",
+          "top_scorer_name",
+          "top_scorer_points"
+        ],
+        "locale": "es",
+        "generator": "deterministic-v1"
+      },
+      "story": {
+        "story_type": "round_recap",
+        "season_code": "2025-2026",
+        "round_number": 12,
+        "entities": {},
+        "facts": {
+          "matches_played": 4,
+          "biggest_win_margin": 32,
+          "biggest_win_match_external_id": "feb_match_2025_2026_R12_M04",
+          "biggest_win_winner": {
+            "team_external_id": "989002",
+            "team_name": "Alicante Cimarrones"
+          },
+          "closest_game_margin": 2,
+          "closest_game_match_external_id": "feb_match_2025_2026_R12_M03",
+          "top_scorer_external_id": "2812203",
+          "top_scorer_name": "C. Sáez",
+          "top_scorer_team_external_id": "989002",
+          "top_scorer_team_name": "Alicante Cimarrones",
+          "top_scorer_points": 31
+        },
+        "source_refs": {
+          "matches": "2afeb_score://seasons/2025-2026/rounds/12/matches",
+          "biggest_win_match": "2afeb_score://matches/feb_match_2025_2026_R12_M04",
+          "closest_game_match": "2afeb_score://matches/feb_match_2025_2026_R12_M03"
+        },
+        "detected_at": "2026-08-20T20:28:38.225780",
+        "status": "selected",
+        "priority": 72,
+        "template_id": "round_recap",
+        "identity_key": "527e85267cbc075b",
+        "facts_hash": "5465abc66373d229"
+      }
+    }
+  ]
+}

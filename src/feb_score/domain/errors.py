@@ -59,3 +59,11 @@ class MatchNotFound(DomainError):
 
 class EntityNotFound(DomainError):
     pass
+
+
+class ContentGenerationError(DomainError):
+    pass
+
+
+class InvalidContentTransition(DomainError):
+    pass
