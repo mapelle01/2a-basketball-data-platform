@@ -289,3 +289,25 @@ class TestLifecycleEndpoints:
         item = restarted.get(f"/v1/content/items/{cid}").json()
         assert item["status"] == "published"
         assert item["publish_result"]["dry_run"] is True
+
+
+class TestReviewPage:
+    """The queue had no interface at all: reviewing meant hand-written curl."""
+
+    def test_serves_a_page(self, client):
+        r = client.get("/v1/content/review")
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("text/html")
+
+    def test_page_drives_the_real_endpoints(self, client):
+        """Guard against the page drifting from the API it calls."""
+        html = client.get("/v1/content/review").text
+        assert "/v1/content/queue" in html
+        assert "/review/${verb}" in html          # the verb is built per action
+        assert "'approve'" in html and "'reject'" in html
+        assert "/render.svg" in html
+
+    def test_key_is_never_persisted_beyond_the_tab(self, client):
+        html = client.get("/v1/content/review").text
+        assert "sessionStorage" in html
+        assert "localStorage" not in html   # would outlive the tab, on disk

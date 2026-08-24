@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from typing import Optional
 
+from pathlib import Path
+
+from fastapi.responses import HTMLResponse
 from fastapi import Body, FastAPI, Query, Request, Response
 
 from . import errors as err
@@ -57,6 +60,22 @@ def register_content_routes(app: FastAPI) -> None:
             )
         except ValueError as exc:
             return err.error_response(400, "INVALID_PARAMETER", str(exc))
+
+    @app.get(
+        "/v1/content/review",
+        tags=["content"],
+        summary="Review the content queue in a browser",
+        description="A page listing the queue with a preview of every card and "
+        "working approve/reject controls. Served from the same origin as the "
+        "API so the browser can call it directly. The page itself is public "
+        "like the other content reads; the ACTIONS still require an API key, "
+        "which the page keeps only for the tab session.",
+        response_class=HTMLResponse,
+    )
+    def content_review_page():
+        return HTMLResponse(
+            (Path(__file__).with_name("review_page.html")).read_text(encoding="utf-8")
+        )
 
     @app.get(
         "/v1/content/queue",

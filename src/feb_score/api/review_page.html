@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cola · FEB SCORE!</title>
+<style>
+:root{
+  --bg:#0B0A0A; --panel:#141212; --panel-2:#1C1919; --ink:#F7F5F4; --ink-2:#CFC9C7;
+  --grey:#918B89; --rule:#2A2626; --red:#FF2A22;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:15px}
+header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--rule);
+  padding:20px 28px;display:flex;align-items:baseline;gap:20px;flex-wrap:wrap}
+h1{margin:0;font-size:20px;font-weight:900;letter-spacing:-.03em}
+h1 span{color:var(--red)}
+.counts{color:var(--grey);font-size:12.5px}
+.filters{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+button{font:inherit;cursor:pointer;border:1px solid var(--rule);background:var(--panel);
+  color:var(--ink-2);padding:6px 12px;font-size:12px;letter-spacing:.04em}
+button:hover{border-color:var(--grey)}
+button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:700}
+button:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+main{padding:26px 28px 80px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:22px}
+.card{background:var(--panel);border:1px solid var(--rule);display:flex;flex-direction:column}
+.thumb{background:#000;aspect-ratio:1080/1350;overflow:hidden}
+.thumb img{width:100%;height:100%;object-fit:contain;display:block}
+.meta{padding:15px 17px 17px;display:flex;flex-direction:column;gap:8px;flex:1}
+.top{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.chip{font-size:9.5px;font-weight:800;letter-spacing:.12em;padding:3px 8px;white-space:nowrap}
+.s-pending_review{background:#3D3837;color:var(--ink)}
+.s-approved{background:var(--ink);color:var(--bg)}
+.s-rejected,.s-failed{border:1.5px solid var(--grey);color:var(--grey)}
+.s-published,.s-scheduled{background:var(--red);color:#fff}
+.type{font-size:11px;color:var(--grey);letter-spacing:.07em}
+.nota{margin-left:auto;font-weight:800;font-size:15px;font-variant-numeric:tabular-nums}
+h3{margin:0;font-size:15.5px;font-weight:800;letter-spacing:-.01em}
+.hl{margin:0;font-size:13px;color:var(--ink-2)}
+.cap{margin:0;font-size:12.5px;color:var(--grey);line-height:1.5}
+.idline{margin:0;font-size:11px;color:var(--grey);font-family:ui-monospace,monospace}
+.actions{display:flex;gap:8px;margin-top:auto;padding-top:6px}
+.actions button{flex:1}
+.ok{border-color:var(--ink)}
+.msg{font-size:12px;color:var(--grey);min-height:16px}
+.empty,.loading{color:var(--grey);padding:40px 0}
+.keybar{display:flex;gap:8px;align-items:center;width:100%;margin-top:6px}
+input[type=password]{flex:1;max-width:340px;font:inherit;font-size:12.5px;padding:7px 10px;
+  background:var(--panel-2);border:1px solid var(--rule);color:var(--ink)}
+.note{color:var(--grey);font-size:11.5px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Cola FEB SCORE<span>!</span></h1>
+  <span class="counts" id="counts">cargando…</span>
+  <div class="filters" id="filters"></div>
+  <div class="keybar">
+    <input type="password" id="key" placeholder="Clave de API — necesaria solo para aprobar o rechazar"
+           autocomplete="off" spellcheck="false">
+    <button id="savekey">Guardar</button>
+    <span class="note" id="keynote"></span>
+  </div>
+</header>
+
+<main>
+  <div id="out" class="loading">Cargando la cola…</div>
+</main>
+
+<script>
+const OUT = document.getElementById('out');
+const LABELS = {pending_review:'PENDIENTE', approved:'APROBADA', rejected:'RECHAZADA',
+                published:'PUBLICADA', scheduled:'PROGRAMADA', failed:'FALLIDA',
+                generated:'GENERADA', detected:'DETECTADA'};
+let ITEMS = [], FILTER = 'pending_review';
+
+const keyInput = document.getElementById('key');
+const keyNote = document.getElementById('keynote');
+// Session only: the key is gone when the tab closes, and never written to disk.
+keyInput.value = sessionStorage.getItem('febKey') || '';
+setKeyNote();
+document.getElementById('savekey').onclick = () => {
+  sessionStorage.setItem('febKey', keyInput.value.trim());
+  setKeyNote(); render();
+};
+function setKeyNote(){
+  keyNote.textContent = sessionStorage.getItem('febKey')
+    ? 'clave guardada en esta pestaña' : 'sin clave: solo lectura';
+}
+const apiKey = () => (sessionStorage.getItem('febKey') || '').trim();
+
+async function load(){
+  try{
+    const r = await fetch('/v1/content/queue', {headers:{'Accept':'application/json'}});
+    const data = await r.json();
+    ITEMS = Array.isArray(data) ? data : (data.items || []);
+    ITEMS.sort((a,b) => (b.story.round_number||0) - (a.story.round_number||0));
+    render();
+  }catch(e){
+    OUT.className = 'empty';
+    OUT.textContent = 'No se pudo leer la cola: ' + e;
+  }
+}
+
+function counts(){
+  const c = {};
+  ITEMS.forEach(i => c[i.status] = (c[i.status]||0) + 1);
+  return c;
+}
+
+function renderFilters(){
+  const c = counts(), box = document.getElementById('filters');
+  const keys = ['pending_review', ...Object.keys(c).filter(k => k !== 'pending_review')];
+  box.innerHTML = '';
+  [...keys, 'all'].forEach(k => {
+    const b = document.createElement('button');
+    b.textContent = k === 'all' ? `TODAS (${ITEMS.length})` : `${LABELS[k]||k} (${c[k]||0})`;
+    b.setAttribute('aria-pressed', String(k === FILTER));
+    b.onclick = () => { FILTER = k; render(); };
+    box.appendChild(b);
+  });
+  document.getElementById('counts').textContent =
+    `${ITEMS.length} tarjetas · ` + Object.entries(c).map(([k,v]) => `${(LABELS[k]||k).toLowerCase()} ${v}`).join(' · ');
+}
+
+function card(i){
+  const f = i.story.facts || {}, copy = i.copy || {};
+  const name = f.player_name || f.team_name || f.biggest_win_winner?.team_name || '—';
+  const rating = (f.rating === null || f.rating === undefined) ? '' :
+    `<span class="nota">${String(f.rating).replace('.', ',')}</span>`;
+  const el = document.createElement('article');
+  el.className = 'card';
+  el.innerHTML = `
+    <div class="thumb"><img loading="lazy" src="/v1/content/items/${i.content_id}/render.svg" alt=""></div>
+    <div class="meta">
+      <div class="top">
+        <span class="chip s-${i.status}">${LABELS[i.status] || i.status}</span>
+        <span class="type">${i.story.story_type}</span>${rating}
+      </div>
+      <h3>${esc(name)}</h3>
+      <p class="hl">${esc(copy.headline || '')}</p>
+      <p class="cap">${esc(copy.caption || '')}</p>
+      <p class="idline">jornada ${i.story.round_number ?? '—'} · ${i.content_id.slice(0,8)}</p>
+      <p class="msg"></p>
+      <div class="actions"></div>
+    </div>`;
+  const actions = el.querySelector('.actions'), msg = el.querySelector('.msg');
+  if (i.status === 'pending_review') {
+    actions.append(action('Aprobar', 'approve', i, msg, true), action('Rechazar', 'reject', i, msg, false));
+  } else if (i.status === 'approved') {
+    actions.append(action('Rechazar', 'reject', i, msg, false));
+  } else {
+    msg.textContent = 'sin acciones en este estado';
+  }
+  return el;
+}
+
+function action(label, verb, item, msg, primary){
+  const b = document.createElement('button');
+  b.textContent = label;
+  if (primary) b.className = 'ok';
+  b.onclick = async () => {
+    if (!apiKey()) { msg.textContent = 'hace falta la clave de API'; return; }
+    b.disabled = true; msg.textContent = 'enviando…';
+    try{
+      const r = await fetch(`/v1/content/items/${item.content_id}/review/${verb}`, {
+        method: 'POST',
+        headers: {'Authorization': 'Bearer ' + apiKey(), 'Content-Type': 'application/json'},
+        body: '{}'
+      });
+      if (!r.ok) { msg.textContent = `error ${r.status}`; b.disabled = false; return; }
+      await load();
+    }catch(e){ msg.textContent = String(e); b.disabled = false; }
+  };
+  return b;
+}
+
+function render(){
+  renderFilters();
+  const list = FILTER === 'all' ? ITEMS : ITEMS.filter(i => i.status === FILTER);
+  OUT.className = list.length ? 'grid' : 'empty';
+  OUT.innerHTML = '';
+  if (!list.length) { OUT.textContent = 'Nada en este estado.'; return; }
+  list.forEach(i => OUT.appendChild(card(i)));
+}
+
+function esc(s){ const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
+
+load();
+</script>
+</body>
+</html>
