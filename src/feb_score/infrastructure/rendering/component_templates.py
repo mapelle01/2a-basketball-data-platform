@@ -404,11 +404,26 @@ def render_player_of_round(data: Dict[str, Any]) -> str:
     )
     # Place the hero below the kicker, biased upward so the kicker→portrait gap
     # stays tight (the slack falls to the bottom, where the footer anchors it).
+    # The FEB Rating verdict band sits between the portrait and the footer, in a
+    # FIXED position across every story type that uses this card — the hero stat
+    # says what happened, the rating says how good it was. Only drawn when the
+    # story actually carries a rating (never invented).
+    rating = facts.get("rating")
+    band_h = 56 + Spacing.MD if rating is not None else 0
+
     _, hero_h = C.player_hero(CONTENT_X, 0, CONTENT_W, **hero_kwargs)
-    top, bottom = MARGIN + 116, FOOTER_Y - Spacing.MD
+    top, bottom = MARGIN + 116, FOOTER_Y - Spacing.MD - band_h
     y0 = top + max(0, int((bottom - top - hero_h) * 0.28))
     ph, _ = C.player_hero(CONTENT_X, y0, CONTENT_W, **hero_kwargs)
     body.append(ph)
+
+    if rating is not None:
+        band_y = FOOTER_Y - Spacing.MD - 56
+        body.append(C.hline(CONTENT_X, band_y - Spacing.SM, CONTENT_W,
+                            color=Color.GREY, opacity=0.35))
+        rb, _ = C.rating_badge(CONTENT_X, band_y, float(rating),
+                               variant="inline", width=CONTENT_W)
+        body.append(rb)
 
     ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W,
                            competition="Segunda FEB", season=data["story"].get("season_code"))

@@ -150,21 +150,7 @@ def detect_player_of_round(
 
     best = max(player_lines, key=lambda p: (p.impact_score, p.points))
 
-    facts = {
-        "player_external_id": best.player_external_id,
-        "player_name": best.player_name,
-        "team_external_id": best.team_external_id,
-        "team_name": best.team_name,
-        "points": best.points,
-        "rebounds": best.rebounds,
-        "assists": best.assists,
-        "steals": best.steals,
-        "blocks": best.blocks,
-        "turnovers": best.turnovers,
-        "minutes": best.minutes,
-        "impact_score": round(best.impact_score, 1),
-        "match_external_id": best.match_external_id,
-    }
+    facts = _player_facts(best)
     return StoryObject(
         story_type=StoryType.PLAYER_OF_ROUND,
         season_code=season_code,
@@ -309,22 +295,8 @@ def detect_notable_performances(
         if doubles < 2:
             continue
         story_type = StoryType.TRIPLE_DOUBLE if doubles >= 3 else StoryType.DOUBLE_DOUBLE
-        facts = {
-            "player_external_id": p.player_external_id,
-            "player_name": p.player_name,
-            "team_external_id": p.team_external_id,
-            "team_name": p.team_name,
-            "points": p.points,
-            "rebounds": p.rebounds,
-            "assists": p.assists,
-            "steals": p.steals,
-            "blocks": p.blocks,
-            "turnovers": p.turnovers,
-            "minutes": p.minutes,
-            "impact_score": round(p.impact_score, 1),
-            "double_digit_count": doubles,
-            "match_external_id": p.match_external_id,
-        }
+        facts = _player_facts(p)
+        facts["double_digit_count"] = doubles
         stories.append(StoryObject(
             story_type=story_type,
             season_code=season_code,
@@ -405,6 +377,15 @@ PERFECT_MIN_FG_ATT = 5      # 5+ attempts, no misses = a perfect night
 
 
 def _player_facts(p: PlayerLineInput) -> Dict[str, Any]:
+    """The canonical fact set for a player-card story.
+
+    Includes the FEB Rating: it is a derived, versioned, deterministic fact (like
+    impact_score), so every player card can show the signature mark and the
+    validator can check it. Building every player story through here keeps the
+    rating from silently missing on some card types.
+    """
+    from .rating import FEB_RATING_VERSION, feb_rating
+
     return {
         "player_external_id": p.player_external_id,
         "player_name": p.player_name,
@@ -419,6 +400,8 @@ def _player_facts(p: PlayerLineInput) -> Dict[str, Any]:
         "minutes": p.minutes,
         "minutes_played": int(round(p.minutes)),
         "impact_score": round(p.impact_score, 1),
+        "rating": feb_rating(p.points, p.rebounds, p.assists, p.steals, p.blocks, p.turnovers),
+        "rating_version": FEB_RATING_VERSION,
         "match_external_id": p.match_external_id,
     }
 

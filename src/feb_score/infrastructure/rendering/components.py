@@ -537,7 +537,8 @@ def _rating_fill(value: float) -> float:
 
 
 def _fmt_rating(value: float) -> str:
-    return f"{value:.1f}" if value < 10 else "10"
+    # Spanish decimal comma: the cards are written in Spanish, so 9,0 — not 9.0.
+    return f"{value:.1f}".replace(".", ",") if value < 10 else "10"
 
 
 def rating_badge(
