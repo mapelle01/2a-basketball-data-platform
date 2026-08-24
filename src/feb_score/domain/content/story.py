@@ -102,6 +102,36 @@ STORY_TO_TEMPLATE: Dict[StoryType, str] = {
 }
 
 
+# What each card CALLS ITSELF. Several story types share the player card, so
+# without this every one of them fell back to the template's default and a
+# triple-double announced itself as "Jugador de la jornada" with an MVP badge —
+# the card lying about what it is. Declared per type here, in one place, so a new
+# story type cannot silently inherit someone else's headline; a detector may
+# still pass its own labels in the facts to override.
+STORY_LABELS: Dict[StoryType, Dict[str, str]] = {
+    StoryType.PLAYER_OF_ROUND: {"section": "Jugador de la jornada", "badge": "MVP"},
+    StoryType.DOUBLE_DOUBLE: {"section": "Doble-doble", "badge": "DOBLE-DOBLE"},
+    StoryType.TRIPLE_DOUBLE: {"section": "Triple-doble", "badge": "TRIPLE-DOBLE"},
+    StoryType.SEASON_HIGH: {"section": "Máximo personal de la temporada",
+                            "badge": "MÁXIMO"},
+    StoryType.PLAYMAKER: {"section": "El director de juego", "badge": "DIRECTOR"},
+    StoryType.IRON_MAN: {"section": "El más trabajador", "badge": "MARATÓN"},
+    StoryType.SHARPSHOOTER: {"section": "El tirador de la jornada", "badge": "SNIPER"},
+    StoryType.PERFECT_NIGHT: {"section": "Noche perfecta", "badge": "SIN FALLO"},
+    StoryType.TOP_SCORER: {"section": "Máximo anotador de la temporada",
+                           "badge": "MÁX. ANOTADOR"},
+    StoryType.TOP_REBOUNDER: {"section": "Máximo reboteador de la temporada",
+                              "badge": "MÁX. REBOTES"},
+    StoryType.TOP_ASSIST_PROVIDER: {"section": "Máximo asistente de la temporada",
+                                    "badge": "MÁX. ASISTENCIAS"},
+}
+
+
+def labels_for(story_type) -> Dict[str, str]:
+    """Section + badge a card of this type should carry."""
+    return STORY_LABELS.get(story_type, {"section": "", "badge": ""})
+
+
 @dataclass(frozen=True)
 class StoryEntities:
     """The subjects a story is about. All optional — a round recap has none,

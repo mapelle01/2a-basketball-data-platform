@@ -207,3 +207,41 @@ def test_every_player_card_story_carries_the_rating():
         if STORY_TO_TEMPLATE.get(s.story_type) == "player_of_round":
             assert "rating" in s.facts, f"{s.story_type} lost the rating"
             assert s.facts["rating"] is not None
+
+
+def test_every_player_card_type_says_what_it_is():
+    """Regression: all four of double/triple double, season high and player of
+    the round fell through to the template default, so a triple-double card
+    announced itself as 'Jugador de la jornada' with an MVP badge. Every type
+    sharing the player card must declare its own headline."""
+    from feb_score.domain.content.story import STORY_TO_TEMPLATE, labels_for
+
+    sharing = [t for t, tpl in STORY_TO_TEMPLATE.items() if tpl == "player_of_round"]
+    assert len(sharing) > 5
+    seen = {}
+    for t in sharing:
+        lab = labels_for(t)
+        assert lab["section"], f"{t.value} has no headline of its own"
+        assert lab["badge"], f"{t.value} has no badge of its own"
+        assert lab["section"] not in seen, (
+            f"{t.value} reuses the headline of {seen.get(lab['section'])}")
+        seen[lab["section"]] = t.value
+
+
+def test_the_card_renders_its_own_headline():
+    import re
+
+    from feb_score.infrastructure.rendering.component_templates import render_template
+
+    def head(story_type):
+        data = {"story": {"facts": {"player_name": "X", "points": 21, "rebounds": 13,
+                                    "assists": 10, "rating": 9.0},
+                          "round_number": 24, "season_code": "2024-2025",
+                          "story_type": story_type},
+                "display": {"player": "X", "team": "T"},
+                "assets": {"player_initials": "X"}, "copy": {}, "meta": {}}
+        return re.findall(r'>([A-ZÁÉÍÓÚÑ\- ]{5,45})<', render_template("player_of_round", data))[0]
+
+    assert head("triple_double") == "TRIPLE-DOBLE"
+    assert head("season_high") == "MÁXIMO PERSONAL DE LA TEMPORADA"
+    assert head("player_of_round") == "JUGADOR DE LA JORNADA"
