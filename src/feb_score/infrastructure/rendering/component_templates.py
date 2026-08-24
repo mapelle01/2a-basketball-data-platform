@@ -409,7 +409,8 @@ def render_player_of_round(data: Dict[str, Any]) -> str:
     # says what happened, the rating says how good it was. Only drawn when the
     # story actually carries a rating (never invented).
     rating = facts.get("rating")
-    band_h = 56 + Spacing.MD if rating is not None else 0
+    rating_px = C.RATING_SIZES["l"]
+    band_h = rating_px + Spacing.MD if rating is not None else 0
 
     _, hero_h = C.player_hero(CONTENT_X, 0, CONTENT_W, **hero_kwargs)
     top, bottom = MARGIN + 116, FOOTER_Y - Spacing.MD - band_h
@@ -418,12 +419,20 @@ def render_player_of_round(data: Dict[str, Any]) -> str:
     body.append(ph)
 
     if rating is not None:
-        band_y = FOOTER_Y - Spacing.MD - 56
-        body.append(C.hline(CONTENT_X, band_y - Spacing.SM, CONTENT_W,
+        band_y = FOOTER_Y - Spacing.MD - rating_px
+        body.append(C.hline(CONTENT_X, band_y - Spacing.LG, CONTENT_W,
                             color=Color.GREY, opacity=0.35))
-        rb, _ = C.rating_badge(CONTENT_X, band_y, float(rating),
-                               variant="inline", width=CONTENT_W)
+        rb, _ = C.rating_badge(CONTENT_X, band_y, float(rating), size="l")
         body.append(rb)
+        # Name the mark beside the box, so the same object reads as "the FEB
+        # Rating" here, on a ranking row and on the on-court lineup alike.
+        lx = CONTENT_X + rating_px + Spacing.LG
+        body.append(C.text(lx, band_y + rating_px / 2 - 6, "FEB", size=FontSize.LABEL,
+                           weight=FontWeight.DISPLAY, fill=Color.WHITE,
+                           tracking=LetterSpacing.CAPS, upper=True))
+        body.append(C.text(lx, band_y + rating_px / 2 + 26, "RATING", size=FontSize.LABEL,
+                           weight=FontWeight.LABEL, fill=Color.GREY,
+                           tracking=LetterSpacing.CAPS, upper=True))
 
     ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W,
                            competition="Segunda FEB", season=data["story"].get("season_code"))
@@ -552,7 +561,7 @@ def render_stat_leaderboard(data: Dict[str, Any]) -> str:
                            size=FontSize.H2, weight=FontWeight.HERO, fill=ink, anchor="end",
                            tracking=LetterSpacing.DISPLAY))
         rating_svg, _ = C.rating_badge(CONTENT_X + CONTENT_W - chip, ry - 24, float(row.get("rating", 0)),
-                                       variant="chip", on_dark=False)
+                                       size="m", on_dark=False)
         body.append(rating_svg)
         ry += step
 
@@ -632,7 +641,7 @@ def render_best_five(data: Dict[str, Any]) -> str:
                                 photo_uri=row.get("photo_uri"), badge_uri=row.get("badge_uri")))
         players.append(C.text(px, py + r + 34, name.upper(), size=FontSize.MICRO,
                               weight=FontWeight.TITLE, fill=Color.WHITE, anchor="middle", upper=True))
-        chip, _ = C.rating_badge(px - 23, py + r + 48, rating, variant="mini")
+        chip, _ = C.rating_badge(px - 23, py + r + 48, rating, size="s")
         players.append(chip)
 
     ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB", season=season)

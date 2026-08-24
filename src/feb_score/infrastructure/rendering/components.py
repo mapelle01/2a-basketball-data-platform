@@ -541,44 +541,29 @@ def _fmt_rating(value: float) -> str:
     return f"{value:.1f}".replace(".", ",") if value < 10 else "10"
 
 
+# The FEB Rating is ONE recognizable object — a boxed note with a proportional
+# red meter along its bottom edge — drawn at three sizes. It must read as the
+# same mark on a ranking row, on an on-court lineup and on a player card, so
+# there is deliberately no alternative shape: only S / M / L.
+RATING_SIZES = {"s": 46, "m": 88, "l": 132}
+
+
 def rating_badge(
     x: float,
     y: float,
     value: float,
     *,
-    variant: str = "hero",
-    width: float = 360,
+    size: str = "m",
     on_dark: bool = True,
 ) -> Rendered:
-    """The FEB Rating mark. variants:
-    hero    — giant number + RATING label + proportional red meter (protagonist)
-    chip    — compact boxed number for lists/rankings (elite = red fill)
-    inline  — number + tiny meter, for a stat row
-    """
-    if variant == "chip":
-        return _rating_chip(x, y, value, on_dark=on_dark)
-    if variant == "mini":
-        return _rating_chip(x, y, value, size=46, on_dark=on_dark)
-    if variant == "inline":
-        return _rating_inline(x, y, value, width)
-    return _rating_hero(x, y, value, width, on_dark)
-
-
-def _rating_hero(x, y, value, width, on_dark) -> Rendered:
-    parts: List[SVG] = []
-    cx = x + width / 2
-    color = _rating_color(value)
-    parts.append(text(cx, y + 130, _fmt_rating(value), size=FontSize.HERO,
-                      weight=FontWeight.HERO, fill=color, anchor="middle",
-                      tracking=LetterSpacing.HERO))
-    parts.append(text(cx, y + 168, "RATING", size=FontSize.LABEL, weight=FontWeight.LABEL,
-                      fill=Color.GREY, anchor="middle", tracking=LetterSpacing.CAPS, upper=True))
-    # Proportional red meter under the number.
-    mw, mh, my = width * 0.62, 8, y + 196
-    mx = cx - mw / 2
-    parts.append(rect(mx, my, mw, mh, Color.INK))
-    parts.append(rect(mx, my, mw * _rating_fill(value), mh, Color.RED))
-    return _group(parts), 220
+    """The FEB Rating mark: a boxed note. ``size`` is "s" (lineups/lists),
+    "m" (rankings) or "l" (protagonist on a player card). Tier reads by
+    CONTRAST (elite = brightest fill); the red meter length carries the value —
+    red never means "good"."""
+    px = RATING_SIZES.get(size)
+    if px is None:
+        raise ValueError(f"unknown rating size {size!r}; use one of {sorted(RATING_SIZES)}")
+    return _rating_chip(x, y, value, size=px, on_dark=on_dark)
 
 
 def _rating_chip(x, y, value, size: int = 88, on_dark: bool = True) -> Rendered:
@@ -623,20 +608,6 @@ def _rating_chip(x, y, value, size: int = 88, on_dark: bool = True) -> Rendered:
         rect(x + pad, my, (size - 2 * pad) * _rating_fill(value), mh, Color.RED),
     ]
     return _group(parts), size
-
-
-def _rating_inline(x, y, value, width) -> Rendered:
-    color = _rating_color(value)
-    parts = [
-        text(x, y + 40, _fmt_rating(value), size=FontSize.H2, weight=FontWeight.HERO, fill=color),
-        text(x + 110, y + 40, "RATING", size=FontSize.MICRO, weight=FontWeight.LABEL,
-             fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True),
-    ]
-    mw, my = width - 260, y + 28
-    mx = x + 250
-    parts.append(rect(mx, my, mw, 6, Color.INK))
-    parts.append(rect(mx, my, mw * _rating_fill(value), 6, Color.RED))
-    return _group(parts), 56
 
 
 def rating_scale(x: float, y: float, width: float, value: float) -> Rendered:
