@@ -35,6 +35,8 @@ class Player(AggregateRoot):
     birth_date: Optional[date] = None
     nationality: Optional[str] = None
     position: Optional[str] = None
+    height_cm: Optional[int] = None
+    birth_place: Optional[str] = None
     registrations: List[PlayerRegistration] = field(default_factory=list)
 
     def register_for_team(

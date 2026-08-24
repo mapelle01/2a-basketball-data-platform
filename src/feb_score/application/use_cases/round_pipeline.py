@@ -250,10 +250,16 @@ class RoundPipeline:
                 "player": f.get("player_name") or player_id,
                 "team": f.get("team_name") or team_id,
             }
-            assets = {
-                "team_color": self._assets.team_color(team_id),
-                "player_initials": self._assets.player_photo(player_id).payload,
-            }
+            # The provider decides what it can resolve: an official photo comes
+            # back as a data URI, otherwise the statistical fallback returns
+            # initials. Templates take whichever slot is filled.
+            photo = self._assets.player_photo(player_id)
+            assets = {"team_color": self._assets.team_color(team_id)}
+            if photo.payload_type == "data_uri":
+                assets["player_photo"] = photo.payload
+                assets["player_initials"] = None
+            else:
+                assets["player_initials"] = photo.payload
 
         if story.template_id == "round_recap":
             top_scorer = f.get("top_scorer_name") or f.get("top_scorer_external_id")

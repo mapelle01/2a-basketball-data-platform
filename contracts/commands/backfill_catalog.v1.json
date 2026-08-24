@@ -14,7 +14,7 @@
     "command_id":{"$ref":"#/$defs/uuid"},
     "meta":{"type":"object","required":["version","issued_at"],"properties":{"version":{"type":"string","pattern":"^\\d+\\.\\d+$"},"issued_at":{"type":"string","format":"date-time"}},"additionalProperties":false},
     "actor":{"$ref":"#/$defs/actor"},
-    "payload":{"type":"object","required":["season_code"],"properties":{"season_code":{"type":"string"},"entity":{"type":"string","enum":["players","teams","both"]},"source":{"type":"string","enum":["public","official"]},"dry_run":{"type":"boolean"}},"additionalProperties":false}
+    "payload":{"type":"object","required":["season_code"],"properties":{"season_code":{"type":"string"},"entity":{"type":"string","enum":["players","teams","both","bio"]},"source":{"type":"string","enum":["public","official"]},"dry_run":{"type":"boolean"}},"additionalProperties":false}
   },
   "examples":[
     {

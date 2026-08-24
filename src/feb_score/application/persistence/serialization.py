@@ -210,6 +210,8 @@ def player_to_dict(player: Player) -> Dict[str, Any]:
         "birth_date": _iso_date(player.birth_date),
         "nationality": player.nationality,
         "position": player.position,
+        "height_cm": player.height_cm,
+        "birth_place": player.birth_place,
         "registrations": [_registration_to_dict(reg) for reg in player.registrations],
     }
 
@@ -222,6 +224,8 @@ def player_from_dict(data: Dict[str, Any]) -> Player:
         birth_date=_parse_date(data.get("birth_date")),
         nationality=data.get("nationality"),
         position=data.get("position"),
+        height_cm=data.get("height_cm"),
+        birth_place=data.get("birth_place"),
         registrations=[_registration_from_dict(reg) for reg in data.get("registrations", [])],
     )
 

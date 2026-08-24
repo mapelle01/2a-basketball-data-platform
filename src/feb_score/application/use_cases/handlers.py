@@ -782,6 +782,22 @@ class BackfillCatalogHandler:
         entity = payload.get("entity", "both")
         dry_run = bool(payload.get("dry_run", False))
 
+        if entity == "bio":
+            # Separate pass: enriches players already in the catalog with the
+            # profile data the boxscore never carries (position, height, birth,
+            # nationality). Fills empty fields only; never overwrites.
+            from .player_bio_backfill import (  # noqa: PLC0415
+                PlayerBioBackfillService,
+                PublicProfileBioResolver,
+            )
+
+            svc = PlayerBioBackfillService(
+                self._player_repo, self._stats_repo,
+                PublicProfileBioResolver(self._stats_repo, str(season)),
+            )
+            svc.run(season, dry_run=dry_run)
+            return []
+
         do_players = entity in ("players", "both")
         do_teams = entity in ("teams", "both")
         # "public" (default): names from the public boxscore pages — any season,
