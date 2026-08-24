@@ -28,7 +28,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from ..errors import InvalidContentTransition
 from .story import StoryObject
@@ -45,6 +45,11 @@ class ContentStatus(str, Enum):
     SCHEDULED = "scheduled"
     PUBLISHED = "published"
     FAILED = "failed"
+
+
+# Only these may ever be deleted: they are terminal AND carry no value. Anything
+# live (pending review, approved, scheduled) or historical (published) stays.
+PURGEABLE_STATUSES = (ContentStatus.REJECTED, ContentStatus.FAILED)
 
 
 # Allowed transitions. FAILED is reachable from any non-terminal state (handled
@@ -249,6 +254,26 @@ class InMemoryContentQueue:
 
     def all(self) -> List[ContentItem]:
         return list(self._by_id.values())
+
+    def purge(self, statuses: Optional[Sequence[ContentStatus]] = None) -> int:
+        """Delete items in terminal, discarded states. Returns how many went.
+
+        Deliberately narrow: only PURGEABLE_STATUSES may be removed, so
+        housekeeping can never destroy live work (pending review, approved,
+        scheduled) or the published record. Superseding a card is therefore a
+        two-step, auditable act: reject it, then purge.
+        """
+        targets = tuple(statuses or PURGEABLE_STATUSES)
+        forbidden = [s for s in targets if s not in PURGEABLE_STATUSES]
+        if forbidden:
+            raise ValueError(
+                f"refusing to purge {', '.join(s.value for s in forbidden)}; "
+                f"only {', '.join(s.value for s in PURGEABLE_STATUSES)} can be purged"
+            )
+        doomed = [cid for cid, i in self._by_id.items() if i.status in targets]
+        for cid in doomed:
+            del self._by_id[cid]
+        return len(doomed)
 
     def seen_story_type_in_round(
         self, story_type: str, season_code: str, round_number: Optional[int]

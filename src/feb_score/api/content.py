@@ -105,6 +105,20 @@ def register_content_routes(app: FastAPI) -> None:
             )
         return Response(content=svg, media_type="image/svg+xml")
 
+    @app.post(
+        "/v1/content/queue/purge",
+        tags=["content"],
+        summary="Delete rejected and failed content items",
+        description="Housekeeping for a queue that otherwise only grows. Only "
+        "REJECTED and FAILED items are removed; anything live (pending review, "
+        "approved, scheduled) or already published is never touched. "
+        "Authenticated.",
+    )
+    def purge_content_queue(request: Request):
+        if _authed(request) is None:
+            return err.error_response(401, "UNAUTHENTICATED", "API key required")
+        return request.app.state.gateway.purge_content_queue()
+
     # ---------------------------------------------------- lifecycle actions
     def _authed(request: Request):
         auth: AuthenticationProvider = request.app.state.auth

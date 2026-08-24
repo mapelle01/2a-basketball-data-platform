@@ -146,6 +146,30 @@ class SqliteContentQueueRepository(_SqliteRepoMixin):
             if owned:
                 conn.close()
 
+    def purge(self, statuses=None) -> int:
+        """Delete discarded items. Mirrors the in-memory queue's guard: only
+        PURGEABLE_STATUSES are ever removed."""
+        from ...domain.content.queue import PURGEABLE_STATUSES
+
+        targets = tuple(statuses or PURGEABLE_STATUSES)
+        forbidden = [s for s in targets if s not in PURGEABLE_STATUSES]
+        if forbidden:
+            raise ValueError(
+                f"refusing to purge {', '.join(s.value for s in forbidden)}; "
+                f"only {', '.join(s.value for s in PURGEABLE_STATUSES)} can be purged"
+            )
+        placeholders = ",".join("?" for _ in targets)
+        conn, owned = self._conn()
+        try:
+            cur = conn.execute(
+                f"DELETE FROM content_queue WHERE status IN ({placeholders})",
+                tuple(s.value for s in targets),
+            )
+            return cur.rowcount or 0
+        finally:
+            if owned:
+                conn.close()
+
     def seen_story_type_in_round(
         self, story_type: str, season_code: str, round_number: Optional[int]
     ) -> bool:
@@ -249,6 +273,28 @@ class PgContentQueueRepository(_PgRepoMixin):
             if owned:
                 conn.close()
 
+    def purge(self, statuses=None) -> int:
+        """Delete discarded items. Same guard as the in-memory queue: only
+        PURGEABLE_STATUSES are ever removed."""
+        from ...domain.content.queue import PURGEABLE_STATUSES
+
+        targets = tuple(statuses or PURGEABLE_STATUSES)
+        forbidden = [s for s in targets if s not in PURGEABLE_STATUSES]
+        if forbidden:
+            raise ValueError(
+                f"refusing to purge {', '.join(s.value for s in forbidden)}; "
+                f"only {', '.join(s.value for s in PURGEABLE_STATUSES)} can be purged"
+            )
+        conn, owned = self._conn()
+        try:
+            cur = conn.execute(
+                "DELETE FROM content_queue WHERE status = ANY(%s)",
+                ([s.value for s in targets],),
+            )
+            return cur.rowcount or 0
+        finally:
+            if owned:
+                conn.close()
     def seen_story_type_in_round(
         self, story_type: str, season_code: str, round_number: Optional[int]
     ) -> bool:

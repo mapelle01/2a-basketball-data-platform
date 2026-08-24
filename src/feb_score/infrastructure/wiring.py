@@ -633,10 +633,24 @@ class _GatewayBase(CommandGateway):
         return item.to_dict() if item is not None else None
 
     def render_content_item(self, content_id: str) -> Optional[str]:
+        """The item's SVG, made self-contained.
+
+        Cards are STORED with references to the shared assets (the background
+        alone was 96% of a 1.85 MB card, identical in every row); they are
+        expanded here so what leaves the API still stands on its own.
+        """
+        from .rendering.component_templates import inline_shared_assets
+
         item = self._pipeline().queue.get(content_id)
-        if item is None:
+        if item is None or item.rendered_svg is None:
             return None
-        return item.rendered_svg
+        return inline_shared_assets(item.rendered_svg)
+
+    def purge_content_queue(self) -> Dict[str, Any]:
+        """Housekeeping: drop rejected/failed cards. Live and published items
+        are never touched (the queue enforces that)."""
+        removed = self._pipeline().queue.purge()
+        return {"removed": removed}
 
     # ----------------------------------------------- content lifecycle actions
     def _lifecycle(self):

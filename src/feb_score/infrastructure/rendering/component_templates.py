@@ -12,6 +12,7 @@ BRANDING. Each maps to a component.
 from __future__ import annotations
 
 import base64
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable, Dict, List
@@ -64,15 +65,39 @@ _IMAGE_BACKGROUNDS = {
 _ASSET_DIR = Path(__file__).with_name("assets")
 
 
+# Shared assets (the three court backgrounds and the competition mark) are the
+# SAME bytes on every card: embedding them made a 5 KB card weigh 1.85 MB, 96% of
+# it one background repeated in every stored row. Rendering therefore emits a
+# REFERENCE, and ``inline_shared_assets`` expands it when a standalone file is
+# needed. Stored form: compact. Served form: self-contained.
+SHARED_ASSET_SCHEME = "feb-asset:"
+_ASSET_REF_RE = re.compile(rf'{re.escape(SHARED_ASSET_SCHEME)}([A-Za-z0-9_\-]+)')
+
+
 @lru_cache(maxsize=8)
 def _asset_data_uri(name: str) -> str:
     raw = (_ASSET_DIR / f"{name}.png").read_bytes()
     return "data:image/png;base64," + base64.b64encode(raw).decode("ascii")
 
 
+def _asset_ref(name: str) -> str:
+    """Reference to a shared asset, expanded at serve time."""
+    return f"{SHARED_ASSET_SCHEME}{name}"
+
+
+def inline_shared_assets(svg: str) -> str:
+    """Expand shared-asset references into real data URIs.
+
+    Call this wherever the SVG must stand on its own — the HTTP render endpoint,
+    a file written to disk. An SVG with no references passes through unchanged,
+    so it is safe to apply twice or to already-inlined content.
+    """
+    return _ASSET_REF_RE.sub(lambda m: _asset_data_uri(m.group(1)), svg)
+
+
 # alias kept for the background call site
 def _background_data_uri(name: str) -> str:
-    return _asset_data_uri(name)
+    return _asset_ref(name)
 
 
 # The Segunda FEB competition mark (symbol only, no wordmark). RGBA, so it sits
@@ -86,7 +111,7 @@ def competition_mark(x: float, y: float, height: float) -> str:
     """Place the Segunda FEB symbol as a small competition seal."""
     bx, by, bw, bh = _MARK_BBOX
     width = height * (bw / bh)
-    uri = _asset_data_uri(COMPETITION_MARK)
+    uri = _asset_ref(COMPETITION_MARK)
     return (
         f'<svg x="{x}" y="{y}" width="{width:.1f}" height="{height:.1f}"'
         f' viewBox="{bx} {by} {bw} {bh}" overflow="visible">'
