@@ -149,14 +149,29 @@ def test_limit_caps_matches_processed():
     assert summary["seen"] == 1 and summary["ok"] == 1
 
 
-def test_integrity_failure_is_skipped_not_posted():
-    tampered = _html("2486849").replace("<td class=\"puntos\">11</td>",
-                                        "<td class=\"puntos\">999</td>", 1)
+def test_score_inconsistency_is_skipped_not_posted():
+    # Break score self-consistency (Σ quarters != final score) → hard skip.
+    tampered = _html("2486849").replace('class="resultado">78', 'class="resultado">999', 1)
     fetch = _fake_fetch({"2486849": tampered})
     post = _Recorder()
     summary = BF.run_backfill(_tasks("2486849"), season_code=SEASON, competition_id=COMP,
                               fetch=fetch, post=post, sleep_s=0, log=lambda *_: None)
     assert summary["skipped"] == 1 and summary["ok"] == 0 and post.calls == []
+
+
+def test_incomplete_player_boxscore_warns_but_ingests():
+    # A player-points gap (Σ players != score) with a self-consistent score is a
+    # FEB data gap, not a parse error: warn but still ingest all three commands.
+    tampered = _html("2486849").replace("<td class=\"puntos\">11</td>",
+                                        "<td class=\"puntos\">1</td>", 1)
+    fetch = _fake_fetch({"2486849": tampered})
+    post = _Recorder()
+    summary = BF.run_backfill(_tasks("2486849"), season_code=SEASON, competition_id=COMP,
+                              fetch=fetch, post=post, sleep_s=0, log=lambda *_: None)
+    assert summary["skipped"] == 0 and summary["ok"] == 1
+    assert len(summary["warnings"]) == 1
+    assert [c[0] for c in post.calls] == [
+        "create_or_update_match", "upsert_match_stats", "finalize_match"]
 
 
 def test_rate_limit_sleeps_between_matches():

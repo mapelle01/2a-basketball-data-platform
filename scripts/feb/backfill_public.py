@@ -38,14 +38,27 @@ class MatchTask:
     source_url: Optional[str] = None
 
 
-def _integrity_delta(box: "PPB.PublicBoxscore") -> Optional[str]:
-    """None when Σ player points == team score per team; otherwise a short
-    "home Σ/score, away Σ/score" description of the mismatch (parse/data gate)."""
+def _score_consistency_delta(box: "PPB.PublicBoxscore") -> Optional[str]:
+    """None when the score is self-consistent (Σ quarters == final score per
+    team); otherwise a short mismatch description. This gates genuine score
+    parse/data errors — NOT incomplete per-player boxscores (see _player_gap):
+    FEB sometimes publishes a valid final score whose player rows don't add up,
+    and those matches are still worth ingesting."""
+    for team in (box.home, box.away):
+        if team.quarters and sum(team.quarters) != team.score:
+            return (f"home q{sum(box.home.quarters)}/{box.home.score}, "
+                    f"away q{sum(box.away.quarters)}/{box.away.score}")
+    return None
+
+
+def _player_gap(box: "PPB.PublicBoxscore") -> Optional[str]:
+    """Informational: Σ player points != final score for a team (FEB's per-player
+    data is incomplete). The match still ingests; the score/quarters are valid."""
     hs = sum(p.points for p in box.players_of(box.home.external_id))
     as_ = sum(p.points for p in box.players_of(box.away.external_id))
     if hs == box.home.score and as_ == box.away.score:
         return None
-    return f"home {hs}/{box.home.score}, away {as_}/{box.away.score}"
+    return f"home Σ{hs}/{box.home.score}, away Σ{as_}/{box.away.score}"
 
 
 def build_commands(box: "PPB.PublicBoxscore", task: MatchTask,
@@ -79,7 +92,7 @@ def run_backfill(
     """Fetch→parse→map→POST each match. Isolated per match, rate-limited, idempotent.
     Returns a summary dict."""
     summary: Dict[str, Any] = {"seen": 0, "ok": 0, "failed": 0, "skipped": 0,
-                               "errors": [], "skips": []}
+                               "errors": [], "skips": [], "warnings": []}
     for task in tasks:
         if limit is not None and summary["seen"] >= limit:
             break
@@ -87,16 +100,24 @@ def run_backfill(
         ext = str(task.external_id)
         try:
             box = PPB.parse_public_boxscore(fetch(ext), ext)
-            delta = _integrity_delta(box) if check_integrity else None
+            delta = _score_consistency_delta(box) if check_integrity else None
             if delta is not None:
                 summary["skipped"] += 1
                 summary["skips"].append({"external_id": ext, "detail": delta})
-                log(f"skip {ext}: integrity ({delta})")
+                log(f"skip {ext}: score inconsistent ({delta})")
             elif dry_run:
+                gap = _player_gap(box) if check_integrity else None
+                if gap is not None:
+                    summary["warnings"].append({"external_id": ext, "detail": gap})
                 summary["ok"] += 1
                 log(f"[dry-run] {ext}: {box.home.name} {box.home.score}-"
-                    f"{box.away.score} {box.away.name} · {len(box.players)}p")
+                    f"{box.away.score} {box.away.name} · {len(box.players)}p"
+                    + (f" · WARN incomplete players ({gap})" if gap else ""))
             else:
+                gap = _player_gap(box) if check_integrity else None
+                if gap is not None:
+                    summary["warnings"].append({"external_id": ext, "detail": gap})
+                    log(f"warn {ext}: incomplete player boxscore ({gap})")
                 failure = None
                 for ctype, cmd in build_commands(box, task, season_code, competition_id):
                     status = post(ctype, cmd)
