@@ -17,7 +17,7 @@ Final content_score = weighted average, in 0..100.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, List, Optional, Sequence, Set
+from typing import Dict, Iterable, List, Optional, Sequence, Set
 
 from .story import StoryObject, StoryStatus, StoryType
 
@@ -97,16 +97,26 @@ def score_story(
     )
 
 
+# How many cards of the SAME story type one run may select. The novelty penalty
+# only looks at what is already queued, so without this a round where several
+# players happen to set a season high fills the whole batch with the same card —
+# which is exactly the repetitive feed this account is not supposed to be.
+MAX_PER_STORY_TYPE = 2
+
+
 def plan(
     stories: Iterable[StoryObject],
     top_n: int = 5,
     seen_story_types: Optional[Set[StoryType]] = None,
+    max_per_type: int = MAX_PER_STORY_TYPE,
 ) -> List[StoryObject]:
     """Score every story and select the top-N (marks selected/rejected).
 
     ``seen_story_types`` are story types already covered for this round (from
     the content queue); they get a novelty penalty so a re-run doesn't keep
-    re-elevating content already produced.
+    re-elevating content already produced. Within THIS batch, at most
+    ``max_per_type`` stories of one type are selected, so a batch stays varied
+    even when one detector fires repeatedly.
     """
     seen = seen_story_types or set()
     scored = [
@@ -125,7 +135,18 @@ def plan(
     ]
     scored.sort(key=lambda s: (-s.priority, s.story_type.value))
 
-    selected_ids = {s.identity_key for s in scored[:top_n]}
+    # Walk in priority order, taking the best of each type first and skipping a
+    # type once it has filled its quota — so the batch keeps the strongest
+    # stories without becoming three versions of the same card.
+    selected_ids: Set[str] = set()
+    per_type: Dict[StoryType, int] = {}
+    for s in scored:
+        if len(selected_ids) >= top_n:
+            break
+        if per_type.get(s.story_type, 0) >= max_per_type:
+            continue
+        selected_ids.add(s.identity_key)
+        per_type[s.story_type] = per_type.get(s.story_type, 0) + 1
     return [
         StoryObject(
             story_type=s.story_type,
