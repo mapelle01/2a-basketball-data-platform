@@ -448,38 +448,58 @@ def stat_block(
     return _stat_stacked(x, y, width, primary, primary_label, secondary_stats, fg, variant, center)
 
 
+# Proportions of the stacked stat block, tuned as a set (the hero number is the
+# reference and everything else is a ratio of it, so the block scales together).
+_SB_LABEL_RATIO = 0.19      # unit label vs the hero number — the unit belongs to
+                            # the figure, so it must read as part of it, not as a caption
+_SB_SECONDARY_RATIO = 0.30  # secondary figures vs the hero: ~3:1 keeps a clear
+                            # hierarchy without demoting them to a footnote
+_SB_COL_RATIO = 0.95        # column width vs the secondary figure size — tight
+                            # enough that the secondaries read as ONE unit
+
+
 def _stat_stacked(x, y, width, primary, primary_label, secondary, fg, variant, center) -> Rendered:
     num_size = {"hero": FontSize.HERO, "standard": FontSize.H1, "compact": FontSize.H2}.get(
         variant, FontSize.HERO
     )
+    label_size = max(FontSize.LABEL, round(num_size * _SB_LABEL_RATIO))
     anchor = "middle" if center else "start"
     ox = x + width / 2 if center else x
+    baseline = y + num_size * 0.78
     parts: List[SVG] = []
-    parts.append(text(ox, y + num_size * 0.78, str(primary), size=num_size,
+    parts.append(text(ox, baseline, str(primary), size=num_size,
                       weight=FontWeight.HERO, fill=fg, anchor=anchor, tracking=LetterSpacing.HERO))
-    parts.append(text(ox, y + num_size * 0.78 + 30, primary_label.upper(), size=FontSize.LABEL,
-                      weight=FontWeight.LABEL, fill=Color.RED, anchor=anchor,
+    # Sit the unit close under the figure — a fixed 30px gap reads as detached
+    # under a 168px number.
+    label_y = baseline + label_size * 0.95
+    parts.append(text(ox, label_y, primary_label.upper(), size=label_size,
+                      weight=FontWeight.DISPLAY, fill=Color.RED, anchor=anchor,
                       tracking=LetterSpacing.CAPS, upper=True))
-    h = int(num_size * 0.78 + 40)
+    h = int(label_y - y + Spacing.SM)
 
     if secondary:
         # Group the secondary stats in a narrow band centered under the hero
         # number (not spread edge-to-edge), so they read as one tight unit.
+        sec_size = max(FontSize.H3, round(num_size * _SB_SECONDARY_RATIO))
+        lab_size = FontSize.LABEL
         n = len(secondary)
-        band = min(width, n * 190)
+        band = min(width, n * sec_size * 2 * _SB_COL_RATIO)
         bx = (ox - band / 2) if center else x
         col_w = band / n
-        row_y = y + h + Spacing.XS
+        row_y = y + h + Spacing.MD
+        rule_h = sec_size + lab_size + Spacing.SM
         for i, (val, lab) in enumerate(secondary):
             col_cx = bx + col_w * i + col_w / 2
-            parts.append(text(col_cx, row_y + 36, str(val), size=FontSize.H3,
-                              weight=FontWeight.HERO, fill=fg, anchor="middle"))
-            parts.append(text(col_cx, row_y + 64, lab.upper(), size=FontSize.MICRO,
-                              weight=FontWeight.LABEL, fill=Color.GREY, anchor="middle",
-                              tracking=LetterSpacing.CAPS, upper=True))
+            parts.append(text(col_cx, row_y + sec_size * 0.78, str(val), size=sec_size,
+                              weight=FontWeight.HERO, fill=fg, anchor="middle",
+                              tracking=LetterSpacing.DISPLAY))
+            parts.append(text(col_cx, row_y + sec_size * 0.78 + lab_size + 2, lab.upper(),
+                              size=lab_size, weight=FontWeight.LABEL, fill=Color.GREY,
+                              anchor="middle", tracking=LetterSpacing.CAPS, upper=True))
             if i > 0:
-                parts.append(vline(bx + col_w * i, row_y + 2, 60, color=Color.INK))
-        h += Spacing.XS + 74
+                parts.append(vline(bx + col_w * i, row_y, rule_h,
+                                   color=Color.GREY, opacity=0.28))
+        h += Spacing.MD + int(rule_h)
     return _group(parts), h
 
 

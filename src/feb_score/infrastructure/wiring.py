@@ -314,6 +314,12 @@ class _GatewayBase(CommandGateway):
         return {
             "external_id": str(player.external_id),
             "name": player.name,
+            # Bio (public profile): absent fields stay null — never invented.
+            "position": player.position,
+            "height_cm": player.height_cm,
+            "birth_date": player.birth_date.isoformat() if player.birth_date else None,
+            "birth_place": player.birth_place,
+            "nationality": player.nationality,
             "registrations_count": len(player.registrations),
         }
 

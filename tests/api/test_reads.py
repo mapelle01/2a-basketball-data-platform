@@ -49,8 +49,25 @@ def test_read_player_dto(client, db_path):
     db = SqliteDatabase(db_path)
     SqlitePlayerRepository(db).save(Player(external_id=ExternalId("pl-1"), player_id=PlayerId(str(uuid4())), name="Juan"))
     dto = client.get("/v1/players/pl-1").json()
-    assert dto == {"external_id": "pl-1", "name": "Juan", "registrations_count": 0}
+    assert dto["external_id"] == "pl-1" and dto["name"] == "Juan"
+    assert dto["registrations_count"] == 0
+    # Bio is exposed so a backfill is verifiable from outside; absent stays null.
+    assert dto["position"] is None and dto["height_cm"] is None
+    assert dto["birth_date"] is None and dto["nationality"] is None
     assert client.get("/v1/players/nope").status_code == 404
+
+
+def test_read_player_dto_exposes_bio_when_present(client, db_path):
+    from datetime import date
+
+    SqlitePlayerRepository(SqliteDatabase(db_path)).save(Player(
+        external_id=ExternalId("pl-2"), player_id=PlayerId(str(uuid4())), name="Jordi",
+        position="Alero", height_cm=196, nationality="ESPAÑA",
+        birth_date=date(1998, 4, 11), birth_place="Barcelona"))
+    dto = client.get("/v1/players/pl-2").json()
+    assert dto["position"] == "Alero" and dto["height_cm"] == 196
+    assert dto["birth_date"] == "1998-04-11" and dto["birth_place"] == "Barcelona"
+    assert dto["nationality"] == "ESPAÑA"
 
 
 def test_read_team_dto(client, db_path):
