@@ -6,8 +6,14 @@ migration. Old rows (no shooting) come back as None (back-compat).
 """
 from __future__ import annotations
 
+from datetime import datetime
+
 import pytest
 
+from feb_score.application.persistence.serialization import (
+    _player_stats_from_dict,
+    _player_stats_to_dict,
+)
 from feb_score.domain.statistics.model import PlayerStats
 from feb_score.domain.value_objects import SeasonCode
 from feb_score.infrastructure.persistence.connection import SqliteDatabase
@@ -21,6 +27,20 @@ def _ps(**kw) -> PlayerStats:
                 rebounds=3, assists=2, steals=1, blocks=0, turnovers=2, minutes=30.0)
     base.update(kw)
     return PlayerStats(**base)
+
+
+def test_played_at_survives_dict_roundtrip_as_datetime():
+    """Regression: to_dict serialises played_at with .isoformat(); the loader must
+    parse it back to a datetime, or a load→save round-trip (finalize) crashes with
+    'str' object has no attribute 'isoformat'."""
+    ps = _ps(played_at=datetime(2025, 10, 4, 18, 0))
+    blob = _player_stats_to_dict(ps)
+    assert isinstance(blob["played_at"], str)
+
+    back = _player_stats_from_dict(blob)
+    assert isinstance(back.played_at, datetime)  # not a raw str
+
+    _player_stats_to_dict(back)  # must not raise (the bug re-serialised a str)
 
 
 def test_shooting_survives_sqlite_roundtrip_no_migration(sqlite_db, db_path):

@@ -120,6 +120,11 @@ def _player_stats_to_dict(stats: PlayerStats) -> Dict[str, Any]:
 
 
 def _player_stats_from_dict(data: Dict[str, Any]) -> PlayerStats:
+    # played_at is serialized as an ISO string by to_dict; parse it back to a
+    # datetime so a load→save round-trip (e.g. finalize) doesn't call
+    # .isoformat() on a str.
+    if isinstance(data.get("played_at"), str):
+        data = {**data, "played_at": _parse_dt(data["played_at"])}
     return PlayerStats(**data)
 
 
