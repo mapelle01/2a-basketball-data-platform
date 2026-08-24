@@ -24,6 +24,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Protocol
 
+from ...domain.content.names import prefer_fuller_name
 from ...domain.player.model import Player
 from ...domain.value_objects import SeasonCode
 
@@ -104,6 +105,7 @@ class PublicProfileBioResolver:
         if bio is None or bio.is_empty:
             return None
         return {
+            "name": bio.name,
             "position": bio.position,
             "height_cm": bio.height_cm,
             "birth_date": bio.birth_date,
@@ -165,8 +167,19 @@ class PlayerBioBackfillService:
 
     @staticmethod
     def _apply(player: Player, bio: Dict[str, Any]) -> bool:
-        """Fill only the empty fields. Returns True when anything changed."""
+        """Fill only the empty fields. Returns True when anything changed.
+
+        NAME is the one exception to fill-empty-only: the profile carries the
+        full given name where the boxscore often has just an initial
+        ("JUANOLA MADERA, JORDI" vs "J. JUANOLA MADERA"), so a fuller name
+        upgrades an abbreviated one. It is still never a correction — an already
+        complete name is left alone.
+        """
         changed = False
+        better = prefer_fuller_name(player.name, bio.get("name"))
+        if better and better != player.name:
+            player.name = better
+            changed = True
         for attr in BIO_FIELDS:
             new = bio.get(attr)
             if new in (None, "") or getattr(player, attr, None) not in (None, ""):

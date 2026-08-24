@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
+from .names import display_name
 from .story import StoryEntities, StoryObject, StoryType
 
 
@@ -201,7 +202,7 @@ def detect_round_recap(
     if top_scorer:
         facts.update({
             "top_scorer_external_id": top_scorer.player_external_id,
-            "top_scorer_name": top_scorer.player_name,
+            "top_scorer_name": display_name(top_scorer.player_name),
             "top_scorer_team_external_id": top_scorer.team_external_id,
             "top_scorer_team_name": top_scorer.team_name,
             "top_scorer_points": top_scorer.points,
@@ -335,7 +336,7 @@ def detect_stat_leaderboard(
         {
             "rank": i,
             "player_external_id": p.player_external_id,
-            "player_name": p.player_name,
+            "player_name": display_name(p.player_name),
             "team_external_id": p.team_external_id,
             "team_name": p.team_name,
             "points": p.points,
@@ -409,7 +410,7 @@ def player_facts(p: PlayerLineInput) -> Dict[str, Any]:
 
     return {
         "player_external_id": p.player_external_id,
-        "player_name": p.player_name,
+        "player_name": display_name(p.player_name),
         "team_external_id": p.team_external_id,
         "team_name": p.team_name,
         "points": p.points,
@@ -563,9 +564,9 @@ def detect_best_duo(
         "team_external_id": p1.team_external_id,
         "team_name": p1.team_name,
         "match_external_id": p1.match_external_id,
-        "p1_external_id": p1.player_external_id, "p1_name": p1.player_name,
+        "p1_external_id": p1.player_external_id, "p1_name": display_name(p1.player_name),
         "p1_points": p1.points, "p1_rating": _rt(p1),
-        "p2_external_id": p2.player_external_id, "p2_name": p2.player_name,
+        "p2_external_id": p2.player_external_id, "p2_name": display_name(p2.player_name),
         "p2_points": p2.points, "p2_rating": _rt(p2),
         "combined_points": combined,
         "rating_version": FEB_RATING_VERSION,

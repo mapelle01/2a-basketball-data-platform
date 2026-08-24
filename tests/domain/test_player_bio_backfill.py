@@ -46,9 +46,9 @@ class _Players:
         self.saved.append(player)
 
 
-def _player(pid="p1", **kw):
+def _player(pid="p1", name="X", **kw):
     return Player(external_id=ExternalId(pid), player_id=PlayerId(str(uuid.uuid4())),
-                  name="X", **kw)
+                  name=name, **kw)
 
 
 class _Resolver:
@@ -115,3 +115,21 @@ def test_resolver_isolates_a_failing_profile():
     r = PublicProfileBioResolver(_Stats(["p1"], teams={"p1": ["t1"]}), "2024-2025",
                                  fetch=boom, parse=lambda h, p: None)
     assert r.resolve("p1") is None
+
+
+def test_profile_name_upgrades_an_abbreviated_one():
+    """The boxscore often gives only an initial; the profile has the full given
+    name, and that is strictly more information — so it upgrades."""
+    p = _player(name="J. JUANOLA MADERA")
+    repo = _Players([p])
+    bio = {**BIO, "name": "JUANOLA MADERA, JORDI"}
+    PlayerBioBackfillService(repo, _Stats(["p1"]), _Resolver({"p1": bio})).run(SEASON)
+    assert p.name == "JUANOLA MADERA, JORDI"
+
+
+def test_a_complete_name_is_never_churned():
+    p = _player(name="SAMAR, MATIJA")
+    repo = _Players([p])
+    bio = {**BIO, "name": "OTRO, NOMBRE"}
+    PlayerBioBackfillService(repo, _Stats(["p1"]), _Resolver({"p1": bio})).run(SEASON)
+    assert p.name == "SAMAR, MATIJA"

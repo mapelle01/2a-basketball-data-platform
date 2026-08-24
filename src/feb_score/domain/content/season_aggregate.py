@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from .insights import PlayerLineInput
+from .names import display_name
 from .rating import FEB_RATING_VERSION as _RATING_VERSION
 from .story import StoryEntities, StoryObject, StoryType
 
@@ -141,7 +142,7 @@ def _season_leader(
     per_game = round(total / leader.games, 1) if leader.games else 0.0
     facts = {
         "player_external_id": leader.player_external_id,
-        "player_name": leader.player_name,
+        "player_name": display_name(leader.player_name),
         "team_external_id": leader.team_external_id,
         "team_name": leader.team_name,
         "points": leader.points,
