@@ -38,12 +38,14 @@ class MatchTask:
     source_url: Optional[str] = None
 
 
-def _integrity_ok(box: "PPB.PublicBoxscore") -> bool:
-    """Σ player points == team score, per team — a cheap parse/data sanity gate."""
-    for team in (box.home, box.away):
-        if sum(p.points for p in box.players_of(team.external_id)) != team.score:
-            return False
-    return True
+def _integrity_delta(box: "PPB.PublicBoxscore") -> Optional[str]:
+    """None when Σ player points == team score per team; otherwise a short
+    "home Σ/score, away Σ/score" description of the mismatch (parse/data gate)."""
+    hs = sum(p.points for p in box.players_of(box.home.external_id))
+    as_ = sum(p.points for p in box.players_of(box.away.external_id))
+    if hs == box.home.score and as_ == box.away.score:
+        return None
+    return f"home {hs}/{box.home.score}, away {as_}/{box.away.score}"
 
 
 def build_commands(box: "PPB.PublicBoxscore", task: MatchTask,
@@ -76,7 +78,8 @@ def run_backfill(
 ) -> Dict[str, Any]:
     """Fetch→parse→map→POST each match. Isolated per match, rate-limited, idempotent.
     Returns a summary dict."""
-    summary: Dict[str, Any] = {"seen": 0, "ok": 0, "failed": 0, "skipped": 0, "errors": []}
+    summary: Dict[str, Any] = {"seen": 0, "ok": 0, "failed": 0, "skipped": 0,
+                               "errors": [], "skips": []}
     for task in tasks:
         if limit is not None and summary["seen"] >= limit:
             break
@@ -84,9 +87,11 @@ def run_backfill(
         ext = str(task.external_id)
         try:
             box = PPB.parse_public_boxscore(fetch(ext), ext)
-            if check_integrity and not _integrity_ok(box):
+            delta = _integrity_delta(box) if check_integrity else None
+            if delta is not None:
                 summary["skipped"] += 1
-                log(f"skip {ext}: integrity (Σ points != score)")
+                summary["skips"].append({"external_id": ext, "detail": delta})
+                log(f"skip {ext}: integrity ({delta})")
             elif dry_run:
                 summary["ok"] += 1
                 log(f"[dry-run] {ext}: {box.home.name} {box.home.score}-"
