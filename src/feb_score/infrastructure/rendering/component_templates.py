@@ -343,6 +343,17 @@ def render_match_final(data: Dict[str, Any]) -> str:
 # High-energy player story types get the Red-Impact mood, so a feed of player
 # cards doesn't read as one dark template; routine ones stay on the blueprint.
 _RED_PLAYER_STORIES = {"perfect_night", "sharpshooter", "triple_double", "season_high"}
+# Season-scope leader cards frame the whole season, not a single round: their
+# kicker is the season, never "JORNADA N".
+_SEASON_LEADER_STORIES = {"top_scorer", "top_rebounder", "top_assist_provider"}
+
+
+def _season_label(season_code: str) -> str:
+    """'2024-2025' -> '2024-25' (fallback: the raw code)."""
+    parts = (season_code or "").split("-")
+    if len(parts) == 2 and len(parts[1]) == 4:
+        return f"{parts[0]}-{parts[1][2:]}"
+    return season_code or ""
 
 
 def render_player_of_round(data: Dict[str, Any]) -> str:
@@ -357,12 +368,17 @@ def render_player_of_round(data: Dict[str, Any]) -> str:
     body: List[str] = []
     section = facts.get("section_label", "Jugador de la jornada")
     # Prominent kicker: the highlighted-datum descriptor set big and bright, with
-    # the round on its OWN line so it reads clearly (not crammed after a middot).
+    # the round (or the SEASON, for season-leader cards) on its OWN line so it
+    # reads clearly (not crammed after a middot).
     body.append(C.accent_bar(CONTENT_X, MARGIN, 56, Line.HEAVY))
     body.append(C.text(CONTENT_X, MARGIN + 50, section.upper(), size=FontSize.H3,
                        weight=FontWeight.DISPLAY, fill=Color.WHITE,
                        tracking=LetterSpacing.HEADLINE, upper=True))
-    body.append(C.text(CONTENT_X, MARGIN + 92, f"JORNADA {round_number}", size=FontSize.LABEL,
+    if story_type in _SEASON_LEADER_STORIES:
+        kicker = f"TEMPORADA {_season_label(data['story'].get('season_code', ''))}"
+    else:
+        kicker = f"JORNADA {round_number}"
+    body.append(C.text(CONTENT_X, MARGIN + 92, kicker, size=FontSize.LABEL,
                        weight=FontWeight.LABEL, fill=Color.GREY,
                        tracking=LetterSpacing.CAPS, upper=True))
     if not red_mood:  # the red top corner can't host the dark mark cleanly
