@@ -340,7 +340,7 @@ def detect_stat_leaderboard(
             "points": p.points,
             "rebounds": p.rebounds,
             "assists": p.assists,
-            "rating": feb_rating(p.points, p.rebounds, p.assists, p.steals, p.blocks, p.turnovers),
+            "rating": _rating_of(p),
         }
         for i, p in enumerate(ordered, start=1)
     ]
@@ -376,6 +376,25 @@ SHARP_MIN_THREES = 5        # 5+ made threes = a shooting show
 PERFECT_MIN_FG_ATT = 5      # 5+ attempts, no misses = a perfect night
 
 
+def _rating_of(p: PlayerLineInput) -> Optional[float]:
+    """The FEB Rating for a line, or None when it cannot be rated on the same
+    basis as the rest (too few minutes, or no shooting data). ONE mapping from
+    a player line to the mark, so no call site can rate on a different input
+    set and produce a note that is not comparable."""
+    from .rating import feb_rating
+
+    return feb_rating(
+        p.points, p.rebounds, p.assists, p.steals, p.blocks, p.turnovers,
+        minutes=p.minutes,
+        field_goals_made=p.field_goals_made,
+        field_goals_attempted=p.field_goals_attempted,
+        free_throws_made=p.free_throws_made or 0,
+        free_throws_attempted=p.free_throws_attempted or 0,
+        three_points_made=p.three_points_made or 0,
+        fouls=p.fouls or 0,
+    )
+
+
 def _player_facts(p: PlayerLineInput) -> Dict[str, Any]:
     """The canonical fact set for a player-card story.
 
@@ -400,7 +419,7 @@ def _player_facts(p: PlayerLineInput) -> Dict[str, Any]:
         "minutes": p.minutes,
         "minutes_played": int(round(p.minutes)),
         "impact_score": round(p.impact_score, 1),
-        "rating": feb_rating(p.points, p.rebounds, p.assists, p.steals, p.blocks, p.turnovers),
+        "rating": _rating_of(p),
         "rating_version": FEB_RATING_VERSION,
         "match_external_id": p.match_external_id,
     }
@@ -536,7 +555,7 @@ def detect_best_duo(
     combined, p1, p2 = best
 
     def _rt(p: PlayerLineInput) -> float:
-        return feb_rating(p.points, p.rebounds, p.assists, p.steals, p.blocks, p.turnovers)
+        return _rating_of(p)
 
     facts = {
         "team_external_id": p1.team_external_id,

@@ -37,11 +37,15 @@ class PlayerSeasonLine:
 
     @property
     def rating(self) -> Optional[float]:
-        """The FEB Rating of this player's AVERAGE game over the season.
+        """The FEB Rating of this player's AVERAGE game — or None.
 
-        The mark grades one boxscore line, so a season mark is the rating of the
-        per-game averages — not a sum. Returns None with no games played, so a
-        card never shows an invented note.
+        Returns None today, deliberately: since v2 the mark needs minutes and
+        shooting efficiency, and the season aggregate carries neither (only
+        points/rebounds/assists/steals/blocks/turnovers). Rating the average
+        game without the efficiency terms would produce a systematically HIGHER
+        note that is not comparable with a match rating, so no note is shown at
+        all. Unlocking it is a data task: aggregate minutes and shooting totals
+        per player-season, then feed them here.
         """
         if not self.games:
             return None
@@ -51,7 +55,13 @@ class PlayerSeasonLine:
         return feb_rating(
             round(self.points / g), round(self.rebounds / g), round(self.assists / g),
             round(self.steals / g), round(self.blocks / g), round(self.turnovers / g),
+            minutes=self.minutes_per_game,
+            field_goals_made=None, field_goals_attempted=None,  # not aggregated yet
         )
+
+    @property
+    def minutes_per_game(self) -> Optional[float]:
+        return None  # minutes are not folded into the season aggregate yet
 
 
 @dataclass(frozen=True)

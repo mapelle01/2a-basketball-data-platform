@@ -136,24 +136,22 @@ class TestEndToEnd:
 
 # --- FEB Rating on season cards (regression) --------------------------------
 
-def test_season_line_rating_is_the_average_game_not_a_sum():
-    """The mark grades ONE boxscore line, so a season rating is the rating of the
-    per-game averages. A volume scorer with heavy turnovers must NOT score elite.
-    """
-    from feb_score.domain.content.rating import feb_rating
+def test_season_line_is_not_rated_until_minutes_and_shooting_are_aggregated():
+    """Since v2 the mark needs minutes + shooting efficiency, which the season
+    aggregate does not carry. Rather than grade the average game on a reduced
+    input set — which would yield a systematically higher, non-comparable note —
+    no note is produced at all."""
     from feb_score.domain.content.season_aggregate import PlayerSeasonLine
 
     line = PlayerSeasonLine(
         player_external_id="p1", games=26, points=450, rebounds=112,
         assists=72, steals=23, blocks=1, turnovers=77,
     )
-    # equals the rating of the rounded per-game line, never the season totals
-    assert line.rating == feb_rating(17, 4, 3, 1, 0, 3)
-    assert line.rating < 8.0  # volume alone is not elite
+    assert line.rating is None
     assert PlayerSeasonLine("p2", games=0, points=0, rebounds=0, assists=0).rating is None
 
 
-def test_season_leader_story_carries_the_rating():
+def test_season_leader_story_still_builds_without_a_rating():
     from feb_score.domain.content.season_aggregate import (
         PlayerSeasonLine, SeasonAggregate, detect_season_scoring_leader,
     )
@@ -162,8 +160,8 @@ def test_season_leader_story_carries_the_rating():
         player_external_id="p1", games=26, points=450, rebounds=112,
         assists=72, steals=23, blocks=1, turnovers=77, player_name="X"),))
     story = detect_season_scoring_leader("2024-2025", 26, agg)[0]
-    assert story.facts["rating"] is not None
-    assert story.facts["rating_version"]
+    assert story.facts["season_total"] == 450     # the card still has its subject
+    assert story.facts["rating"] is None          # and simply shows no mark
 
 
 def test_season_fold_accumulates_defensive_stats():

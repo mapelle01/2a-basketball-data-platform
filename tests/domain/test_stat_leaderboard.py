@@ -26,31 +26,73 @@ def _line(pid, name, pts, reb=5, ast=3):
 
 
 class TestFebRating:
+    """v2 grades a LINE: it needs minutes and shooting, and refuses to grade
+    what it cannot grade on the same basis as everything else."""
+
+    # a full, ordinary line — the shape every test below varies
+    BASE = dict(minutes=28.0, field_goals_made=5, field_goals_attempted=11,
+                free_throws_made=2, free_throws_attempted=3,
+                three_points_made=1, fouls=3)
+
+    def _r(self, pts, reb, ast, stl=0, blk=0, to=0, **over):
+        kw = {**self.BASE, **over}
+        return feb_rating(pts, reb, ast, stl, blk, to, **kw)
+
     def test_bounded_0_10(self):
-        assert 0.0 <= feb_rating(0, 0, 0) <= 10.0
-        assert feb_rating(100, 50, 30, 10, 10) == 10.0  # saturates at 10, never over
-        assert feb_rating(0, 0, 0, 0, 0, 200) == 0.0    # clamps at 0, never below
+        assert 0.0 <= self._r(0, 0, 0) <= 10.0
+        assert self._r(100, 50, 30, 10, 10, field_goals_made=40,
+                       field_goals_attempted=40) == 10.0
+        assert self._r(0, 0, 0, 0, 0, 200) == 0.0
 
     def test_deterministic(self):
-        assert feb_rating(31, 9, 5, 2, 1, 2) == feb_rating(31, 9, 5, 2, 1, 2)
+        assert self._r(31, 9, 5, 2, 1, 2) == self._r(31, 9, 5, 2, 1, 2)
 
     def test_monotonic_in_points(self):
-        assert feb_rating(30, 5, 3) > feb_rating(10, 5, 3)
+        assert self._r(30, 5, 3) > self._r(10, 5, 3)
+
+    def test_not_graded_without_minutes_or_shooting(self):
+        # No fallback number: an ungradeable line has no note at all.
+        assert feb_rating(20, 5, 3) is None                       # no minutes
+        assert self._r(20, 5, 3, minutes=None) is None
+        assert self._r(20, 5, 3, minutes=4.0) is None             # under MIN_MINUTES
+        assert self._r(20, 5, 3, field_goals_attempted=None) is None
+
+    def test_efficiency_matters(self):
+        """v1's blind spot: the same 21 points on very different shooting."""
+        efficient = self._r(21, 4, 2, field_goals_made=8, field_goals_attempted=12)
+        wasteful = self._r(21, 4, 2, field_goals_made=8, field_goals_attempted=25)
+        assert efficient > wasteful
+
+    def test_fouls_and_turnovers_cost(self):
+        assert self._r(14, 5, 2, fouls=1) > self._r(14, 5, 2, fouls=5)
+        assert self._r(14, 5, 2, to=0) > self._r(14, 5, 2, to=5)
+
+    def test_measures_level_not_accumulation(self):
+        """The same production in fewer minutes is a better performance —
+        this is what separates the mark from the official VAL."""
+        assert self._r(18, 6, 3, minutes=20.0) > self._r(18, 6, 3, minutes=38.0)
+
+    def test_short_samples_are_shrunk(self):
+        """A brief hot cameo must not out-rate a sustained big game."""
+        cameo = self._r(8, 1, 0, minutes=10.0, field_goals_made=3,
+                        field_goals_attempted=3)
+        full = self._r(24, 9, 5, minutes=33.0, field_goals_made=9,
+                       field_goals_attempted=15)
+        assert full > cameo
 
     def test_average_game_anchored_near_six_five(self):
-        # An average line (impact ~23) should sit around the 6.5 anchor, not
-        # bunched high — the v1.1 curve's whole point.
-        assert 6.2 <= feb_rating(14, 5, 2, 1, 0, 2) <= 6.8
+        # Calibrated on 595 real Segunda FEB lines: the median sits at 6.5.
+        assert 6.0 <= self._r(12, 4, 2, 1, 0, 2) <= 7.0
 
     def test_low_band_is_alive(self):
-        # A poor game must be able to drop below the old 5.0 floor.
-        assert feb_rating(2, 1, 0, 0, 0, 3) < 5.0
+        assert self._r(2, 1, 0, 0, 0, 3, field_goals_made=1,
+                       field_goals_attempted=8) < 5.0
 
     def test_elite_games_separate_below_ten(self):
-        # Big games must not all flatten to a dull 10 — they separate, and 10
-        # stays reserved for a historic line.
-        monster = feb_rating(35, 12, 8, 2, 1, 3)
-        historic = feb_rating(44, 15, 10, 3, 2, 3)
+        monster = self._r(35, 12, 8, 2, 1, 3, field_goals_made=13,
+                          field_goals_attempted=20)
+        historic = self._r(44, 15, 10, 3, 2, 3, field_goals_made=17,
+                           field_goals_attempted=22)
         assert monster < 10.0
         assert monster < historic
 

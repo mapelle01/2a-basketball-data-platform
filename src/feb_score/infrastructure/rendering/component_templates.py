@@ -560,9 +560,13 @@ def render_stat_leaderboard(data: Dict[str, Any]) -> str:
         body.append(C.text(CONTENT_X + CONTENT_W - chip - 40, ry + 22, str(row.get("points", 0)),
                            size=FontSize.H2, weight=FontWeight.HERO, fill=ink, anchor="end",
                            tracking=LetterSpacing.DISPLAY))
-        rating_svg, _ = C.rating_badge(CONTENT_X + CONTENT_W - chip, ry - 24, float(row.get("rating", 0)),
-                                       size="m", on_dark=False)
-        body.append(rating_svg)
+        # A row without a rating (too few minutes, or no shooting data) simply
+        # shows no mark — never a stand-in 0.
+        row_rating = row.get("rating")
+        if row_rating is not None:
+            rating_svg, _ = C.rating_badge(CONTENT_X + CONTENT_W - chip, ry - 24,
+                                           float(row_rating), size="m", on_dark=False)
+            body.append(rating_svg)
         ry += step
 
     ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB",
@@ -636,13 +640,14 @@ def render_best_five(data: Dict[str, Any]) -> str:
     for (pos, fx, fy), row in zip(_LINEUP_SPOTS, lineup):
         px, py = bx + bw * fx, by + bh * fy
         name = row.get("player_name") or row.get("player_external_id", "—")
-        rating = float(row.get("rating", 0))
+        rating = row.get("rating")
         players.append(C.avatar(px, py, r, initials=C.initials_of(name),
                                 photo_uri=row.get("photo_uri"), badge_uri=row.get("badge_uri")))
         players.append(C.text(px, py + r + 34, name.upper(), size=FontSize.MICRO,
                               weight=FontWeight.TITLE, fill=Color.WHITE, anchor="middle", upper=True))
-        chip, _ = C.rating_badge(px - 23, py + r + 48, rating, size="s")
-        players.append(chip)
+        if rating is not None:
+            chip, _ = C.rating_badge(px - 23, py + r + 48, float(rating), size="s")
+            players.append(chip)
 
     ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB", season=season)
     return compose(Background.STATISTICS_DARK, geometry=court,
@@ -782,7 +787,8 @@ def _rating_scale_card(x: float, y: float, w: float, value: float) -> tuple:
     return "".join(parts), h
 
 
-def _duo_column(cx: float, avatar_cy: float, col_w: float, name: str, pts, rating: float,
+def _duo_column(cx: float, avatar_cy: float, col_w: float, name: str, pts,
+                rating: Any = None,
                 *, initials: str, photo_uri=None, badge_uri=None) -> str:
     r = 108
     parts = [C.avatar(cx, avatar_cy, r, initials=initials, photo_uri=photo_uri, badge_uri=badge_uri)]
@@ -799,8 +805,9 @@ def _duo_column(cx: float, avatar_cy: float, col_w: float, name: str, pts, ratin
                         fill=Color.WHITE, anchor="end", tracking=LetterSpacing.DISPLAY))
     parts.append(C.text(cx + 6, by + 62, "PTS", size=FontSize.LABEL, weight=FontWeight.LABEL,
                         fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True))
-    card, _ = _rating_scale_card(bx, by + bh + Spacing.SM, col_w, rating)
-    parts.append(card)
+    if rating is not None:
+        card, _ = _rating_scale_card(bx, by + bh + Spacing.SM, col_w, float(rating))
+        parts.append(card)
     return "".join(parts)
 
 
@@ -825,10 +832,10 @@ def render_best_duo(data: Dict[str, Any]) -> str:
     right_cx = CONTENT_X + CONTENT_W * 0.75
     col_w, avatar_cy = 384, 400
     body.append(_duo_column(left_cx, avatar_cy, col_w, n1, facts.get("p1_points", 0),
-                            float(facts.get("p1_rating", 0)), initials=C.initials_of(n1),
+                            facts.get("p1_rating"), initials=C.initials_of(n1),
                             photo_uri=assets.get("p1_photo"), badge_uri=assets.get("team_crest")))
     body.append(_duo_column(right_cx, avatar_cy, col_w, n2, facts.get("p2_points", 0),
-                            float(facts.get("p2_rating", 0)), initials=C.initials_of(n2),
+                            facts.get("p2_rating"), initials=C.initials_of(n2),
                             photo_uri=assets.get("p2_photo"), badge_uri=assets.get("team_crest")))
     # The uniting "+" on the center line, level with the stat boxes.
     body.append(C.text(CANVAS.width / 2, avatar_cy + 300, "+", size=FontSize.DISPLAY,
