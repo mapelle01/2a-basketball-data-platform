@@ -1,6 +1,8 @@
 """Official FEB imagery provider: resolve when it exists, degrade when it doesn't."""
 from __future__ import annotations
 
+import os
+
 from feb_score.application.content.interfaces import ASSET_LEVEL_OFFICIAL
 from feb_score.infrastructure.rendering.feb_image_assets import FebImageAssetProvider
 
@@ -60,3 +62,55 @@ def test_team_colour_stays_neutral():
     """No per-team colours in this identity, official imagery or not."""
     p, _ = _provider(JPEG)
     assert p.team_color("951323") == FebImageAssetProvider().team_color("951323")
+
+
+def test_circuit_breaker_stops_hammering_a_dead_host():
+    """One card can ask for five portraits: an unreachable host must not cost
+    five sequential timeouts. After the budget, stop trying."""
+    calls = []
+
+    def fetch(url):
+        calls.append(url)
+        return None  # always failing
+
+    p = FebImageAssetProvider(fetch=fetch, failure_budget=2)
+    for i in range(6):
+        assert p.player_photo(f"p{i}").payload_type == "initials"
+    assert len(calls) == 2  # tried twice, then served the fallback directly
+
+
+def test_a_success_closes_the_circuit_again():
+    state = {"fail": True}
+
+    def fetch(url):
+        return None if state["fail"] else JPEG
+
+    p = FebImageAssetProvider(fetch=fetch, failure_budget=3)
+    p.player_photo("a"); p.player_photo("b")     # 2 failures, still under budget
+    state["fail"] = False
+    assert p.player_photo("c").payload_type == "data_uri"
+    state["fail"] = True
+    assert p.player_photo("d").payload_type == "initials"  # counter was reset
+
+
+def test_a_raising_fetch_never_crashes_the_render():
+    def boom(url):
+        raise RuntimeError("network down")
+
+    assert FebImageAssetProvider(fetch=boom).player_photo("x").payload_type == "initials"
+
+
+def test_kill_switch_selects_the_provider(monkeypatch):
+    """FEB_SCORE_OFFICIAL_IMAGES=0 must return the pipeline to the purely
+    statistical identity without a deploy."""
+    from feb_score.infrastructure.rendering.asset_provider import StatisticalAssetProvider
+
+    def build(value):
+        monkeypatch.setenv("FEB_SCORE_OFFICIAL_IMAGES", value)
+        on = os.environ.get("FEB_SCORE_OFFICIAL_IMAGES", "true").strip().lower() \
+            not in {"0", "false", "no"}
+        return FebImageAssetProvider if on else StatisticalAssetProvider
+
+    assert build("0") is StatisticalAssetProvider
+    assert build("false") is StatisticalAssetProvider
+    assert build("true") is FebImageAssetProvider

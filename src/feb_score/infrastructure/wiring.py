@@ -11,6 +11,7 @@ the contracts.
 
 from __future__ import annotations
 
+import os
 import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -558,11 +559,25 @@ class _GatewayBase(CommandGateway):
         if self._content_pipeline is None:
             from .rendering.asset_provider import StatisticalAssetProvider
             from .rendering.design_system import DESIGN_SYSTEM_VERSION
+            from .rendering.feb_image_assets import FebImageAssetProvider
             from .rendering.svg_renderer import ComponentSvgRenderer
+
+            # Official FEB portraits/crests, falling back to initials per asset.
+            # Rendering therefore touches the network: the provider caches, times
+            # out, and trips a circuit breaker, but FEB_SCORE_OFFICIAL_IMAGES=0 is
+            # the kill switch if that host ever becomes a problem — no deploy
+            # needed to go back to the purely statistical identity.
+            official_images = os.environ.get(
+                "FEB_SCORE_OFFICIAL_IMAGES", "true"
+            ).strip().lower() not in {"0", "false", "no"}
+            assets = (
+                FebImageAssetProvider() if official_images
+                else StatisticalAssetProvider()
+            )
 
             self._content_pipeline = RoundPipeline(
                 renderer=ComponentSvgRenderer(),
-                assets=StatisticalAssetProvider(),
+                assets=assets,
                 queue=self._content_queue_repo,
                 design_system_version=DESIGN_SYSTEM_VERSION,
             )

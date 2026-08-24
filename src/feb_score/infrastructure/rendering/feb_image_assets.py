@@ -37,6 +37,7 @@ TEAM_CREST_URL = "https://imagenes.feb.es/Imagen.aspx?i={team_external_id}&ti=1"
 USER_AGENT = "feb-score-assets/1.0"
 TIMEOUT_SECONDS = 8
 MAX_BYTES = 512 * 1024  # a portrait is ~10-25 KB; anything larger is not one
+FAILURE_BUDGET = 3      # consecutive failures before the provider stops trying
 
 
 def _data_uri(raw: bytes, content_type: str) -> str:
@@ -47,11 +48,22 @@ class FebImageAssetProvider(AssetProvider):
     """Official images with a graceful fall back to the statistical identity."""
 
     def __init__(self, *, fallback: Optional[AssetProvider] = None,
-                 fetch=None, timeout: int = TIMEOUT_SECONDS) -> None:
+                 fetch=None, timeout: int = TIMEOUT_SECONDS,
+                 failure_budget: int = FAILURE_BUDGET) -> None:
         self._fallback = fallback or StatisticalAssetProvider()
         self._timeout = timeout
         self._fetch = fetch or self._http_get
         self._cache: Dict[str, Optional[str]] = {}
+        # Circuit breaker: one card can ask for five portraits, so an unreachable
+        # image host would otherwise cost five sequential timeouts per card. After
+        # this many CONSECUTIVE failures the provider stops trying and serves the
+        # fallback; a single success closes it again.
+        self._failure_budget = failure_budget
+        self._consecutive_failures = 0
+
+    @property
+    def _open_circuit(self) -> bool:
+        return self._consecutive_failures >= self._failure_budget
 
     # ------------------------------------------------------------------ http
     def _http_get(self, url: str) -> Optional[Tuple[bytes, str]]:
@@ -71,9 +83,19 @@ class FebImageAssetProvider(AssetProvider):
             return None  # 404 = no official image; anything else = unavailable now
 
     def _uri(self, url: str) -> Optional[str]:
-        if url not in self._cache:
+        if url in self._cache:
+            return self._cache[url]
+        if self._open_circuit:
+            return None  # host is unhealthy: serve the fallback, don't wait on it
+        try:
             got = self._fetch(url)
-            self._cache[url] = _data_uri(*got) if got else None
+        except Exception:  # noqa: BLE001 — an injected fetch may raise; never crash a render
+            got = None
+        if got:
+            self._consecutive_failures = 0
+        else:
+            self._consecutive_failures += 1
+        self._cache[url] = _data_uri(*got) if got else None
         return self._cache[url]
 
     # -------------------------------------------------------------- provider
