@@ -18,6 +18,19 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 
+class ImageRenderingUnavailable(Exception):
+    """This deployment cannot rasterise cards (no rasteriser installed).
+
+    Defined on the PORT, not in the rendering module: the HTTP layer has to map
+    the failure to a status code, and it may not import concrete infrastructure
+    to do so. The adapter translates its own error into this one.
+    """
+
+
+class ImageRenderingFailed(Exception):
+    """The rasteriser ran and refused the card."""
+
+
 @dataclass(frozen=True)
 class EventRef:
     """Lightweight, stable reference to a produced event (never the full event)."""
@@ -215,6 +228,15 @@ class CommandGateway(ABC):
     @abstractmethod
     def render_content_item(self, content_id: str) -> Optional[str]:
         """Return the rendered SVG string for a content item, or None if unknown."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def render_content_item_png(
+        self, content_id: str, width: int, height: int
+    ) -> Optional[bytes]:
+        """The publishable image: the card rasterised at post size, or None if
+        the item is unknown. Raises ImageRenderingUnavailable when this
+        deployment has no rasteriser, ImageRenderingFailed when it refuses."""
         raise NotImplementedError
 
     # ----------------------------------------------- content lifecycle actions

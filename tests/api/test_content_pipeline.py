@@ -8,6 +8,7 @@ HTTP → gateway → LiveContentAdapter → RoundPipeline → queue → render.
 
 from __future__ import annotations
 
+import struct
 import uuid
 from datetime import datetime
 
@@ -33,7 +34,15 @@ from feb_score.infrastructure.persistence.repositories import (
     SqliteTeamRepository,
 )
 
+import pytest
+
+from feb_score.infrastructure.rendering import rasterizer
+
 from api_helpers import auth_header
+
+needs_resvg = pytest.mark.skipif(
+    not rasterizer.available(), reason="resvg is not installed on this machine"
+)
 
 SEASON = "2025-2026"
 
@@ -190,6 +199,57 @@ class TestQueueAndRender:
         assert r.status_code == 404
 
 
+class TestPublishableImage:
+    """The pipeline used to end at an SVG, which Instagram does not accept —
+    one step short of a post. These cover that last step."""
+
+    def _approved_id(self, client):
+        _seed_round(client)
+        run = client.post(
+            "/v1/content/pipeline/rounds/2025-2026/7", headers=auth_header("system")
+        ).json()
+        approved = [i for i in run["items"] if i["status"] == "approved"]
+        assert approved
+        return approved[0]["content_id"]
+
+    def test_unknown_item_404s_without_touching_the_rasteriser(self, client):
+        r = client.get(f"/v1/content/items/{uuid.uuid4()}/render.png")
+        assert r.status_code == 404
+
+    @needs_resvg
+    def test_renders_a_png_at_post_size(self, client):
+        r = client.get(f"/v1/content/items/{self._approved_id(client)}/render.png")
+        assert r.status_code == 200
+        assert r.headers["content-type"] == "image/png"
+        assert r.content[:8] == b"\x89PNG\r\n\x1a\n"
+        width, height = struct.unpack(">II", r.content[16:24])
+        assert (width, height) == (1080, 1350)   # 4:5, the largest feed post
+
+    @needs_resvg
+    def test_the_image_carries_the_artwork_not_just_the_text(self, client):
+        """Regression: the rasteriser resolves nothing off disk, so a card whose
+        shared assets were never inlined comes out as text on a blank field —
+        and still returns a perfectly valid PNG. Measured: ~1.3 MB with the
+        court, ~43 KB without it."""
+        r = client.get(f"/v1/content/items/{self._approved_id(client)}/render.png")
+        assert len(r.content) > 300_000
+
+    @needs_resvg
+    def test_downloads_under_a_name_worth_keeping(self, client):
+        r = client.get(f"/v1/content/items/{self._approved_id(client)}/render.png")
+        disposition = r.headers["content-disposition"]
+        assert disposition.startswith("attachment;")
+        assert "febscore-" in disposition and "-j7-" in disposition
+        assert disposition.isascii()          # the header is latin-1 on the wire
+
+    @needs_resvg
+    def test_size_is_bounded(self, client):
+        cid = self._approved_id(client)
+        assert client.get(f"/v1/content/items/{cid}/render.png?width=5000").status_code == 400
+        r = client.get(f"/v1/content/items/{cid}/render.png?width=540&height=675")
+        assert struct.unpack(">II", r.content[16:24]) == (540, 675)
+
+
 class TestPersistenceAcrossRestart:
     def test_queue_survives_gateway_restart(self, client, client_factory, db_path):
         _seed_round(client)
@@ -306,6 +366,7 @@ class TestReviewPage:
         assert "/review/${verb}" in html          # the verb is built per action
         assert "'approve'" in html and "'reject'" in html
         assert "/render.svg" in html
+        assert "/render.png" in html          # the publishable image is reachable
 
     def test_key_is_never_persisted_beyond_the_tab(self, client):
         html = client.get("/v1/content/review").text

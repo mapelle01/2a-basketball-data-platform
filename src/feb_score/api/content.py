@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Optional
 
 from pathlib import Path
@@ -9,6 +10,7 @@ from fastapi import Body, FastAPI, Query, Request, Response
 
 from . import errors as err
 from .auth import AuthenticationProvider
+from .gateway import ImageRenderingFailed, ImageRenderingUnavailable
 from ..domain.errors import InvalidContentTransition
 
 
@@ -123,6 +125,56 @@ def register_content_routes(app: FastAPI) -> None:
                 404, "NOT_FOUND", "content item not found or not rendered"
             )
         return Response(content=svg, media_type="image/svg+xml")
+
+    @app.get(
+        "/v1/content/items/{content_id}/render.png",
+        tags=["content"],
+        summary="Render a content item as a publishable PNG",
+        description="The card rasterised at Instagram post size (1080x1350 by "
+        "default), served as a download. 404 if unknown or never rendered; 503 "
+        "if this deployment has no rasteriser installed.",
+        response_class=Response,
+    )
+    def render_content_item_png(
+        content_id: str,
+        request: Request,
+        width: int = Query(default=1080, ge=270, le=2160),
+        height: int = Query(default=1350, ge=270, le=2700),
+    ):
+        try:
+            png = request.app.state.gateway.render_content_item_png(
+                content_id, width, height
+            )
+        except ImageRenderingUnavailable as exc:
+            return err.error_response(503, "RASTERIZER_UNAVAILABLE", str(exc))
+        except ImageRenderingFailed as exc:
+            return err.error_response(500, "RENDER_FAILED", str(exc))
+        if png is None:
+            return err.error_response(
+                404, "NOT_FOUND", "content item not found or not rendered"
+            )
+        return Response(
+            content=png,
+            media_type="image/png",
+            headers={
+                "Content-Disposition":
+                    f'attachment; filename="{_png_filename(request, content_id)}"'
+            },
+        )
+
+    def _png_filename(request: Request, content_id: str) -> str:
+        """A name worth saving: story and round, not a bare UUID. ASCII only —
+        a Content-Disposition header is latin-1 on the wire."""
+        item = request.app.state.gateway.get_content_item(content_id) or {}
+        story = item.get("story") or {}
+        parts = ["febscore"]
+        if story.get("story_type"):
+            parts.append(str(story["story_type"]))
+        if story.get("round_number"):
+            parts.append(f"j{story['round_number']}")
+        parts.append(content_id[:8])
+        stem = "-".join(re.sub(r"[^A-Za-z0-9]+", "-", p).strip("-") for p in parts)
+        return f"{stem}.png"
 
     @app.post(
         "/v1/content/queue/purge",

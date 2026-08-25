@@ -646,6 +646,29 @@ class _GatewayBase(CommandGateway):
             return None
         return inline_shared_assets(item.rendered_svg)
 
+    def render_content_item_png(
+        self, content_id: str, width: int, height: int
+    ) -> Optional[bytes]:
+        """The publishable image. Goes through render_content_item so the
+        assets are inlined first — the rasteriser resolves nothing off disk, so
+        an un-inlined card would come out with holes where the court is."""
+        from ..api.gateway import ImageRenderingFailed, ImageRenderingUnavailable
+        from .rendering.rasterizer import (
+            RasterizationFailed,
+            RasterizerUnavailable,
+            rasterize_png,
+        )
+
+        svg = self.render_content_item(content_id)
+        if svg is None:
+            return None
+        try:
+            return rasterize_png(svg, width=width, height=height)
+        except RasterizerUnavailable as exc:
+            raise ImageRenderingUnavailable(str(exc)) from exc
+        except RasterizationFailed as exc:
+            raise ImageRenderingFailed(str(exc)) from exc
+
     def purge_content_queue(self) -> Dict[str, Any]:
         """Housekeeping: drop rejected/failed cards. Live and published items
         are never touched (the queue enforces that)."""
