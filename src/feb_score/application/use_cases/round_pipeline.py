@@ -14,10 +14,12 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence
 
 from ..content.interfaces import AssetProvider, ContentQueue, TemplateRenderer
 from ...domain.content.bio import LeagueBio
+
 from ...domain.content.copy import generate_copy
 from ...domain.content.insights import MatchFactsInput, PlayerLineInput
 from ...domain.content.planner import plan
@@ -27,6 +29,7 @@ from ...domain.content.review import decide_review
 from ...domain.content.season_aggregate import SeasonAggregate
 from ...domain.content.season_insights import SeasonContext
 from ...domain.content.story import StoryObject, StoryStatus
+from ...domain.errors import InvalidContentEdit
 from ...domain.content.templates import TEMPLATE_VERSION, TEMPLATES
 from ...domain.content.validation import validate_copy, validate_visual
 
@@ -92,6 +95,57 @@ class RoundPipeline:
     @property
     def queue(self) -> ContentQueue:
         return self._queue
+
+    # Editing is allowed only while a card is still under the reviewer's hand;
+    # once it is scheduled or out the door, or already rejected, it is frozen.
+    EDITABLE_STATUSES = (ContentStatus.PENDING_REVIEW, ContentStatus.APPROVED)
+
+    def edit_content(
+        self,
+        content_id: str,
+        *,
+        section_label: Optional[str] = None,
+        caption: Optional[str] = None,
+    ) -> Optional[ContentItem]:
+        """Hand-edit a queued card's on-image title and/or Instagram caption.
+
+        The title (``section_label``) is drawn ON the card, so a change there
+        re-renders the SVG; the caption is the post text and never touches the
+        image, so editing it alone skips the render (and its asset fetch). A
+        human edit flips ``edited`` on the item: the card then rides the curated
+        path, human-verified, rather than being held to machine-generated copy.
+        Numbers are untouched — only prose changes here — so the no-invention
+        rule on the FACTS still holds.
+        """
+        import dataclasses
+
+        item = self._queue.get(content_id)
+        if item is None:
+            return None
+        if item.status not in self.EDITABLE_STATUSES:
+            raise InvalidContentEdit(
+                f"content {content_id} is {item.status.value}; only "
+                f"pending-review or approved cards can be edited"
+            )
+
+        changed = False
+        if section_label is not None:
+            new_facts = {**item.story.facts, "section_label": section_label}
+            item.story = dataclasses.replace(item.story, facts=new_facts)
+            contract = TEMPLATES[item.template_id]
+            data = self._build_render_data(item.story, item.copy or {}, item)
+            template_file = f"{item.template_id}_v{contract.version.split('.')[0]}"
+            item.rendered_svg = self._renderer.render(template_file, data)
+            changed = True
+        if caption is not None:
+            item.copy = {**(item.copy or {}), "caption": caption}
+            changed = True
+
+        if changed:
+            item.edited = True
+            item.updated_at = datetime.utcnow()
+            self._queue.update(item)
+        return item
 
     def run(
         self,

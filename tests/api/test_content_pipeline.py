@@ -351,6 +351,76 @@ class TestLifecycleEndpoints:
         assert item["publish_result"]["dry_run"] is True
 
 
+class TestEditContent:
+    """Editing was the one gap the review UI could not cover: a reviewer could
+    only approve or reject, never fix a title or a caption. These pin the edit
+    to what it must and must not do."""
+
+    def _pending(self, client):
+        _seed_round(client)
+        run = client.post(
+            "/v1/content/pipeline/rounds/2025-2026/7", headers=auth_header("system")
+        ).json()
+        pend = [i for i in run["items"] if i["status"] == "pending_review"]
+        assert pend, "need a pending-review card to edit"
+        return pend[0]["content_id"]
+
+    def test_edits_the_caption_without_touching_the_numbers(self, client):
+        cid = self._pending(client)
+        before = client.get(f"/v1/content/items/{cid}").json()
+        r = client.patch(f"/v1/content/items/{cid}",
+                         json={"caption": "Un pie escrito a mano."},
+                         headers=auth_header("system"))
+        assert r.status_code == 200
+        after = r.json()
+        assert after["copy"]["caption"] == "Un pie escrito a mano."
+        assert after["edited"] is True
+        # the story facts (the numbers) are untouched
+        assert after["story"]["facts"]["points"] == before["story"]["facts"]["points"]
+
+    def test_editing_the_title_re_renders_the_card(self, client):
+        cid = self._pending(client)
+        before = client.get(f"/v1/content/items/{cid}/render.svg").text
+        r = client.patch(f"/v1/content/items/{cid}",
+                         json={"section_label": "TITULAR A MANO"},
+                         headers=auth_header("system"))
+        assert r.status_code == 200
+        after = client.get(f"/v1/content/items/{cid}/render.svg").text
+        assert "TITULAR A MANO" in after
+        assert after != before
+
+    def test_a_blank_title_is_refused(self, client):
+        cid = self._pending(client)
+        r = client.patch(f"/v1/content/items/{cid}",
+                         json={"section_label": "   "}, headers=auth_header("system"))
+        assert r.status_code == 400
+
+    def test_an_empty_edit_is_refused(self, client):
+        cid = self._pending(client)
+        r = client.patch(f"/v1/content/items/{cid}", json={},
+                         headers=auth_header("system"))
+        assert r.status_code == 400
+
+    def test_edit_requires_a_key(self, client):
+        cid = self._pending(client)
+        r = client.patch(f"/v1/content/items/{cid}", json={"caption": "x"})
+        assert r.status_code == 401
+
+    def test_unknown_item_404s(self, client):
+        r = client.patch(f"/v1/content/items/{uuid.uuid4()}",
+                         json={"caption": "x"}, headers=auth_header("system"))
+        assert r.status_code == 404
+
+    def test_a_published_card_cannot_be_edited(self, client):
+        cid = self._pending(client)
+        client.post(f"/v1/content/items/{cid}/review/approve", headers=auth_header("system"))
+        client.post(f"/v1/content/items/{cid}/schedule", headers=auth_header("system"))
+        client.post(f"/v1/content/items/{cid}/publish", headers=auth_header("system"))
+        r = client.patch(f"/v1/content/items/{cid}",
+                         json={"caption": "tarde"}, headers=auth_header("system"))
+        assert r.status_code == 409
+
+
 class TestReviewPage:
     """The queue had no interface at all: reviewing meant hand-written curl."""
 
@@ -370,6 +440,8 @@ class TestReviewPage:
         # the page can generate a round itself, not only via terminal curl
         assert "/v1/content/pipeline/rounds/" in html
         assert "clipboard" in html            # copy-caption for one-shot publishing
+        assert "PATCH" in html                # hand-edit title + caption in place
+        assert "section_label" in html and "caption" in html
 
     def test_key_is_never_persisted_beyond_the_tab(self, client):
         html = client.get("/v1/content/review").text

@@ -76,6 +76,14 @@ a.btn:hover{border-color:var(--grey)}
 a.btn:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 .ok{border-color:var(--ink)}
 .msg{font-size:12px;color:var(--grey);min-height:16px}
+.edited{font-size:9px;font-weight:800;letter-spacing:.1em;padding:2px 6px;border:1px solid var(--grey);color:var(--grey)}
+.editor{display:none;flex-direction:column;gap:8px;padding-top:8px;border-top:1px solid var(--rule);margin-top:6px}
+.editor.open{display:flex}
+.editor label{font-size:10.5px;letter-spacing:.08em;color:var(--grey);text-transform:uppercase}
+.editor input,.editor textarea{font:inherit;font-size:12.5px;padding:7px 9px;width:100%;
+  background:var(--panel-2);border:1px solid var(--rule);color:var(--ink);resize:vertical}
+.editor textarea{min-height:74px;line-height:1.45}
+.editor .row{display:flex;gap:8px}
 .empty,.loading{color:var(--grey);padding:40px 0}
 </style>
 </head>
@@ -263,7 +271,7 @@ function card(i){
     <div class="meta">
       <div class="top">
         <span class="chip s-${i.status}">${LABELS[i.status] || i.status}</span>
-        <span class="type">${i.story.story_type}</span>${rating}
+        <span class="type">${i.story.story_type}</span>${i.edited ? '<span class="edited">EDITADA</span>' : ''}${rating}
       </div>
       <h3>${esc(name)}</h3>
       <p class="hl">${esc(copy.headline || '')}</p>
@@ -271,6 +279,21 @@ function card(i){
       <p class="idline">jornada ${i.story.round_number ?? '—'} · ${i.content_id.slice(0,8)}</p>
       <p class="msg"></p>
       <div class="actions"></div>
+      <div class="editor">
+        ${i.template_id === 'player_of_round' ? `
+        <div>
+          <label>Título en la imagen</label>
+          <input class="e-title" maxlength="60" placeholder="(el que dibuja la carta)">
+        </div>` : ''}
+        <div>
+          <label>Descripción de Instagram</label>
+          <textarea class="e-cap" placeholder="(el pie del post)"></textarea>
+        </div>
+        <div class="row">
+          <button class="e-save ok">Guardar cambios</button>
+          <button class="e-cancel">Cancelar</button>
+        </div>
+      </div>
     </div>`;
   const actions = el.querySelector('.actions'), msg = el.querySelector('.msg');
   if (i.status === 'pending_review') {
@@ -279,6 +302,10 @@ function card(i){
     actions.append(action('Rechazar', 'reject', i, msg, false));
   }
   actions.append(download(i), copyCaption(i, msg));
+  if (i.status === 'pending_review' || i.status === 'approved') {
+    actions.append(editButton(i, el, msg));
+    wireEditor(i, el, msg);
+  }
   return el;
 }
 
@@ -335,6 +362,47 @@ function action(label, verb, item, msg, primary){
     }catch(e){ msg.textContent = String(e); b.disabled = false; }
   };
   return b;
+}
+
+function editButton(item, el, msg){
+  const b = document.createElement('button');
+  b.textContent = 'Editar';
+  b.onclick = () => el.querySelector('.editor').classList.toggle('open');
+  return b;
+}
+
+function wireEditor(item, el, msg){
+  const box = el.querySelector('.editor');
+  const title = box.querySelector('.e-title');   // absent on non-player cards
+  const cap = box.querySelector('.e-cap');
+  const f = item.story.facts || {}, copy = item.copy || {};
+  if (title) title.value = f.section_label || '';
+  cap.value = copy.caption || '';
+  box.querySelector('.e-cancel').onclick = () => box.classList.remove('open');
+  box.querySelector('.e-save').onclick = async () => {
+    if (!apiKey()) { msg.textContent = 'hace falta la clave de API'; return; }
+    const payload = {};
+    // Send only what actually changed, so a blank title never overwrites.
+    if (title && title.value.trim() && title.value !== (f.section_label || ''))
+      payload.section_label = title.value.trim();
+    if (cap.value !== (copy.caption || ''))
+      payload.caption = cap.value;
+    if (!Object.keys(payload).length) { msg.textContent = 'nada que cambiar'; return; }
+    msg.textContent = 'guardando…';
+    try{
+      const r = await fetch(`/v1/content/items/${item.content_id}`, {
+        method: 'PATCH',
+        headers: {'Authorization': 'Bearer ' + apiKey(), 'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok){
+        const d = await r.json().catch(() => ({}));
+        msg.textContent = `error ${r.status}: ${d?.error?.message || ''}`;
+        return;
+      }
+      await load();
+    }catch(e){ msg.textContent = String(e); }
+  };
 }
 
 /* ------------------------------------------------------------------ render */

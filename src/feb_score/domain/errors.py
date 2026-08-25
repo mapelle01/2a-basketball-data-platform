@@ -67,3 +67,7 @@ class ContentGenerationError(DomainError):
 
 class InvalidContentTransition(DomainError):
     pass
+
+
+class InvalidContentEdit(DomainError):
+    pass

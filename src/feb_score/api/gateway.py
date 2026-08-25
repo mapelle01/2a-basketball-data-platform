@@ -239,6 +239,19 @@ class CommandGateway(ABC):
         deployment has no rasteriser, ImageRenderingFailed when it refuses."""
         raise NotImplementedError
 
+    @abstractmethod
+    def edit_content(
+        self,
+        content_id: str,
+        *,
+        section_label: Optional[str] = None,
+        caption: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Hand-edit a card's on-image title and/or Instagram caption. Returns
+        the updated item, or None if unknown. Raises when the card is not in an
+        editable state."""
+        raise NotImplementedError
+
     # ----------------------------------------------- content lifecycle actions
     # Each returns the updated item dict, or None if the content_id is unknown.
     # Illegal transitions raise a DomainError the HTTP layer maps to 409.

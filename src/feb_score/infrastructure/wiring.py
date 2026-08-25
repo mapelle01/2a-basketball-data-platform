@@ -671,6 +671,18 @@ class _GatewayBase(CommandGateway):
         except RasterizationFailed as exc:
             raise ImageRenderingFailed(str(exc)) from exc
 
+    def edit_content(
+        self,
+        content_id: str,
+        *,
+        section_label: Optional[str] = None,
+        caption: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        item = self._pipeline().edit_content(
+            content_id, section_label=section_label, caption=caption
+        )
+        return item.to_dict() if item is not None else None
+
     def purge_content_queue(self) -> Dict[str, Any]:
         """Housekeeping: drop rejected/failed cards. Live and published items
         are never touched (the queue enforces that)."""

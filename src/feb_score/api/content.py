@@ -11,7 +11,7 @@ from fastapi import Body, FastAPI, Query, Request, Response
 from . import errors as err
 from .auth import AuthenticationProvider
 from .gateway import ImageRenderingFailed, ImageRenderingUnavailable
-from ..domain.errors import InvalidContentTransition
+from ..domain.errors import InvalidContentEdit, InvalidContentTransition
 
 
 def register_content_routes(app: FastAPI) -> None:
@@ -175,6 +175,44 @@ def register_content_routes(app: FastAPI) -> None:
         parts.append(content_id[:8])
         stem = "-".join(re.sub(r"[^A-Za-z0-9]+", "-", p).strip("-") for p in parts)
         return f"{stem}.png"
+
+    @app.patch(
+        "/v1/content/items/{content_id}",
+        tags=["content"],
+        summary="Edit a card's on-image title and/or Instagram caption",
+        description="Hand-edits the title drawn on the card (re-rendering it) "
+        "and/or the Instagram caption. Only the prose changes — the numbers on "
+        "the card are untouched. Authenticated. 404 if unknown; 409 if the card "
+        "is already scheduled, published or rejected; 400 if nothing to change.",
+    )
+    def edit_content(content_id: str, request: Request, body: dict = Body(...)):
+        if _authed(request) is None:
+            return err.error_response(401, "UNAUTHENTICATED", "API key required")
+        section_label = body.get("section_label")
+        caption = body.get("caption")
+        if section_label is None and caption is None:
+            return err.error_response(
+                400, "NOTHING_TO_EDIT",
+                "provide section_label and/or caption",
+            )
+        # Empty strings are a real edit intent's enemy: a title cannot be blank
+        # (the card would render an empty band), so reject it explicitly rather
+        # than silently drawing nothing.
+        if section_label is not None and not str(section_label).strip():
+            return err.error_response(
+                400, "INVALID_PARAMETER", "section_label cannot be blank",
+            )
+        try:
+            dto = request.app.state.gateway.edit_content(
+                content_id,
+                section_label=section_label,
+                caption=caption,
+            )
+        except InvalidContentEdit as exc:
+            return err.error_response(409, "INVALID_EDIT", str(exc))
+        if dto is None:
+            return err.error_response(404, "NOT_FOUND", "content item not found")
+        return dto
 
     @app.post(
         "/v1/content/queue/purge",

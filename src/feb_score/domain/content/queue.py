@@ -87,6 +87,10 @@ class ContentItem:
     visual_validation: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
     review_reason: Optional[str] = None
+    # True once a human has edited the headline/caption by hand: the card
+    # then rides the curated path (human-verified), so its copy is no longer
+    # required to be machine-generated from facts alone.
+    edited: bool = False
     scheduled_for: Optional[datetime] = None
     publish_result: Optional[Dict[str, Any]] = None
     created_at: datetime = field(default_factory=datetime.utcnow)
@@ -174,6 +178,7 @@ class ContentItem:
             "visual_validation": self.visual_validation,
             "error": self.error,
             "review_reason": self.review_reason,
+            "edited": self.edited,
             "scheduled_for": self.scheduled_for.isoformat() if self.scheduled_for else None,
             "publish_result": self.publish_result,
             "created_at": self.created_at.isoformat(),
@@ -204,6 +209,7 @@ class ContentItem:
             visual_validation=data.get("visual_validation"),
             error=data.get("error"),
             review_reason=data.get("review_reason"),
+            edited=bool(data.get("edited", False)),
             publish_result=data.get("publish_result"),
         )
         if data.get("scheduled_for"):
