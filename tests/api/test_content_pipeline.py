@@ -367,6 +367,9 @@ class TestReviewPage:
         assert "'approve'" in html and "'reject'" in html
         assert "/render.svg" in html
         assert "/render.png" in html          # the publishable image is reachable
+        # the page can generate a round itself, not only via terminal curl
+        assert "/v1/content/pipeline/rounds/" in html
+        assert "clipboard" in html            # copy-caption for one-shot publishing
 
     def test_key_is_never_persisted_beyond_the_tab(self, client):
         html = client.get("/v1/content/review").text

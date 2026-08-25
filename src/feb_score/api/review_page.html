@@ -13,17 +13,44 @@
 body{margin:0;background:var(--bg);color:var(--ink);
   font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:15px}
 header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--rule);
-  padding:20px 28px;display:flex;align-items:baseline;gap:20px;flex-wrap:wrap}
+  padding:20px 28px;display:flex;align-items:baseline;gap:20px 20px;flex-wrap:wrap}
 h1{margin:0;font-size:20px;font-weight:900;letter-spacing:-.03em}
 h1 span{color:var(--red)}
 .counts{color:var(--grey);font-size:12.5px}
 .filters{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
 button{font:inherit;cursor:pointer;border:1px solid var(--rule);background:var(--panel);
   color:var(--ink-2);padding:6px 12px;font-size:12px;letter-spacing:.04em}
-button:hover{border-color:var(--grey)}
+button:hover:not(:disabled){border-color:var(--grey)}
+button:disabled{opacity:.5;cursor:default}
 button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:700}
 button:focus-visible{outline:2px solid var(--red);outline-offset:2px}
-main{padding:26px 28px 80px}
+main{padding:0 28px 80px}
+
+/* --- generate + key bar --- */
+.bar{width:100%;display:flex;gap:10px 16px;align-items:center;flex-wrap:wrap;margin-top:4px}
+.gen{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.gen label{font-size:11.5px;color:var(--grey);letter-spacing:.04em}
+.gen input{font:inherit;font-size:13px;padding:7px 9px;background:var(--panel-2);
+  border:1px solid var(--rule);color:var(--ink);width:96px}
+.gen input.round{width:64px}
+.gen .go{border-color:var(--ink);color:var(--ink);font-weight:700}
+input[type=password]{flex:1;min-width:200px;max-width:340px;font:inherit;font-size:12.5px;
+  padding:7px 10px;background:var(--panel-2);border:1px solid var(--rule);color:var(--ink)}
+.note{color:var(--grey);font-size:11.5px}
+.genmsg{font-size:12px;color:var(--ink-2);min-height:16px;flex-basis:100%}
+
+/* --- overview: what's done / pending per round --- */
+.overview{margin:22px 0 4px;display:flex;flex-direction:column;gap:6px}
+.ov-title{font-size:11px;letter-spacing:.14em;color:var(--grey);text-transform:uppercase}
+.ov-rounds{display:flex;gap:8px;flex-wrap:wrap}
+.ov-round{border:1px solid var(--rule);background:var(--panel);padding:8px 11px;min-width:120px}
+.ov-round b{font-size:13px;font-weight:800;letter-spacing:-.01em}
+.ov-round .season{color:var(--grey);font-weight:400;font-size:11px}
+.ov-line{margin-top:5px;font-size:11px;color:var(--grey);display:flex;gap:8px;flex-wrap:wrap}
+.ov-line .p{color:#E6C84A}.ov-line .a{color:var(--ink)}.ov-line .pub{color:var(--red)}
+
+main>h2{margin:26px 0 14px;font-size:12px;letter-spacing:.14em;color:var(--grey);
+  text-transform:uppercase;font-weight:700}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:22px}
 .card{background:var(--panel);border:1px solid var(--rule);display:flex;flex-direction:column}
 .thumb{background:#000;aspect-ratio:1080/1350;overflow:hidden}
@@ -41,8 +68,8 @@ h3{margin:0;font-size:15.5px;font-weight:800;letter-spacing:-.01em}
 .hl{margin:0;font-size:13px;color:var(--ink-2)}
 .cap{margin:0;font-size:12.5px;color:var(--grey);line-height:1.5}
 .idline{margin:0;font-size:11px;color:var(--grey);font-family:ui-monospace,monospace}
-.actions{display:flex;gap:8px;margin-top:auto;padding-top:6px}
-.actions button,.actions a{flex:1}
+.actions{display:flex;gap:8px;margin-top:auto;padding-top:6px;flex-wrap:wrap}
+.actions button,.actions a{flex:1 1 45%}
 a.btn{display:block;text-align:center;text-decoration:none;font-size:12px;letter-spacing:.04em;
   padding:6px 12px;border:1px solid var(--rule);background:var(--panel);color:var(--ink-2)}
 a.btn:hover{border-color:var(--grey)}
@@ -50,10 +77,6 @@ a.btn:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 .ok{border-color:var(--ink)}
 .msg{font-size:12px;color:var(--grey);min-height:16px}
 .empty,.loading{color:var(--grey);padding:40px 0}
-.keybar{display:flex;gap:8px;align-items:center;width:100%;margin-top:6px}
-input[type=password]{flex:1;max-width:340px;font:inherit;font-size:12.5px;padding:7px 10px;
-  background:var(--panel-2);border:1px solid var(--rule);color:var(--ink)}
-.note{color:var(--grey);font-size:11.5px}
 </style>
 </head>
 <body>
@@ -61,11 +84,18 @@ input[type=password]{flex:1;max-width:340px;font:inherit;font-size:12.5px;paddin
   <h1>Cola FEB SCORE<span>!</span></h1>
   <span class="counts" id="counts">cargando…</span>
   <div class="filters" id="filters"></div>
-  <div class="keybar">
-    <input type="password" id="key" placeholder="Clave de API — necesaria solo para aprobar o rechazar"
+  <div class="bar">
+    <div class="gen">
+      <label>Generar jornada</label>
+      <input id="gseason" placeholder="2025-2026" autocomplete="off" spellcheck="false">
+      <input id="ground" class="round" type="number" min="1" max="40" placeholder="J">
+      <button class="go" id="gen">Generar</button>
+    </div>
+    <input type="password" id="key" placeholder="Clave de API — para generar, aprobar o rechazar"
            autocomplete="off" spellcheck="false">
-    <button id="savekey">Guardar</button>
+    <button id="savekey">Guardar clave</button>
     <span class="note" id="keynote"></span>
+    <span class="genmsg" id="genmsg"></span>
   </div>
 </header>
 
@@ -80,6 +110,7 @@ const LABELS = {pending_review:'PENDIENTE', approved:'APROBADA', rejected:'RECHA
                 generated:'GENERADA', detected:'DETECTADA'};
 let ITEMS = [], FILTER = 'pending_review';
 
+/* ---------------------------------------------------------------- API key */
 const keyInput = document.getElementById('key');
 const keyNote = document.getElementById('keynote');
 // Session only: the key is gone when the tab closes, and never written to disk.
@@ -95,17 +126,70 @@ function setKeyNote(){
 }
 const apiKey = () => (sessionStorage.getItem('febKey') || '').trim();
 
+/* ------------------------------------------------------- generate a round */
+const genMsg = document.getElementById('genmsg');
+const gSeason = document.getElementById('gseason');
+const gRound = document.getElementById('ground');
+document.getElementById('gen').onclick = generate;
+gRound.addEventListener('keydown', e => { if (e.key === 'Enter') generate(); });
+
+async function generate(){
+  const season = gSeason.value.trim() || gSeason.placeholder;
+  const round = parseInt(gRound.value, 10);
+  if (!apiKey()) { genMsg.textContent = 'Hace falta la clave de API para generar.'; return; }
+  if (!round) { genMsg.textContent = 'Escribe el número de jornada.'; return; }
+
+  // Re-running a round that already has cards DUPLICATES them (the card identity
+  // includes a hash of its facts), so warn before doing it rather than after.
+  const existing = ITEMS.filter(i =>
+    i.story.round_number === round && i.story.season_code === season).length;
+  if (existing && !confirm(
+      `La jornada ${round} ya tiene ${existing} cartas. Volver a generar creará `
+      + `DUPLICADOS, no las reemplazará. ¿Seguir?`)) return;
+
+  const btn = document.getElementById('gen');
+  btn.disabled = true; genMsg.textContent = `Generando la jornada ${round}…`;
+  try{
+    const r = await fetch(
+      `/v1/content/pipeline/rounds/${encodeURIComponent(season)}/${round}`,
+      {method:'POST', headers:{'Authorization':'Bearer ' + apiKey(),
+                               'Content-Type':'application/json'}, body:'{}'});
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok){
+      genMsg.textContent = `Error ${r.status}: ${data?.error?.message || 'no se pudo generar'}`;
+    } else {
+      const n = data.content_generated ?? (data.items || []).length;
+      genMsg.textContent = n
+        ? `Jornada ${round}: ${n} cartas nuevas en la cola.`
+        : `Jornada ${round}: no había partidos finalizados con datos para generar.`;
+      FILTER = 'pending_review';
+      await load();
+    }
+  }catch(e){ genMsg.textContent = String(e); }
+  finally{ btn.disabled = false; }
+}
+
+/* --------------------------------------------------------------- load/read */
 async function load(){
   try{
     const r = await fetch('/v1/content/queue', {headers:{'Accept':'application/json'}});
     const data = await r.json();
     ITEMS = Array.isArray(data) ? data : (data.items || []);
     ITEMS.sort((a,b) => (b.story.round_number||0) - (a.story.round_number||0));
+    if (!gSeason.value) gSeason.value = newestSeason();
     render();
   }catch(e){
     OUT.className = 'empty';
     OUT.textContent = 'No se pudo leer la cola: ' + e;
   }
+}
+
+function newestSeason(){
+  // Prefill the generate box with the season already most present in the queue,
+  // so the common case is one click on a round number.
+  const c = {};
+  ITEMS.forEach(i => { const s = i.story.season_code; if (s) c[s] = (c[s]||0)+1; });
+  return Object.entries(c).sort((a,b) => b[1]-a[1])[0]?.[0] || '';
 }
 
 function counts(){
@@ -129,6 +213,44 @@ function renderFilters(){
     `${ITEMS.length} tarjetas · ` + Object.entries(c).map(([k,v]) => `${(LABELS[k]||k).toLowerCase()} ${v}`).join(' · ');
 }
 
+/* ----------------------------------------------- overview (what's pending) */
+function overview(){
+  // One row per (season, round): how many cards, and how many still need a
+  // decision vs. already out. This is the "where am I" glance.
+  const by = new Map();
+  ITEMS.forEach(i => {
+    const key = `${i.story.season_code}|${i.story.round_number}`;
+    if (!by.has(key)) by.set(key, {season:i.story.season_code, round:i.story.round_number,
+                                   total:0, pending:0, approved:0, published:0});
+    const o = by.get(key); o.total++;
+    if (i.status === 'pending_review') o.pending++;
+    else if (i.status === 'approved') o.approved++;
+    else if (i.status === 'published' || i.status === 'scheduled') o.published++;
+  });
+  const rounds = [...by.values()].sort((a,b) => (b.round||0)-(a.round||0));
+  if (!rounds.length) return null;
+
+  const wrap = document.createElement('section');
+  wrap.className = 'overview';
+  wrap.innerHTML = `<div class="ov-title">Por jornada</div>`;
+  const row = document.createElement('div'); row.className = 'ov-rounds';
+  rounds.forEach(o => {
+    const el = document.createElement('div'); el.className = 'ov-round';
+    const parts = [];
+    if (o.pending)   parts.push(`<span class="p">${o.pending} pendientes</span>`);
+    if (o.approved)  parts.push(`<span class="a">${o.approved} aprobadas</span>`);
+    if (o.published) parts.push(`<span class="pub">${o.published} publicadas</span>`);
+    if (!parts.length) parts.push('sin pendientes');
+    el.innerHTML =
+      `<b>Jornada ${o.round ?? '—'}</b> <span class="season">${esc(o.season||'')}</span>`
+      + `<div class="ov-line">${parts.join('')}</div>`;
+    row.appendChild(el);
+  });
+  wrap.appendChild(row);
+  return wrap;
+}
+
+/* ---------------------------------------------------------------- one card */
 function card(i){
   const f = i.story.facts || {}, copy = i.copy || {};
   const name = f.player_name || f.team_name || f.biggest_win_winner?.team_name || '—';
@@ -156,7 +278,7 @@ function card(i){
   } else if (i.status === 'approved') {
     actions.append(action('Rechazar', 'reject', i, msg, false));
   }
-  actions.append(download(i));
+  actions.append(download(i), copyCaption(i, msg));
   return el;
 }
 
@@ -170,6 +292,29 @@ function download(item){
   a.rel = 'noopener';
   a.textContent = 'Descargar PNG';
   return a;
+}
+
+function copyCaption(item, msg){
+  // Publishing an Instagram post is image + text; the text lives here as the
+  // caption, so put it one click from the clipboard next to the image.
+  const b = document.createElement('button');
+  b.textContent = 'Copiar pie';
+  const text = (item.copy && item.copy.caption) || '';
+  b.disabled = !text;
+  b.onclick = async () => {
+    try{
+      await navigator.clipboard.writeText(text);
+      msg.textContent = 'Pie copiado — pégalo en Instagram.';
+    }catch(e){
+      // Clipboard needs a secure context / permission; fall back to selection.
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); msg.textContent = 'Pie copiado.'; }
+      catch(_) { msg.textContent = 'No se pudo copiar automáticamente.'; }
+      ta.remove();
+    }
+  };
+  return b;
 }
 
 function action(label, verb, item, msg, primary){
@@ -192,13 +337,28 @@ function action(label, verb, item, msg, primary){
   return b;
 }
 
+/* ------------------------------------------------------------------ render */
 function render(){
   renderFilters();
-  const list = FILTER === 'all' ? ITEMS : ITEMS.filter(i => i.status === FILTER);
-  OUT.className = list.length ? 'grid' : 'empty';
+  OUT.className = '';
   OUT.innerHTML = '';
-  if (!list.length) { OUT.textContent = 'Nada en este estado.'; return; }
-  list.forEach(i => OUT.appendChild(card(i)));
+  const ov = overview();
+  if (ov) OUT.appendChild(ov);
+
+  const list = FILTER === 'all' ? ITEMS : ITEMS.filter(i => i.status === FILTER);
+  const h2 = document.createElement('h2');
+  h2.textContent = FILTER === 'all' ? 'Todas las tarjetas'
+                                    : (LABELS[FILTER] || FILTER) + 's';
+  OUT.appendChild(h2);
+
+  if (!list.length){
+    const e = document.createElement('div'); e.className = 'empty';
+    e.textContent = 'Nada en este estado.';
+    OUT.appendChild(e); return;
+  }
+  const grid = document.createElement('div'); grid.className = 'grid';
+  list.forEach(i => grid.appendChild(card(i)));
+  OUT.appendChild(grid);
 }
 
 function esc(s){ const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
