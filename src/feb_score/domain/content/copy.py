@@ -354,6 +354,40 @@ def _count(n: int, singular: str, plural: str) -> str:
     return f"{n} {singular if n == 1 else plural}"
 
 
+def generate_copy_lone_flag(story: Dict[str, Any]) -> CopyContract:
+    """The country is the story, so it leads. Phrased as "de la liga" on
+    purpose: the FEB records ONE nationality per player, so this is a claim
+    about the federation's roster, not about anybody's passports."""
+    f = story["facts"]
+    name = f.get("player_name") or f.get("player_external_id", "El jugador")
+    team = f.get("team_name") or f.get("team_external_id", "")
+    round_number = story.get("round_number")
+    country = f["nationality"]
+    points = f["points"]
+    rebounds = f["rebounds"]
+
+    headline = f"{name}"
+    subtitle = f"El único de {country} · {points} puntos"
+    caption = (
+        f"{name} es el único jugador de {country} en toda la Segunda FEB esta "
+        f"temporada. En la jornada {round_number} firmó {points} puntos y "
+        f"{rebounds} rebotes."
+    )
+    hashtags = BASE_HASHTAGS + ("Internacional",)
+    if team:
+        hashtags = hashtags + (_slugify(team),)
+    return CopyContract(
+        headline=headline,
+        subtitle=subtitle,
+        caption=caption,
+        hashtags=hashtags,
+        facts_used=(
+            "player_name", "team_name", "nationality", "points", "rebounds",
+            "round_number",
+        ),
+    )
+
+
 def generate_copy_defensive_anchor(story: Dict[str, Any]) -> CopyContract:
     f = story["facts"]
     name = f.get("player_name") or f.get("player_external_id", "El jugador")
@@ -589,6 +623,7 @@ _GENERATORS = {
     "iron_man": generate_copy_iron_man,
     "playmaker": generate_copy_playmaker,                        # round director
     "defensive_anchor": generate_copy_defensive_anchor,          # steals + blocks
+    "lone_flag": generate_copy_lone_flag,                        # bio: nationality
     "sharpshooter": generate_copy_sharpshooter,
     "perfect_night": generate_copy_perfect_night,
     "top_scorer": generate_copy_top_scorer,                      # season leaders

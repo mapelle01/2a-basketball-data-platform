@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
+from .bio import LeagueBio
 from .names import display_name
 from .story import StoryEntities, StoryObject, StoryType
 
@@ -382,6 +383,10 @@ PERFECT_MIN_FG_ATT = 5      # 5+ attempts, no misses = a perfect night
 # rare enough to mean something, common enough to be a lane. At 4 it would be
 # 10 a round, i.e. an ordinary night dressed up as a story.
 DEFENSIVE_MIN_ACTIONS = 5   # steals + blocks
+# Measured on 174 real lines from players who are their country's only
+# representative (2024-25, rounds 18-26): median 8 points, p90 19. At 15 the
+# card lands on a genuinely above-average night and fired in 9 rounds out of 9.
+LONE_FLAG_MIN_POINTS = 15
 
 
 def _rating_of(p: PlayerLineInput) -> Optional[float]:
@@ -512,6 +517,41 @@ def detect_defensive_anchor(
         "hero_value": actions, "hero_label": "ROB+TAP",
         "secondary": [[p.steals, "ROB"], [p.blocks, "TAP"]],
         "badge_label": "DEFENSA", "section_label": "El muro de la jornada",
+    })
+
+
+def detect_lone_flag(
+    season_code: str, round_number: int, player_lines: Sequence[PlayerLineInput],
+    bio: Optional["LeagueBio"] = None,
+) -> Optional[StoryObject]:
+    """The season's ONLY player from some country, having a real game.
+
+    Every other detector ranks a boxscore column, which is the one thing a
+    scoreboard already does. This one needs the roster to say anything at all —
+    and it turns out Segunda FEB fields 53 nationalities, 27 of them with a
+    single player.
+
+    Self-skips without bio data, so the lane stays dark until the roster is
+    wired rather than guessing at a nationality.
+    """
+    if not bio:
+        return None
+    eligible = [
+        p for p in player_lines
+        if p.points >= LONE_FLAG_MIN_POINTS
+        and bio.is_sole_representative(p.player_external_id)
+    ]
+    if not eligible:
+        return None
+    p = max(eligible, key=lambda x: (x.impact_score, x.points))
+    country = bio.nationality(p.player_external_id)
+    return _player_story(StoryType.LONE_FLAG, season_code, round_number, p, {
+        "nationality": country,
+        "countrymen_in_season": bio.countrymen(p.player_external_id),
+        "hero_value": p.points, "hero_label": "PTS",
+        "secondary": [[p.rebounds, "REB"], [p.assists, "AST"]],
+        "badge_label": "ÚNICO",
+        "section_label": f"El único de {country}",
     })
 
 

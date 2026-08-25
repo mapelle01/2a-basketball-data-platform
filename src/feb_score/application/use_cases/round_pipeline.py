@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
 from ..content.interfaces import AssetProvider, ContentQueue, TemplateRenderer
+from ...domain.content.bio import LeagueBio
 from ...domain.content.copy import generate_copy
 from ...domain.content.insights import MatchFactsInput, PlayerLineInput
 from ...domain.content.planner import plan
@@ -101,6 +102,7 @@ class RoundPipeline:
         top_n: int = 5,
         season_context: Optional[SeasonContext] = None,
         season: Optional[SeasonAggregate] = None,
+        bio: Optional[LeagueBio] = None,
     ) -> "RunResult":
         # One call to the detector registry: every registered detector whose
         # scope has data runs and self-skips otherwise. Adding a pattern later
@@ -108,7 +110,7 @@ class RoundPipeline:
         ctx = DetectionContext(
             season_code=season_code, round_number=round_number,
             matches=tuple(matches), player_lines=tuple(player_lines),
-            season_context=season_context, season=season,
+            season_context=season_context, season=season, bio=bio,
         )
         stories = run_detectors(ctx)
 

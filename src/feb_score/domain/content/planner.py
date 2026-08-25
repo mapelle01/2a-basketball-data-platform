@@ -53,6 +53,7 @@ TYPE_IMPORTANCE = {
     StoryType.PERFECT_NIGHT: 80,
     StoryType.PLAYMAKER: 60,
     StoryType.DEFENSIVE_ANCHOR: 72,
+    StoryType.LONE_FLAG: 76,
     StoryType.BEST_DUO: 72,
 }
 
@@ -104,20 +105,46 @@ def score_story(
 # which is exactly the repetitive feed this account is not supposed to be.
 MAX_PER_STORY_TYPE = 2
 
+# How many cards one run may select about the SAME subject (a player, a team, a
+# match). Measured on the live queue: round 26 gave FYNN SCHOTT three of its
+# five cards — triple_double, player_of_round and season_high, all the same
+# night by the same man. The per-type cap cannot see that, because each card
+# was a different type. One remarkable player should get one card, not a
+# takeover.
+MAX_PER_SUBJECT = 1
+
+
+def _subject_of(story: StoryObject) -> Optional[str]:
+    """Who the card is ABOUT. A player story is about the player even though it
+    also names his team, so the player wins; a round recap is about nobody and
+    is never capped."""
+    e = story.entities
+    for scope, value in (
+        ("player", e.player_external_id),
+        ("team", e.team_external_id),
+        ("match", e.match_external_id),
+    ):
+        if value:
+            return f"{scope}:{value}"
+    return None
+
 
 def plan(
     stories: Iterable[StoryObject],
     top_n: int = 5,
     seen_story_types: Optional[Set[StoryType]] = None,
     max_per_type: int = MAX_PER_STORY_TYPE,
+    max_per_subject: int = MAX_PER_SUBJECT,
 ) -> List[StoryObject]:
     """Score every story and select the top-N (marks selected/rejected).
 
     ``seen_story_types`` are story types already covered for this round (from
     the content queue); they get a novelty penalty so a re-run doesn't keep
     re-elevating content already produced. Within THIS batch, at most
-    ``max_per_type`` stories of one type are selected, so a batch stays varied
-    even when one detector fires repeatedly.
+    ``max_per_type`` stories of one type are selected, and at most
+    ``max_per_subject`` about the same player/team/match, so a batch stays
+    varied even when one detector fires repeatedly or one player has the kind
+    of night that trips four detectors at once.
     """
     seen = seen_story_types or set()
     scored = [
@@ -141,13 +168,19 @@ def plan(
     # stories without becoming three versions of the same card.
     selected_ids: Set[str] = set()
     per_type: Dict[StoryType, int] = {}
+    per_subject: Dict[str, int] = {}
     for s in scored:
         if len(selected_ids) >= top_n:
             break
         if per_type.get(s.story_type, 0) >= max_per_type:
             continue
+        subject = _subject_of(s)
+        if subject and per_subject.get(subject, 0) >= max_per_subject:
+            continue
         selected_ids.add(s.identity_key)
         per_type[s.story_type] = per_type.get(s.story_type, 0) + 1
+        if subject:
+            per_subject[subject] = per_subject.get(subject, 0) + 1
     return [
         StoryObject(
             story_type=s.story_type,

@@ -49,6 +49,7 @@ class StoryType(str, Enum):
     PERFECT_NIGHT = "perfect_night"    # no misses from the field (shooting)
     PLAYMAKER = "playmaker"            # the round's assist leader (per-game director)
     DEFENSIVE_ANCHOR = "defensive_anchor"  # best defensive night: steals + blocks
+    LONE_FLAG = "lone_flag"            # the season's only player from a country (bio)
     BEST_DUO = "best_duo"             # two teammates, best combined game (round)
     # TOP_SCORER / TOP_REBOUNDER / TOP_ASSIST_PROVIDER are the SEASON leaders.
 
@@ -93,6 +94,7 @@ STORY_TO_TEMPLATE: Dict[StoryType, str] = {
     # each detector chooses (assists, minutes, threes…), not always points.
     StoryType.PLAYMAKER: "player_of_round",
     StoryType.DEFENSIVE_ANCHOR: "player_of_round",
+    StoryType.LONE_FLAG: "player_of_round",
     StoryType.IRON_MAN: "player_of_round",
     StoryType.SHARPSHOOTER: "player_of_round",
     StoryType.PERFECT_NIGHT: "player_of_round",
@@ -121,6 +123,10 @@ STORY_LABELS: Dict[StoryType, Dict[str, str]] = {
     StoryType.PLAYMAKER: {"section": "El director de juego", "badge": "DIRECTOR"},
     StoryType.DEFENSIVE_ANCHOR: {"section": "El muro de la jornada",
                                  "badge": "DEFENSA"},
+    # The headline is overridden per card with the actual country ("El único de
+    # BENIN"); this is the fallback, and the chip is dropped by the echo rule
+    # whenever the country headline already contains "ÚNICO".
+    StoryType.LONE_FLAG: {"section": "El único de su país", "badge": "ÚNICO"},
     StoryType.IRON_MAN: {"section": "El más trabajador", "badge": "MARATÓN"},
     StoryType.SHARPSHOOTER: {"section": "El tirador de la jornada", "badge": "SNIPER"},
     StoryType.PERFECT_NIGHT: {"section": "Noche perfecta", "badge": "SIN FALLO"},

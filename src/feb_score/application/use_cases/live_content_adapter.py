@@ -24,6 +24,7 @@ from ..repositories.interfaces import (
     PlayerRepository,
     TeamRepository,
 )
+from ...domain.content.bio import LeagueBio
 from ...domain.content.insights import MatchFactsInput, PlayerLineInput
 from ...domain.content.season_aggregate import PlayerSeasonLine, SeasonAggregate
 from ...domain.content.season_insights import SEASON_HIGH_MIN_POINTS, SeasonContext
@@ -136,6 +137,37 @@ class LiveContentAdapter:
             for a in aggregates
         )
         return SeasonAggregate(season_code=season_code, players=players)
+
+    # ------------------------------------------------------------------
+    # Roster attributes (for the BIO detectors)
+    # ------------------------------------------------------------------
+
+    def build_league_bio(self, season_code: str) -> LeagueBio:
+        """Nationality for every player with stats in the season.
+
+        Season-wide by construction: "the only player from Benin" is a claim
+        about the whole league, so a round-sized view would make it false.
+        One catalog query, the same batch the name resolution already uses.
+
+        The FEB writes a literal "-" where it has no value (measured: 21 of 120
+        sampled players carry it as their POSITION), so placeholders are
+        dropped rather than treated as a country of their own.
+        """
+        season = SeasonCode(season_code)
+        ids = {
+            a.player_external_id
+            for a in self._stats.list_season_player_aggregates(season)
+        }
+        if not ids:
+            return LeagueBio()
+        catalog = self._players.get_many_by_external_ids(ids)
+        return LeagueBio({
+            pid: player.nationality.strip()
+            for pid, player in catalog.items()
+            if player is not None
+            and player.nationality
+            and player.nationality.strip() not in ("", "-")
+        })
 
     def _team_names_by_ids(self, team_ids: set) -> Dict[str, Optional[str]]:
         if not team_ids:

@@ -319,7 +319,13 @@ class TestAdditionalDetectors:
 
     def test_new_detectors_render_via_reused_templates(self):
         matches = [_match(external_id="m2", home=104, away=72)]
-        players = [_player(pid="p1", match="m2", points=18, rebounds=12, assists=3)]
+        # Two players, not one: since the planner allows a single card per
+        # subject, one player producing both the double-double and the player
+        # of the round would (correctly) yield only one of them.
+        players = [
+            _player(pid="p1", match="m2", points=18, rebounds=12, assists=3),
+            _player(pid="p2", match="m2", points=31, rebounds=4, assists=6),
+        ]
         items = _pipeline().run("2025-2026", 12, matches, players, top_n=12).items
         types = {i.story.story_type for i in items}
         assert StoryType.BIGGEST_WIN in types

@@ -22,6 +22,7 @@ from . import insights as _ins
 from . import season_insights as _sea
 from . import season_aggregate as _agg
 from .insights import MatchFactsInput, PlayerLineInput
+from .bio import LeagueBio
 from .season_aggregate import SeasonAggregate
 from .season_insights import SeasonContext
 from .story import StoryObject
@@ -30,7 +31,8 @@ from .story import StoryObject
 class Scope(str, Enum):
     ROUND = "round"      # needs only the current round's boxscore
     SEASON = "season"    # needs season-to-date context / aggregate
-    # Future: ALLTIME (multi-season history), BIO (roster attributes).
+    BIO = "bio"          # needs roster attributes (nationality, and later age)
+    # Future: ALLTIME (multi-season history).
 
 
 @dataclass(frozen=True)
@@ -44,6 +46,7 @@ class DetectionContext:
     player_lines: Sequence[PlayerLineInput] = ()
     season_context: Optional[SeasonContext] = None      # prior-best / streaks / rank
     season: Optional[SeasonAggregate] = None            # season-to-date totals
+    bio: Optional[LeagueBio] = None                     # roster attributes
 
 
 Detector = Callable[[DetectionContext], Iterable[StoryObject]]
@@ -127,6 +130,12 @@ register("perfect_night", Scope.ROUND)(
 )
 register("best_duo", Scope.ROUND)(
     lambda ctx: _one(_ins.detect_best_duo(ctx.season_code, ctx.round_number, ctx.player_lines))
+)
+
+# --- BIO scope --- (roster attributes; self-skip when no bio is supplied)
+register("lone_flag", Scope.BIO)(
+    lambda ctx: _one(_ins.detect_lone_flag(
+        ctx.season_code, ctx.round_number, ctx.player_lines, ctx.bio))
 )
 
 # --- SEASON scope --- (self-skip when their context/aggregate is None)
