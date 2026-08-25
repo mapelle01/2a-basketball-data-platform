@@ -19,10 +19,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+import unicodedata
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 
 class StoryType(str, Enum):
@@ -130,6 +132,28 @@ STORY_LABELS: Dict[StoryType, Dict[str, str]] = {
 def labels_for(story_type) -> Dict[str, str]:
     """Section + badge a card of this type should carry."""
     return STORY_LABELS.get(story_type, {"section": "", "badge": ""})
+
+
+def _words(text: str) -> List[str]:
+    """Comparison tokens: accent- and punctuation-free, upper case."""
+    folded = unicodedata.normalize("NFKD", text or "")
+    folded = "".join(c for c in folded if not unicodedata.combining(c))
+    return [w for w in re.split(r"[^A-Za-z0-9]+", folded.upper()) if w]
+
+
+def badge_echoes_headline(section: str, badge: str) -> bool:
+    """True when the small chip on the portrait would only repeat the headline.
+
+    A triple-double card headlined TRIPLE-DOBLE with a TRIPLE-DOBLE chip under
+    the portrait says the same thing twice; the chip is meant to ADD a
+    qualifier (MVP, SNIPER, SIN FALLO). Abbreviations count as repetition —
+    "MÁX. ANOTADOR" adds nothing to "Máximo anotador de la temporada" — so a
+    badge word matches when it merely PREFIXES a headline word.
+    """
+    head, chip = _words(section), _words(badge)
+    if not chip:
+        return False
+    return all(any(h.startswith(w) for h in head) for w in chip)
 
 
 @dataclass(frozen=True)

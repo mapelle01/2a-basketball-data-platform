@@ -410,12 +410,17 @@ def render_player_of_round(data: Dict[str, Any]) -> str:
     # What this card calls itself comes from the story TYPE, not a per-template
     # default — that default is what made every card claim to be the player of
     # the round. A detector may still override via the facts.
-    from ...domain.content.story import StoryType, labels_for
+    from ...domain.content.story import StoryType, badge_echoes_headline, labels_for
     try:
         defaults = labels_for(StoryType(story_type))
     except ValueError:
         defaults = {"section": "", "badge": ""}
     section = facts.get("section_label") or defaults["section"] or "Jugador de la jornada"
+    # The chip under the portrait adds a qualifier; when it would only repeat
+    # the headline (TRIPLE-DOBLE over a TRIPLE-DOBLE chip) it is dropped.
+    badge = facts.get("badge_label") or defaults["badge"] or "MVP"
+    if badge_echoes_headline(section, badge):
+        badge = None
     if story_type in _SEASON_LEADER_STORIES:
         kicker = f"TEMPORADA {_season_label(data['story'].get('season_code', ''))}"
     else:
@@ -458,7 +463,7 @@ def render_player_of_round(data: Dict[str, Any]) -> str:
         secondary_stats=secondary,
         initials=assets.get("player_initials"),
         photo_uri=assets.get("player_photo"),
-        badge=facts.get("badge_label") or defaults["badge"] or "MVP",
+        badge=badge,
     )
     # Place the hero below the kicker, biased upward so the kicker→portrait gap
     # stays tight (the slack falls to the bottom, where the footer anchors it).

@@ -245,3 +245,38 @@ def test_the_card_renders_its_own_headline():
     assert head("triple_double") == "TRIPLE-DOBLE"
     assert head("season_high") == "MÁXIMO PERSONAL DE LA TEMPORADA"
     assert head("player_of_round") == "JUGADOR DE LA JORNADA"
+
+
+def test_the_portrait_chip_does_not_echo_the_headline():
+    """Giving every type its own headline made several cards say the same thing
+    twice — a TRIPLE-DOBLE headline over a TRIPLE-DOBLE chip. The chip is there
+    to ADD a qualifier, so it is dropped when it only repeats, abbreviations
+    included."""
+    from feb_score.domain.content.story import badge_echoes_headline
+
+    assert badge_echoes_headline("Triple-doble", "TRIPLE-DOBLE")
+    assert badge_echoes_headline("Máximo personal de la temporada", "MÁXIMO")
+    assert badge_echoes_headline("Máximo anotador de la temporada", "MÁX. ANOTADOR")
+    assert badge_echoes_headline("El director de juego", "DIRECTOR")
+
+    assert not badge_echoes_headline("Jugador de la jornada", "MVP")
+    assert not badge_echoes_headline("El tirador de la jornada", "SNIPER")
+    assert not badge_echoes_headline("Noche perfecta", "SIN FALLO")
+    assert not badge_echoes_headline("El más trabajador", "MARATÓN")
+    assert not badge_echoes_headline("Jugador de la jornada", "")
+
+
+def test_the_rendered_card_shows_each_label_once():
+    from feb_score.infrastructure.rendering.component_templates import render_template
+
+    def card(story_type):
+        data = {"story": {"facts": {"player_name": "X", "points": 21, "rebounds": 13,
+                                    "assists": 10, "rating": 9.0},
+                          "round_number": 24, "season_code": "2024-2025",
+                          "story_type": story_type},
+                "display": {"player": "X", "team": "T"},
+                "assets": {"player_initials": "X"}, "copy": {}, "meta": {}}
+        return render_template("player_of_round", data)
+
+    assert card("triple_double").count("TRIPLE-DOBLE") == 1   # headline only
+    assert card("player_of_round").count("MVP") == 1          # the chip survives
