@@ -376,6 +376,12 @@ MINUTES_HEAVY = 35.0        # a 35'+ night on a 40' game = a real workhorse
 PLAYMAKER_MIN_ASSISTS = 8   # 8+ assists = a genuine facilitator night
 SHARP_MIN_THREES = 5        # 5+ made threes = a shooting show
 PERFECT_MIN_FG_ATT = 5      # 5+ attempts, no misses = a perfect night
+# Measured over 2,607 real player-lines (2024-25, rounds 18-26): robos+tapones
+# has a median of 1 and a 95th percentile of 3. At 5 the detector sees ~2.3
+# candidates a round (the top 0.8% of lines) and fires in 8 rounds out of 9 —
+# rare enough to mean something, common enough to be a lane. At 4 it would be
+# 10 a round, i.e. an ordinary night dressed up as a story.
+DEFENSIVE_MIN_ACTIONS = 5   # steals + blocks
 
 
 def _rating_of(p: PlayerLineInput) -> Optional[float]:
@@ -480,6 +486,32 @@ def detect_playmaker(
         "hero_value": p.assists, "hero_label": "AST",
         "secondary": [[p.points, "PTS"], [p.rebounds, "REB"]],
         "badge_label": "DIRECTOR", "section_label": "El director de juego",
+    })
+
+
+def detect_defensive_anchor(
+    season_code: str, round_number: int, player_lines: Sequence[PlayerLineInput],
+) -> Optional[StoryObject]:
+    """The best defensive night of the round — steals plus blocks.
+
+    Defence barely registers in a boxscore, so without a card of its own it
+    never gets told: five blocks in a five-point night loses every ranking to
+    the scorers. The hero number is the SUM, with both parts shown beside it so
+    a reader can check the arithmetic rather than take it on trust.
+    """
+    eligible = [
+        p for p in player_lines
+        if (p.steals + p.blocks) >= DEFENSIVE_MIN_ACTIONS
+    ]
+    if not eligible:
+        return None
+    p = max(eligible, key=lambda x: (x.steals + x.blocks, x.points))
+    actions = p.steals + p.blocks
+    return _player_story(StoryType.DEFENSIVE_ANCHOR, season_code, round_number, p, {
+        "defensive_actions": actions,
+        "hero_value": actions, "hero_label": "ROB+TAP",
+        "secondary": [[p.steals, "ROB"], [p.blocks, "TAP"]],
+        "badge_label": "DEFENSA", "section_label": "El muro de la jornada",
     })
 
 

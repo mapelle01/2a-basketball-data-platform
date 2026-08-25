@@ -52,6 +52,7 @@ TYPE_IMPORTANCE = {
     StoryType.SHARPSHOOTER: 74,
     StoryType.PERFECT_NIGHT: 80,
     StoryType.PLAYMAKER: 60,
+    StoryType.DEFENSIVE_ANCHOR: 72,
     StoryType.BEST_DUO: 72,
 }
 

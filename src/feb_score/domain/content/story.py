@@ -48,6 +48,7 @@ class StoryType(str, Enum):
     SHARPSHOOTER = "sharpshooter"      # best 3-point game (shooting)
     PERFECT_NIGHT = "perfect_night"    # no misses from the field (shooting)
     PLAYMAKER = "playmaker"            # the round's assist leader (per-game director)
+    DEFENSIVE_ANCHOR = "defensive_anchor"  # best defensive night: steals + blocks
     BEST_DUO = "best_duo"             # two teammates, best combined game (round)
     # TOP_SCORER / TOP_REBOUNDER / TOP_ASSIST_PROVIDER are the SEASON leaders.
 
@@ -91,6 +92,7 @@ STORY_TO_TEMPLATE: Dict[StoryType, str] = {
     # Curious / shooting player angles — a player card framed by the hero stat
     # each detector chooses (assists, minutes, threes…), not always points.
     StoryType.PLAYMAKER: "player_of_round",
+    StoryType.DEFENSIVE_ANCHOR: "player_of_round",
     StoryType.IRON_MAN: "player_of_round",
     StoryType.SHARPSHOOTER: "player_of_round",
     StoryType.PERFECT_NIGHT: "player_of_round",
@@ -117,6 +119,8 @@ STORY_LABELS: Dict[StoryType, Dict[str, str]] = {
     StoryType.SEASON_HIGH: {"section": "Máximo personal de la temporada",
                             "badge": "MÁXIMO"},
     StoryType.PLAYMAKER: {"section": "El director de juego", "badge": "DIRECTOR"},
+    StoryType.DEFENSIVE_ANCHOR: {"section": "El muro de la jornada",
+                                 "badge": "DEFENSA"},
     StoryType.IRON_MAN: {"section": "El más trabajador", "badge": "MARATÓN"},
     StoryType.SHARPSHOOTER: {"section": "El tirador de la jornada", "badge": "SNIPER"},
     StoryType.PERFECT_NIGHT: {"section": "Noche perfecta", "badge": "SIN FALLO"},

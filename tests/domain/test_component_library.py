@@ -300,3 +300,55 @@ class TestIdentityRestraint:
             ET.fromstring(svg)  # valid
             stray = _colors_in(svg) - _ALLOWED_COLORS
             assert not stray, f"{tid} uses non-palette colors: {stray}"
+
+
+class TestStatLabelsFit:
+    """The secondary band used to be sized from the FIGURE alone, so a label
+    wider than its column printed on top of its neighbour and buried the
+    divider. Found by rasterising the defensive card: "ROBOS" and "TAPONES"
+    came out as one smear. The check is geometric, not a font-size assertion —
+    what matters is that two labels never occupy the same pixels."""
+
+    @staticmethod
+    def _label_extents(svg):
+        """(left, right) of every grey unit label, in order."""
+        out = []
+        for tag in re.finditer(r'<text([^>]*)>([^<]*)</text>', svg):
+            attrs, label = tag.group(1), tag.group(2)
+            if f'fill="{C.Color.GREY}"' not in attrs:
+                continue
+            cx = float(re.search(r'\bx="([-\d.]+)"', attrs).group(1))
+            size = float(re.search(r'font-size="([\d.]+)"', attrs).group(1))
+            half = C._caps_width(label, size) / 2
+            out.append((cx - half, cx + half))
+        return sorted(out)
+
+    def _assert_no_overlap(self, secondary):
+        svg, _ = C.stat_block(
+            0, 0, 952, primary="6", primary_label="ROB+TAP",
+            secondary_stats=secondary, variant="hero", center=True,
+        )
+        extents = self._label_extents(svg)
+        assert len(extents) == len(secondary), "a label went missing"
+        for (_, right), (left, _) in zip(extents, extents[1:]):
+            assert right <= left, f"labels overlap by {right - left:.1f}px in {secondary}"
+        for left, right in extents:
+            assert left >= -1 and right <= 953, "a label escaped the content box"
+
+    def test_short_labels_fit(self):
+        self._assert_no_overlap([("1", "ROB"), ("5", "TAP")])
+
+    def test_long_labels_fit(self):
+        self._assert_no_overlap([("1", "ROBOS"), ("5", "TAPONES")])
+
+    def test_four_long_labels_still_fit(self):
+        self._assert_no_overlap([
+            ("1", "ROBOS"), ("5", "TAPONES"), ("9", "REBOTES"), ("3", "ASISTENCIAS"),
+        ])
+
+    def test_the_estimate_is_an_upper_bound(self):
+        """The fit rests on _caps_width never UNDER-reporting; measured against
+        resvg, real widths at size 22 were ROB 51.8, TAPONES 122.0, ROBOS 89.0."""
+        assert C._caps_width("ROB", 22) >= 51.8
+        assert C._caps_width("TAPONES", 22) >= 122.0
+        assert C._caps_width("ROBOS", 22) >= 89.0

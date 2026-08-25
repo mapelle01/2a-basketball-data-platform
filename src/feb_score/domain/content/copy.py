@@ -347,6 +347,48 @@ def generate_copy_playmaker(story: Dict[str, Any]) -> CopyContract:
     )
 
 
+def _count(n: int, singular: str, plural: str) -> str:
+    """Spanish counts agree with the noun. A defensive line can legitimately
+    read 1 or 0, unlike the assist/three-point cards whose thresholds keep the
+    number plural, so this card cannot hardcode the plural."""
+    return f"{n} {singular if n == 1 else plural}"
+
+
+def generate_copy_defensive_anchor(story: Dict[str, Any]) -> CopyContract:
+    f = story["facts"]
+    name = f.get("player_name") or f.get("player_external_id", "El jugador")
+    team = f.get("team_name") or f.get("team_external_id", "")
+    round_number = story.get("round_number")
+    steals = f["steals"]
+    blocks = f["blocks"]
+    actions = f["defensive_actions"]
+    points = f["points"]
+
+    headline = f"{name}"
+    subtitle = f"El muro · {_count(steals, 'robo', 'robos')} y {_count(blocks, 'tapón', 'tapones')}"
+    # Deliberately does NOT lead with points: the whole reason this card exists
+    # is that the defensive line is the story, whatever the scoring says.
+    caption = (
+        f"{name} se hace dueño de la jornada {round_number} sin necesidad de "
+        f"anotar: {_count(steals, 'robo', 'robos')} y "
+        f"{_count(blocks, 'tapón', 'tapones')}, {actions} acciones defensivas, "
+        f"las que más. Cerró con {_count(points, 'punto', 'puntos')}."
+    )
+    hashtags = BASE_HASHTAGS + ("Defensa",)
+    if team:
+        hashtags = hashtags + (_slugify(team),)
+    return CopyContract(
+        headline=headline,
+        subtitle=subtitle,
+        caption=caption,
+        hashtags=hashtags,
+        facts_used=(
+            "player_name", "team_name", "steals", "blocks",
+            "defensive_actions", "points", "round_number",
+        ),
+    )
+
+
 def generate_copy_sharpshooter(story: Dict[str, Any]) -> CopyContract:
     f = story["facts"]
     name = f.get("player_name") or f.get("player_external_id", "El jugador")
@@ -546,6 +588,7 @@ _GENERATORS = {
     "stat_leaderboard": generate_copy_stat_leaderboard,
     "iron_man": generate_copy_iron_man,
     "playmaker": generate_copy_playmaker,                        # round director
+    "defensive_anchor": generate_copy_defensive_anchor,          # steals + blocks
     "sharpshooter": generate_copy_sharpshooter,
     "perfect_night": generate_copy_perfect_night,
     "top_scorer": generate_copy_top_scorer,                      # season leaders

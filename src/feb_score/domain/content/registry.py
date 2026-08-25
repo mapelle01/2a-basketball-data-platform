@@ -116,6 +116,9 @@ register("iron_man", Scope.ROUND)(
 register("playmaker", Scope.ROUND)(
     lambda ctx: _one(_ins.detect_playmaker(ctx.season_code, ctx.round_number, ctx.player_lines))
 )
+register("defensive_anchor", Scope.ROUND)(
+    lambda ctx: _one(_ins.detect_defensive_anchor(ctx.season_code, ctx.round_number, ctx.player_lines))
+)
 register("sharpshooter", Scope.ROUND)(
     lambda ctx: _one(_ins.detect_sharpshooter(ctx.season_code, ctx.round_number, ctx.player_lines))
 )

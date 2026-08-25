@@ -456,6 +456,18 @@ _SB_SECONDARY_RATIO = 0.30  # secondary figures vs the hero: ~3:1 keeps a clear
                             # hierarchy without demoting them to a footnote
 _SB_COL_RATIO = 0.95        # column width vs the secondary figure size — tight
                             # enough that the secondaries read as ONE unit
+# Upper bound on the advance of one uppercase Inter 600 glyph, in em. MEASURED
+# with `resvg --query-all` over real labels (ROB .648, TAPONES .656, ROBOS .673,
+# ROBOS+TAPONES .668), rounded up so the fit is conservative: overestimating
+# only widens a column, underestimating overlaps two.
+_SB_LABEL_ADVANCE = 0.70
+_SB_LABEL_MIN = 13          # below this a unit label stops being readable
+
+
+def _caps_width(text: str, size: float) -> float:
+    """Rendered width of an uppercase, CAPS-tracked label."""
+    n = len(text)
+    return n * size * _SB_LABEL_ADVANCE + max(0, n - 1) * LetterSpacing.CAPS
 
 
 def _stat_stacked(x, y, width, primary, primary_label, secondary, fg, variant, center) -> Rendered:
@@ -484,9 +496,19 @@ def _stat_stacked(x, y, width, primary, primary_label, secondary, fg, variant, c
         sec_size = max(FontSize.H3, round(num_size * _SB_SECONDARY_RATIO))
         lab_size = FontSize.LABEL
         n = len(secondary)
-        band = min(width, n * sec_size * 2 * _SB_COL_RATIO)
+        # The band used to be sized from the FIGURE alone, so a label wider than
+        # its column silently overlapped its neighbour — "ROBOS" and "TAPONES"
+        # printed on top of each other with the divider buried under them. Size
+        # it to whichever is wider, then shrink the label if even the full
+        # content width cannot hold it.
+        widest = max(_caps_width(str(lab), lab_size) for _, lab in secondary)
+        band = min(width, max(n * sec_size * 2 * _SB_COL_RATIO, n * (widest + Spacing.MD)))
         bx = (ox - band / 2) if center else x
         col_w = band / n
+        if widest + Spacing.MD > col_w:
+            lab_size = max(
+                _SB_LABEL_MIN, int(lab_size * (col_w - Spacing.MD) / widest)
+            )
         row_y = y + h + Spacing.MD
         rule_h = sec_size + lab_size + Spacing.SM
         for i, (val, lab) in enumerate(secondary):
