@@ -234,6 +234,7 @@ class _GatewayBase(CommandGateway):
             repos["match"], repos["stats"], repos["player"], repos["team"]
         )
         self._content_queue_repo = repos["content_queue"]
+        self._image_override_repo = repos["image_override"]
         self._content_pipeline: Optional[RoundPipeline] = None
         self._content_lifecycle = None  # lazily built alongside the pipeline
 
@@ -570,10 +571,14 @@ class _GatewayBase(CommandGateway):
             official_images = os.environ.get(
                 "FEB_SCORE_OFFICIAL_IMAGES", "true"
             ).strip().lower() not in {"0", "false", "no"}
-            assets = (
+            base_assets = (
                 FebImageAssetProvider() if official_images
                 else StatisticalAssetProvider()
             )
+            # Operator overrides win over FEB/initials, so an uploaded image
+            # actually reaches the card.
+            from .rendering.override_assets import OverrideAssetProvider
+            assets = OverrideAssetProvider(self._image_override_repo, base_assets)
 
             self._content_pipeline = RoundPipeline(
                 renderer=ComponentSvgRenderer(),
@@ -670,6 +675,79 @@ class _GatewayBase(CommandGateway):
             raise ImageRenderingUnavailable(str(exc)) from exc
         except RasterizationFailed as exc:
             raise ImageRenderingFailed(str(exc)) from exc
+
+    # ------------------------------------------------------------- imagery
+    def list_image_catalog(self, season_code: str) -> Dict[str, Any]:
+        from ..domain.value_objects import SeasonCode
+        from .rendering.feb_image_assets import PLAYER_PHOTO_URL, TEAM_CREST_URL
+
+        season = SeasonCode(season_code)
+        overrides = self._image_override_repo.list_meta()
+
+        player_ids = [
+            a.player_external_id
+            for a in self._stats_repo.list_season_player_aggregates(season)
+        ]
+        team_ids = [
+            a.team_external_id
+            for a in self._stats_repo.list_season_team_aggregates(season)
+        ]
+        player_names = self._player_repo.get_many_by_external_ids(set(player_ids))
+        team_names = self._team_repo.get_many_by_external_ids(set(team_ids))
+
+        def _name(catalog, pid):
+            rec = catalog.get(pid)
+            return rec.name if rec is not None else None
+
+        def _entry(kind, pid, url_tmpl, name):
+            meta = overrides.get((kind, pid))
+            return {
+                "kind": kind,
+                "external_id": pid,
+                "name": name or pid,
+                "feb_url": url_tmpl.format(**{f"{kind}_external_id": pid})
+                if kind == "player"
+                else url_tmpl.format(team_external_id=pid),
+                "has_override": meta is not None,
+                "override_updated_at": meta.updated_at if meta else None,
+            }
+
+        players = sorted(
+            (_entry("player", pid, PLAYER_PHOTO_URL, _name(player_names, pid))
+             for pid in player_ids),
+            key=lambda e: e["name"].lower(),
+        )
+        teams = sorted(
+            (_entry("team", tid, TEAM_CREST_URL, _name(team_names, tid))
+             for tid in team_ids),
+            key=lambda e: e["name"].lower(),
+        )
+        return {"season_code": season_code, "players": players, "teams": teams}
+
+    def get_image_override(
+        self, kind: str, external_id: str
+    ) -> Optional[Dict[str, Any]]:
+        ov = self._image_override_repo.get(kind, external_id)
+        if ov is None:
+            return None
+        return {
+            "content_type": ov.content_type,
+            "image": ov.image,
+            "byte_size": ov.byte_size,
+            "updated_at": ov.updated_at,
+        }
+
+    def put_image_override(
+        self, kind: str, external_id: str, image: bytes, content_type: str
+    ) -> Dict[str, Any]:
+        self._image_override_repo.put(kind, external_id, image, content_type)
+        return {
+            "kind": kind, "external_id": external_id,
+            "content_type": content_type, "byte_size": len(image),
+        }
+
+    def delete_image_override(self, kind: str, external_id: str) -> bool:
+        return self._image_override_repo.delete(kind, external_id)
 
     def edit_content(
         self,
@@ -808,6 +886,7 @@ class SqliteGateway(_GatewayBase):
         )
 
         from .persistence.content_queue_repo import SqliteContentQueueRepository
+        from .persistence.image_override_repo import SqliteImageOverrideRepository
 
         return {
             "idempotency": SqliteIdempotencyRepository(self.db),
@@ -822,6 +901,7 @@ class SqliteGateway(_GatewayBase):
             "rating": SqliteRatingRepository(self.db),
             "publication": SqlitePublicationRepository(self.db),
             "content_queue": SqliteContentQueueRepository(self.db),
+            "image_override": SqliteImageOverrideRepository(self.db),
         }
 
     def _entity_counts(self) -> Dict[str, int]:
@@ -896,6 +976,7 @@ class PgGateway(_GatewayBase):
         )
 
         from .persistence.content_queue_repo import PgContentQueueRepository
+        from .persistence.image_override_repo import PgImageOverrideRepository
 
         return {
             "idempotency": PgIdempotencyRepository(self.db),
@@ -910,6 +991,7 @@ class PgGateway(_GatewayBase):
             "rating": PgRatingRepository(self.db),
             "publication": PgPublicationRepository(self.db),
             "content_queue": PgContentQueueRepository(self.db),
+            "image_override": PgImageOverrideRepository(self.db),
         }
 
     def _entity_counts(self) -> Dict[str, int]:

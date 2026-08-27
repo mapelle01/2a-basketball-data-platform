@@ -239,6 +239,33 @@ class CommandGateway(ABC):
         deployment has no rasteriser, ImageRenderingFailed when it refuses."""
         raise NotImplementedError
 
+    # ------------------------------------------------------------ imagery
+    @abstractmethod
+    def list_image_catalog(self, season_code: str) -> Dict[str, Any]:
+        """Players and teams of a season with their image status: name, the FEB
+        URL, and whether an operator override exists."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_image_override(
+        self, kind: str, external_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """An operator override's bytes + content type, or None if there is
+        none. ``kind`` is 'player' or 'team'."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def put_image_override(
+        self, kind: str, external_id: str, image: bytes, content_type: str
+    ) -> Dict[str, Any]:
+        """Store (or replace) an override. Returns its metadata."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_image_override(self, kind: str, external_id: str) -> bool:
+        """Remove an override (revert to FEB). True if one was removed."""
+        raise NotImplementedError
+
     @abstractmethod
     def edit_content(
         self,

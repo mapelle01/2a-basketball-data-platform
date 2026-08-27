@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Imágenes · FEB SCORE!</title>
+<style>
+:root{
+  --bg:#0B0A0A; --panel:#141212; --panel-2:#1C1919; --ink:#F7F5F4; --ink-2:#CFC9C7;
+  --grey:#918B89; --rule:#2A2626; --red:#FF2A22;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:15px}
+header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--rule);
+  padding:20px 28px;display:flex;align-items:center;gap:16px 20px;flex-wrap:wrap}
+h1{margin:0;font-size:20px;font-weight:900;letter-spacing:-.03em}
+h1 span{color:var(--red)}
+a.home{color:var(--grey);font-size:12.5px;text-decoration:none}
+a.home:hover{color:var(--ink)}
+.counts{color:var(--grey);font-size:12.5px}
+.tabs{display:flex;gap:6px;margin-left:auto}
+button{font:inherit;cursor:pointer;border:1px solid var(--rule);background:var(--panel);
+  color:var(--ink-2);padding:6px 12px;font-size:12px;letter-spacing:.04em}
+button:hover:not(:disabled){border-color:var(--grey)}
+button:disabled{opacity:.5;cursor:default}
+button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:700}
+input{font:inherit}
+input[type=text],input[type=password],input[type=search]{font-size:12.5px;padding:7px 10px;
+  background:var(--panel-2);border:1px solid var(--rule);color:var(--ink)}
+.bar{width:100%;display:flex;gap:10px 14px;align-items:center;flex-wrap:wrap;margin-top:2px}
+.bar input[type=password]{flex:1;min-width:200px;max-width:320px}
+.note{color:var(--grey);font-size:11.5px}
+.msg{color:var(--ink-2);font-size:12px;min-height:16px;flex-basis:100%}
+main{padding:24px 28px 80px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:16px}
+.cell{background:var(--panel);border:1px solid var(--rule);display:flex;flex-direction:column}
+.pic{aspect-ratio:1/1;background:#000;position:relative;overflow:hidden;
+  display:flex;align-items:center;justify-content:center}
+.pic img{width:100%;height:100%;object-fit:cover;display:block}
+.pic .ph{color:var(--grey);font-size:34px;font-weight:900;letter-spacing:.02em}
+.ov-tag{position:absolute;top:6px;left:6px;background:var(--red);color:#fff;font-size:8.5px;
+  font-weight:800;letter-spacing:.1em;padding:2px 6px}
+.info{padding:9px 10px 11px;display:flex;flex-direction:column;gap:7px;flex:1}
+.name{font-size:12.5px;font-weight:700;line-height:1.25}
+.eid{font-size:10px;color:var(--grey);font-family:ui-monospace,monospace}
+.rowb{display:flex;gap:6px;margin-top:auto}
+.rowb button,.rowb label.up{flex:1;text-align:center;font-size:11px;padding:5px 6px;
+  border:1px solid var(--rule);background:var(--panel);color:var(--ink-2);cursor:pointer}
+.rowb label.up:hover,.rowb button:hover:not(:disabled){border-color:var(--grey)}
+.cellmsg{font-size:10.5px;color:var(--grey);min-height:13px}
+.empty,.loading{color:var(--grey);padding:40px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Imágenes FEB SCORE<span>!</span></h1>
+  <a class="home" href="/v1/content/review">← volver a la cola</a>
+  <span class="counts" id="counts">cargando…</span>
+  <div class="tabs" id="tabs"></div>
+  <div class="bar">
+    <label class="note">Temporada</label>
+    <input type="text" id="season" size="10" placeholder="2024-2025">
+    <button id="reload">Cargar</button>
+    <input type="password" id="key" placeholder="Clave de API — para subir o quitar imágenes"
+           autocomplete="off" spellcheck="false">
+    <button id="savekey">Guardar clave</button>
+    <span class="note" id="keynote"></span>
+    <span class="msg" id="msg"></span>
+  </div>
+</header>
+
+<main><div id="out" class="loading">Elige una temporada y pulsa Cargar.</div></main>
+
+<script>
+const OUT = document.getElementById('out');
+const MSG = document.getElementById('msg');
+let DATA = {players:[], teams:[]}, TAB = 'players';
+
+const keyInput = document.getElementById('key');
+const keyNote = document.getElementById('keynote');
+keyInput.value = sessionStorage.getItem('febKey') || '';       // shared with the queue page
+setKeyNote();
+document.getElementById('savekey').onclick = () => {
+  sessionStorage.setItem('febKey', keyInput.value.trim()); setKeyNote();
+};
+function setKeyNote(){
+  keyNote.textContent = sessionStorage.getItem('febKey')
+    ? 'clave guardada en esta pestaña' : 'sin clave: solo lectura';
+}
+const apiKey = () => (sessionStorage.getItem('febKey') || '').trim();
+
+const seasonInput = document.getElementById('season');
+seasonInput.value = new URLSearchParams(location.search).get('season')
+  || localStorage.getItem('febGallerySeason') || '2024-2025';
+document.getElementById('reload').onclick = load;
+seasonInput.addEventListener('keydown', e => { if (e.key === 'Enter') load(); });
+
+async function load(){
+  const season = seasonInput.value.trim();
+  if (!season){ MSG.textContent = 'Escribe una temporada.'; return; }
+  localStorage.setItem('febGallerySeason', season);
+  OUT.className = 'loading'; OUT.textContent = 'Cargando el catálogo…';
+  try{
+    const r = await fetch('/v1/images/catalog?season=' + encodeURIComponent(season));
+    if (!r.ok){ OUT.className='empty'; OUT.textContent = 'No se pudo cargar (' + r.status + ').'; return; }
+    DATA = await r.json();
+    render();
+  }catch(e){ OUT.className='empty'; OUT.textContent = String(e); }
+}
+
+function render(){
+  const tabs = document.getElementById('tabs'); tabs.innerHTML = '';
+  [['players','Jugadores'],['teams','Equipos']].forEach(([k,label]) => {
+    const list = DATA[k] || [];
+    const overridden = list.filter(e => e.has_override).length;
+    const b = document.createElement('button');
+    b.textContent = `${label} (${list.length}${overridden ? ' · ' + overridden + ' propias' : ''})`;
+    b.setAttribute('aria-pressed', String(k === TAB));
+    b.onclick = () => { TAB = k; render(); };
+    tabs.appendChild(b);
+  });
+  const list = DATA[TAB] || [];
+  const totalOv = (DATA.players||[]).concat(DATA.teams||[]).filter(e => e.has_override).length;
+  document.getElementById('counts').textContent =
+    `${(DATA.players||[]).length} jugadores · ${(DATA.teams||[]).length} equipos · ${totalOv} imágenes propias`;
+
+  OUT.className = list.length ? 'grid' : 'empty';
+  OUT.innerHTML = '';
+  if (!list.length){ OUT.textContent = 'Nada que mostrar.'; return; }
+  list.forEach(e => OUT.appendChild(cell(e)));
+}
+
+function initials(name){
+  return (name||'?').split(/\s+/).filter(Boolean).slice(0,2).map(w => w[0]).join('').toUpperCase();
+}
+
+function cell(e){
+  const el = document.createElement('article');
+  el.className = 'cell';
+  // Overridden entities are served from our endpoint; the rest come straight
+  // from FEB in the browser. A cache-buster refreshes the thumb after an upload.
+  const src = e.has_override
+    ? `/v1/images/${e.kind}/${encodeURIComponent(e.external_id)}?t=${Date.now()}`
+    : e.feb_url;
+  el.innerHTML = `
+    <div class="pic">
+      ${e.has_override ? '<span class="ov-tag">PROPIA</span>' : ''}
+      <span class="ph">${initials(e.name)}</span>
+      <img loading="lazy" alt="" src="${src}"
+           onload="this.previousElementSibling.style.display='none'"
+           onerror="this.style.display='none'">
+    </div>
+    <div class="info">
+      <div class="name">${esc(e.name)}</div>
+      <div class="eid">${e.kind} · ${esc(e.external_id)}</div>
+      <div class="cellmsg"></div>
+      <div class="rowb"></div>
+    </div>`;
+  const row = el.querySelector('.rowb'), msg = el.querySelector('.cellmsg');
+
+  const up = document.createElement('label');
+  up.className = 'up'; up.textContent = e.has_override ? 'Reemplazar' : 'Subir';
+  const file = document.createElement('input');
+  file.type = 'file'; file.accept = 'image/png,image/jpeg,image/webp'; file.style.display = 'none';
+  up.appendChild(file);
+  file.onchange = () => upload(e, file.files[0], el, msg);
+  row.appendChild(up);
+
+  if (e.has_override){
+    const del = document.createElement('button');
+    del.textContent = 'Quitar';
+    del.onclick = () => remove(e, el, msg);
+    row.appendChild(del);
+  }
+  return el;
+}
+
+async function upload(e, f, el, msg){
+  if (!f) return;
+  if (!apiKey()){ msg.textContent = 'falta la clave'; return; }
+  if (f.size > 512*1024){ msg.textContent = 'máx. 512 KB'; return; }
+  msg.textContent = 'subiendo…';
+  try{
+    const r = await fetch(`/v1/images/${e.kind}/${encodeURIComponent(e.external_id)}`, {
+      method:'PUT',
+      headers:{'Authorization':'Bearer ' + apiKey(), 'Content-Type': f.type},
+      body: f,
+    });
+    if (!r.ok){ const d = await r.json().catch(()=>({})); msg.textContent = `error ${r.status}: ${d?.error?.message||''}`; return; }
+    e.has_override = true;
+    OUT.replaceChild(cell(e), el);   // re-render this cell with the new image
+    render();
+  }catch(err){ msg.textContent = String(err); }
+}
+
+async function remove(e, el, msg){
+  if (!apiKey()){ msg.textContent = 'falta la clave'; return; }
+  msg.textContent = 'quitando…';
+  try{
+    const r = await fetch(`/v1/images/${e.kind}/${encodeURIComponent(e.external_id)}`, {
+      method:'DELETE', headers:{'Authorization':'Bearer ' + apiKey()},
+    });
+    if (!r.ok){ msg.textContent = `error ${r.status}`; return; }
+    e.has_override = false;
+    OUT.replaceChild(cell(e), el);
+    render();
+  }catch(err){ msg.textContent = String(err); }
+}
+
+function esc(s){ const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
+
+load();
+</script>
+</body>
+</html>

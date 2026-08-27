@@ -79,6 +79,12 @@ MIGRATIONS: List[Migration] = [
         destructive=False,
         script=(_MIGRATIONS_DIR / "006_content_queue.sql").read_text(),
     ),
+    Migration(
+        version=7,
+        name="image_overrides",
+        destructive=False,
+        script=(_MIGRATIONS_DIR / "007_image_overrides.sql").read_text(),
+    ),
 ]
 
 
