@@ -387,6 +387,14 @@ DEFENSIVE_MIN_ACTIONS = 5   # steals + blocks
 # representative (2024-25, rounds 18-26): median 8 points, p90 19. At 15 the
 # card lands on a genuinely above-average night and fired in 9 rounds out of 9.
 LONE_FLAG_MIN_POINTS = 15
+# Age lanes. Measured on 443 real players (2024-25): median age 24, p10 18, and
+# 85 players are 20 or under. Requiring a real game (>=12 pts) AND age <=20 for
+# the prospect / >=34 for the veteran, both lanes fired in 9 of 9 sampled rounds
+# with genuine subjects (a 16-year-old for 21, a 41-year-old for 13). The age is
+# the hook, so it is the hero number; points sit beside it.
+YOUNG_GUN_MAX_AGE = 20
+VETERAN_MIN_AGE = 34
+AGE_CURIO_MIN_POINTS = 12
 
 
 def _rating_of(p: PlayerLineInput) -> Optional[float]:
@@ -552,6 +560,73 @@ def detect_lone_flag(
         "secondary": [[p.rebounds, "REB"], [p.assists, "AST"]],
         "badge_label": "ÚNICO",
         "section_label": f"El único de {country}",
+    })
+
+
+def _round_reference_date(matches: "Sequence[MatchFactsInput]"):
+    """A single date to age players against: the latest match of the round.
+    None when no match carries a date (the age lanes then self-skip)."""
+    dates = [m.scheduled_at for m in matches if getattr(m, "scheduled_at", None)]
+    return max(dates).date() if dates else None
+
+
+def _age_story(story_type, season_code, round_number, p, age, extra):
+    facts = {"age": age, "hero_value": age, "hero_label": "AÑOS",
+             "secondary": [[p.points, "PTS"], [p.rebounds, "REB"]]}
+    facts.update(extra)
+    return _player_story(story_type, season_code, round_number, p, facts)
+
+
+def detect_young_gun(
+    season_code: str, round_number: int, player_lines: Sequence[PlayerLineInput],
+    bio: Optional["LeagueBio"] = None,
+    matches: "Sequence[MatchFactsInput]" = (),
+) -> Optional[StoryObject]:
+    """The youngest player of the round to actually produce — a genuine prospect
+    (<= YOUNG_GUN_MAX_AGE) with a real scoring line. Age is the hook, computed
+    against the round's date. Self-skips without birth dates.
+    """
+    ref = _round_reference_date(matches)
+    if not bio or ref is None:
+        return None
+    graded = []
+    for p in player_lines:
+        if p.points < AGE_CURIO_MIN_POINTS:
+            continue
+        age = bio.age_on(p.player_external_id, ref)
+        if age is not None and age <= YOUNG_GUN_MAX_AGE:
+            graded.append((age, p))
+    if not graded:
+        return None
+    # Youngest first; a strong game breaks ties toward the better story.
+    age, p = min(graded, key=lambda ap: (ap[0], -ap[1].points))
+    return _age_story(StoryType.YOUNG_GUN, season_code, round_number, p, age, {
+        "badge_label": "PROMESA", "section_label": "La joven promesa",
+    })
+
+
+def detect_veteran(
+    season_code: str, round_number: int, player_lines: Sequence[PlayerLineInput],
+    bio: Optional["LeagueBio"] = None,
+    matches: "Sequence[MatchFactsInput]" = (),
+) -> Optional[StoryObject]:
+    """The oldest player of the round still delivering — a real veteran
+    (>= VETERAN_MIN_AGE) with a real scoring line."""
+    ref = _round_reference_date(matches)
+    if not bio or ref is None:
+        return None
+    graded = []
+    for p in player_lines:
+        if p.points < AGE_CURIO_MIN_POINTS:
+            continue
+        age = bio.age_on(p.player_external_id, ref)
+        if age is not None and age >= VETERAN_MIN_AGE:
+            graded.append((age, p))
+    if not graded:
+        return None
+    age, p = max(graded, key=lambda ap: (ap[0], ap[1].points))
+    return _age_story(StoryType.VETERAN, season_code, round_number, p, age, {
+        "badge_label": "VETERANO", "section_label": "El veterano",
     })
 
 

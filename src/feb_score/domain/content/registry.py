@@ -140,6 +140,14 @@ register("lone_flag", Scope.BIO)(
     lambda ctx: _one(_ins.detect_lone_flag(
         ctx.season_code, ctx.round_number, ctx.player_lines, ctx.bio))
 )
+register("young_gun", Scope.BIO)(
+    lambda ctx: _one(_ins.detect_young_gun(
+        ctx.season_code, ctx.round_number, ctx.player_lines, ctx.bio, ctx.matches))
+)
+register("veteran", Scope.BIO)(
+    lambda ctx: _one(_ins.detect_veteran(
+        ctx.season_code, ctx.round_number, ctx.player_lines, ctx.bio, ctx.matches))
+)
 
 # --- SEASON scope --- (self-skip when their context/aggregate is None)
 register("season_highs", Scope.SEASON)(

@@ -143,15 +143,17 @@ class LiveContentAdapter:
     # ------------------------------------------------------------------
 
     def build_league_bio(self, season_code: str) -> LeagueBio:
-        """Nationality for every player with stats in the season.
+        """Nationality and birth date for every player with stats in the season.
 
         Season-wide by construction: "the only player from Benin" is a claim
         about the whole league, so a round-sized view would make it false.
         One catalog query, the same batch the name resolution already uses.
 
         The FEB writes a literal "-" where it has no value (measured: 21 of 120
-        sampled players carry it as their POSITION), so placeholders are
-        dropped rather than treated as a country of their own.
+        sampled players carry it as their POSITION), so nationality placeholders
+        are dropped rather than treated as a country of their own. Birth date is
+        the best-populated bio field (443/443 in 2024-25), so the age lanes have
+        near-total coverage.
         """
         season = SeasonCode(season_code)
         ids = {
@@ -161,13 +163,17 @@ class LiveContentAdapter:
         if not ids:
             return LeagueBio()
         catalog = self._players.get_many_by_external_ids(ids)
-        return LeagueBio({
-            pid: player.nationality.strip()
-            for pid, player in catalog.items()
-            if player is not None
-            and player.nationality
-            and player.nationality.strip() not in ("", "-")
-        })
+        nats: Dict[str, str] = {}
+        births: Dict[str, str] = {}
+        for pid, player in catalog.items():
+            if player is None:
+                continue
+            nat = (player.nationality or "").strip()
+            if nat and nat not in ("", "-"):
+                nats[pid] = nat
+            if player.birth_date is not None:
+                births[pid] = player.birth_date.isoformat()
+        return LeagueBio(nationality_by_player=nats, birth_by_player=births)
 
     def _team_names_by_ids(self, team_ids: set) -> Dict[str, Optional[str]]:
         if not team_ids:

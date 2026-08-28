@@ -54,6 +54,8 @@ TYPE_IMPORTANCE = {
     StoryType.PLAYMAKER: 60,
     StoryType.DEFENSIVE_ANCHOR: 72,
     StoryType.LONE_FLAG: 76,
+    StoryType.YOUNG_GUN: 74,
+    StoryType.VETERAN: 70,
     StoryType.BEST_DUO: 72,
 }
 

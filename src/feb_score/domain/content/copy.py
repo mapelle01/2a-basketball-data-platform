@@ -354,6 +354,50 @@ def _count(n: int, singular: str, plural: str) -> str:
     return f"{n} {singular if n == 1 else plural}"
 
 
+def _years(n: int) -> str:
+    return f"{n} año" if n == 1 else f"{n} años"
+
+
+def generate_copy_young_gun(story: Dict[str, Any]) -> CopyContract:
+    f = story["facts"]
+    name = f.get("player_name") or f.get("player_external_id", "El jugador")
+    team = f.get("team_name") or f.get("team_external_id", "")
+    round_number = story.get("round_number")
+    age, points = f["age"], f["points"]
+    headline = f"{name}"
+    subtitle = f"La joven promesa · {_years(age)}"
+    caption = (
+        f"Con solo {_years(age)}, {name} firmó {points} puntos en la jornada "
+        f"{round_number}: el más joven en dar la cara."
+    )
+    hashtags = BASE_HASHTAGS + ("Cantera",)
+    if team:
+        hashtags = hashtags + (_slugify(team),)
+    return CopyContract(headline=headline, subtitle=subtitle, caption=caption,
+                        hashtags=hashtags,
+                        facts_used=("player_name", "team_name", "age", "points", "round_number"))
+
+
+def generate_copy_veteran(story: Dict[str, Any]) -> CopyContract:
+    f = story["facts"]
+    name = f.get("player_name") or f.get("player_external_id", "El jugador")
+    team = f.get("team_name") or f.get("team_external_id", "")
+    round_number = story.get("round_number")
+    age, points = f["age"], f["points"]
+    headline = f"{name}"
+    subtitle = f"El veterano · {_years(age)}"
+    caption = (
+        f"A sus {_years(age)}, {name} sigue mandando: {points} puntos en la "
+        f"jornada {round_number}, el más veterano en decidir."
+    )
+    hashtags = BASE_HASHTAGS + ("Veterania",)
+    if team:
+        hashtags = hashtags + (_slugify(team),)
+    return CopyContract(headline=headline, subtitle=subtitle, caption=caption,
+                        hashtags=hashtags,
+                        facts_used=("player_name", "team_name", "age", "points", "round_number"))
+
+
 def generate_copy_lone_flag(story: Dict[str, Any]) -> CopyContract:
     """The country is the story, so it leads. Phrased as "de la liga" on
     purpose: the FEB records ONE nationality per player, so this is a claim
@@ -624,6 +668,8 @@ _GENERATORS = {
     "playmaker": generate_copy_playmaker,                        # round director
     "defensive_anchor": generate_copy_defensive_anchor,          # steals + blocks
     "lone_flag": generate_copy_lone_flag,                        # bio: nationality
+    "young_gun": generate_copy_young_gun,                        # bio: youngest
+    "veteran": generate_copy_veteran,                            # bio: oldest
     "sharpshooter": generate_copy_sharpshooter,
     "perfect_night": generate_copy_perfect_night,
     "top_scorer": generate_copy_top_scorer,                      # season leaders
