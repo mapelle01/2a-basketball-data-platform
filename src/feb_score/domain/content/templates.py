@@ -34,6 +34,14 @@ class TemplateContract:
 # to "—"). This keeps a round producing content even when the catalog is not
 # fully populated (documented behavior of the data platform).
 TEMPLATES: Dict[str, TemplateContract] = {
+    "best_five": TemplateContract(
+        template_id="best_five",
+        version=TEMPLATE_VERSION,
+        canvas="IG_PORTRAIT",
+        required_slots=(
+            "story.facts.lineup",
+        ),
+    ),
     "match_final": TemplateContract(
         template_id="match_final",
         version=TEMPLATE_VERSION,

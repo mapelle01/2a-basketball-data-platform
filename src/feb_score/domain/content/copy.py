@@ -432,6 +432,29 @@ def generate_copy_lone_flag(story: Dict[str, Any]) -> CopyContract:
     )
 
 
+def generate_copy_best_five(story: Dict[str, Any]) -> CopyContract:
+    f = story["facts"]
+    round_number = story.get("round_number")
+    lineup = f.get("lineup", [])
+    names = [r.get("player_name") or r.get("player_external_id", "") for r in lineup]
+    # Names only, no figures: the numbers live on the card and are checked there;
+    # keeping them out of the caption keeps the prose from mis-stating a note.
+    if len(names) >= 2:
+        joined = ", ".join(names[:-1]) + " y " + names[-1]
+    else:
+        joined = names[0] if names else ""
+    headline = "El quinteto de la jornada"
+    subtitle = f"Los 5 mejores por nota · jornada {round_number}"
+    caption = (
+        f"El mejor quinteto de la jornada {round_number} por nota FEB: {joined}."
+    )
+    return CopyContract(
+        headline=headline, subtitle=subtitle, caption=caption,
+        hashtags=BASE_HASHTAGS + ("QuintetoIdeal",),
+        facts_used=("lineup", "round_number"),
+    )
+
+
 def generate_copy_defensive_anchor(story: Dict[str, Any]) -> CopyContract:
     f = story["facts"]
     name = f.get("player_name") or f.get("player_external_id", "El jugador")
@@ -666,6 +689,7 @@ _GENERATORS = {
     "stat_leaderboard": generate_copy_stat_leaderboard,
     "iron_man": generate_copy_iron_man,
     "playmaker": generate_copy_playmaker,                        # round director
+    "best_five": generate_copy_best_five,                        # quinteto de la jornada
     "defensive_anchor": generate_copy_defensive_anchor,          # steals + blocks
     "lone_flag": generate_copy_lone_flag,                        # bio: nationality
     "young_gun": generate_copy_young_gun,                        # bio: youngest

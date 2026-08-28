@@ -320,6 +320,51 @@ def detect_notable_performances(
     return stories
 
 
+def detect_best_five(
+    season_code: str,
+    round_number: int,
+    player_lines: Sequence[PlayerLineInput],
+) -> Optional[StoryObject]:
+    """The round's five best players by FEB Rating (a ranking, not a lineup).
+    Needs five players who can actually be rated (enough minutes + shooting), so
+    the note is never a stand-in — a round short of five rated players yields no
+    quinteto rather than one padded with unrated names."""
+    rated = [(p, _rating_of(p)) for p in player_lines]
+    rated = [(p, r) for p, r in rated if r is not None]
+    if len(rated) < 5:
+        return None
+    rated.sort(key=lambda pr: (-pr[1], -pr[0].points, pr[0].player_external_id))
+    top = rated[:5]
+    lineup = [
+        {
+            "rank": i,
+            "player_external_id": p.player_external_id,
+            "player_name": display_name(p.player_name),
+            "team_external_id": p.team_external_id,
+            "team_name": p.team_name,
+            "points": p.points,
+            "rebounds": p.rebounds,
+            "assists": p.assists,
+            "rating": r,
+            "match_external_id": p.match_external_id,
+        }
+        for i, (p, r) in enumerate(top, start=1)
+    ]
+    from .rating import FEB_RATING_VERSION
+    return StoryObject(
+        story_type=StoryType.BEST_FIVE,
+        season_code=season_code,
+        round_number=round_number,
+        entities=StoryEntities(),
+        facts={"lineup": lineup, "count": 5, "rating_version": FEB_RATING_VERSION},
+        source_refs={
+            "player_stats": (
+                "2afeb_score://match_player_stats/" + top[0][0].match_external_id
+            ),
+        },
+    )
+
+
 def detect_stat_leaderboard(
     season_code: str,
     round_number: int,

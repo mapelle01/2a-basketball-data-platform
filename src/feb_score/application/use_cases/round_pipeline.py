@@ -400,6 +400,31 @@ class RoundPipeline:
             else:
                 assets["player_initials"] = photo.payload
 
+        if story.template_id == "best_five":
+            # Resolve a photo + crest for each of the five, injected into the
+            # render data only (the persisted facts stay pure). Missing images
+            # fall back to initials per member.
+            enriched = []
+            for row in f.get("lineup", []):
+                r = dict(row)
+                photo = self._assets.player_photo(r.get("player_external_id", ""))
+                if photo.payload_type == "data_uri":
+                    r["photo_uri"] = photo.payload
+                crest = self._assets.team_logo(r.get("team_external_id", ""))
+                if crest.payload_type == "data_uri":
+                    r["badge_uri"] = crest.payload
+                enriched.append(r)
+            story_dict = story.to_dict()
+            story_dict["facts"]["lineup"] = enriched
+            return {
+                "story": story_dict, "copy": copy, "assets": {}, "display": {},
+                "meta": {
+                    "content_id": content.content_id,
+                    "template_version": content.template_version,
+                    "design_system_version": content.design_system_version,
+                },
+            }
+
         if story.template_id == "round_recap":
             top_scorer = f.get("top_scorer_name") or f.get("top_scorer_external_id")
             winner = f.get("biggest_win_winner") or {}

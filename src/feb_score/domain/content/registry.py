@@ -116,6 +116,9 @@ register("notable_performances", Scope.ROUND)(
 register("stat_leaderboard", Scope.ROUND)(
     lambda ctx: _one(_ins.detect_stat_leaderboard(ctx.season_code, ctx.round_number, ctx.player_lines))
 )
+register("best_five", Scope.ROUND)(
+    lambda ctx: _one(_ins.detect_best_five(ctx.season_code, ctx.round_number, ctx.player_lines))
+)
 register("iron_man", Scope.ROUND)(
     lambda ctx: _one(_ins.detect_iron_man(ctx.season_code, ctx.round_number, ctx.player_lines))
 )

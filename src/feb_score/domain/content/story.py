@@ -52,6 +52,7 @@ class StoryType(str, Enum):
     LONE_FLAG = "lone_flag"            # the season's only player from a country (bio)
     YOUNG_GUN = "young_gun"            # youngest player of the round with a real game (bio)
     VETERAN = "veteran"                # oldest player of the round with a real game (bio)
+    BEST_FIVE = "best_five"            # the round's five best by FEB Rating (grid)
     BEST_DUO = "best_duo"             # two teammates, best combined game (round)
     # TOP_SCORER / TOP_REBOUNDER / TOP_ASSIST_PROVIDER are the SEASON leaders.
 
@@ -99,6 +100,7 @@ STORY_TO_TEMPLATE: Dict[StoryType, str] = {
     StoryType.LONE_FLAG: "player_of_round",
     StoryType.YOUNG_GUN: "player_of_round",
     StoryType.VETERAN: "player_of_round",
+    StoryType.BEST_FIVE: "best_five",
     StoryType.IRON_MAN: "player_of_round",
     StoryType.SHARPSHOOTER: "player_of_round",
     StoryType.PERFECT_NIGHT: "player_of_round",
@@ -161,6 +163,7 @@ STORY_DISPLAY_NAMES: Dict[str, str] = {
     "top_scorer": "Máximo anotador de la temporada",
     "top_rebounder": "Máximo reboteador de la temporada",
     "top_assist_provider": "Máximo asistente de la temporada",
+    "best_five": "El quinteto de la jornada",
 }
 
 

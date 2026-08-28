@@ -639,6 +639,73 @@ def render_stat_leaderboard(data: Dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Template: BEST FIVE (the round's five best by FEB Rating, as a ranking grid)
+# ---------------------------------------------------------------------------
+
+
+def render_best_five_grid(data: Dict[str, Any]) -> str:
+    """The round's five best players by FEB Rating, ranked. A grid, not a court:
+    these are the best five of the night, not an ideal lineup by position, so
+    nothing claims a position (the position data is not clean enough to). The
+    NOTE is the metric they are ranked by, so it is the number that stands out;
+    the scoring line rides underneath the name as context.
+    """
+    facts = data["story"]["facts"]
+    season = data["story"].get("season_code")
+    round_number = data["story"].get("round_number")
+    lineup = facts.get("lineup", [])
+    ink, sub = Color.BLACK, Color.GREY
+
+    body: List[str] = []
+    body.append(C.text(CONTENT_X, 176, "El quinteto de la jornada", size=76,
+                       weight=FontWeight.DISPLAY, fill=ink, tracking=LetterSpacing.HEADLINE))
+    body.append(C.text(CONTENT_X, 232, "LOS 5 MEJORES POR NOTA FEB", size=FontSize.LABEL,
+                       weight=FontWeight.LABEL, fill=sub, tracking=LetterSpacing.CAPS, upper=True))
+    bar, _ = filter_bar(CONTENT_X, 288, [
+        {"label": "Mejor 5", "badge": 5, "with_mark": False, "chevron": True},
+        {"label": f"Jornada {round_number}", "with_mark": True, "chevron": True},
+    ])
+    body.append(bar)
+    body.append(C.text(CONTENT_X + CONTENT_W, 400, "FEB RATING /10", size=FontSize.MICRO,
+                       weight=FontWeight.LABEL, fill=sub, anchor="end",
+                       tracking=LetterSpacing.LABEL, upper=True))
+
+    ry = 430
+    n = max(1, len(lineup))
+    step = min(132, (FOOTER_Y - 60 - ry) // n)
+    chip = 88
+    av_r = 42
+    av_cx = CONTENT_X + 40 + av_r
+    name_x = av_cx + av_r + Spacing.LG
+    for i, row in enumerate(lineup, start=1):
+        name = row.get("player_name") or row.get("player_external_id", "—")
+        team = row.get("team_name") or row.get("team_external_id", "")
+        stat = (f"{row.get('points', 0)} PTS · {row.get('rebounds', 0)} REB "
+                f"· {row.get('assists', 0)} AST")
+        body.append(C.hline(CONTENT_X, ry - 24, CONTENT_W, weight=Line.THIN,
+                            color=Color.INK, opacity=0.15))
+        body.append(C.text(CONTENT_X, ry + 20, str(row.get("rank", i)), size=FontSize.H3,
+                           weight=FontWeight.HERO, fill=sub))
+        body.append(C.avatar(av_cx, ry + 8, av_r, initials=C.initials_of(name),
+                             photo_uri=row.get("photo_uri"), badge_uri=row.get("badge_uri")))
+        body.append(C.text(name_x, ry + 10, name.upper(), size=FontSize.H3,
+                           weight=FontWeight.TITLE, fill=ink, upper=True))
+        body.append(C.text(name_x, ry + 40, stat, size=FontSize.MICRO,
+                           weight=FontWeight.LABEL, fill=sub, tracking=LetterSpacing.LABEL, upper=True))
+        rating = row.get("rating")
+        if rating is not None:
+            rb, _ = C.rating_badge(CONTENT_X + CONTENT_W - chip, ry - 24,
+                                   float(rating), size="m", on_dark=False)
+            body.append(rb)
+        ry += step
+
+    ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB",
+                           season=season, variant="light")
+    body.append(ft)
+    return _svg_document("".join(body), BG_LIGHT)
+
+
+# ---------------------------------------------------------------------------
 # Template: BEST FIVE (the round's ideal lineup, on a court diagram)
 # ---------------------------------------------------------------------------
 
@@ -675,7 +742,7 @@ _LINEUP_SPOTS = [
 ]
 
 
-def render_best_five(data: Dict[str, Any]) -> str:
+def render_best_five_court(data: Dict[str, Any]) -> str:
     facts = data["story"]["facts"]
     season = data["story"].get("season_code")
     round_number = data["story"].get("round_number")
@@ -934,7 +1001,7 @@ _RENDERERS: Dict[str, Callable[[Dict[str, Any]], str]] = {
     "player_of_round": render_player_of_round,
     "round_recap": render_round_recap,
     "stat_leaderboard": render_stat_leaderboard,
-    "best_five": render_best_five,
+    "best_five": render_best_five_grid,
     "team_streak": render_team_streak,
     "best_duo": render_best_duo,
 }

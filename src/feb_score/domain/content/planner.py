@@ -56,6 +56,7 @@ TYPE_IMPORTANCE = {
     StoryType.LONE_FLAG: 76,
     StoryType.YOUNG_GUN: 74,
     StoryType.VETERAN: 70,
+    StoryType.BEST_FIVE: 80,
     StoryType.BEST_DUO: 72,
 }
 
