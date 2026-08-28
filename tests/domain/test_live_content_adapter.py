@@ -225,6 +225,48 @@ class TestSeasonContext:
         # team_rank: tA ranks above tB (classification)
         assert ctx.team_rank["tA"] < ctx.team_rank["tB"]
 
+    def test_season_high_history_is_causal_not_whole_season(self):
+        """Regression: the season-high history used to pull the WHOLE season,
+        so generating round 1 crowned a game as the season max using games that
+        had not been played yet. It must weigh only games up to the round\'s
+        date. Found in production on jornada 1 (two spurious season highs)."""
+        from datetime import datetime as _dt
+
+        adapter, matches, stats, players, teams = _build_adapter()
+        season = SeasonCode(SEASON)
+        # p1 scores 22 (round 1), 30 (round 2), 18 (round 3), on separate dates.
+        plan = {1: ("2026-01-04", 22), 2: ("2026-01-11", 30), 3: ("2026-01-18", 18)}
+        for rnd, (day, pts) in plan.items():
+            eid = f"D{rnd}"
+            m = Match.create(
+                external_id=ExternalId(eid), match_id=MatchId(str(uuid.uuid4())),
+                competition_id=CompetitionId("2FEB"), season_code=season,
+                round_number=rnd, home_team_id=ExternalId("tA"),
+                away_team_id=ExternalId("tB"),
+                scheduled_at=_dt.fromisoformat(day + "T18:00:00"), source={"origin": "t"},
+            )
+            m.finalize(score_summary=ScoreSummary(home_score=90, away_score=70,
+                       periods=(PeriodScore(1, 45, 35), PeriodScore(2, 45, 35))),
+                       home_team_stats=_team_stats("tA", 90, 70),
+                       away_team_stats=_team_stats("tB", 70, 90))
+            matches.save(m)
+            stats.save_team_stats(eid, season,
+                                  [_team_stats("tA", 90, 70), _team_stats("tB", 70, 90)],
+                                  round_number=rnd)
+            stats.save_player_stats(eid, season, [PlayerStats(
+                player_external_id="p1", team_external_id="tA", points=pts,
+                rebounds=5, assists=3, steals=1, blocks=0, turnovers=2, minutes=28.0,
+                played_at=_dt.fromisoformat(day + "T18:00:00"))])
+
+        # Round 1: history must be ONLY the round-1 game — no look-ahead.
+        ctx1 = adapter.build_season_context(SEASON, 1, adapter.build_round_inputs(SEASON, 1))
+        assert ctx1.player_history.get("p1") == (22,)
+
+        # Round 2 (p1 scores 30, a candidate): history is causal up to round 2,
+        # so it sees rounds 1 and 2 but NOT the later round-3 game.
+        ctx2 = adapter.build_season_context(SEASON, 2, adapter.build_round_inputs(SEASON, 2))
+        assert sorted(ctx2.player_history["p1"]) == [22, 30]
+
     def test_low_scorers_excluded_from_history(self):
         adapter, matches, stats, players, teams = _build_adapter()
         matches.save(_finalized_match("m1", "tA", "tB", 88, 76, round_number=12))

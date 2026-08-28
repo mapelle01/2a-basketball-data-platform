@@ -16,6 +16,7 @@ templates fall back to the external_id, never a fabricated name).
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from ..repositories.interfaces import (
@@ -89,8 +90,16 @@ class LiveContentAdapter:
         self, season_code: str, round_number: int, inputs: RoundContentInputs
     ) -> SeasonContext:
         season = SeasonCode(season_code)
+        # A "season high" must be causal: it may only weigh games up to and
+        # including THIS round, never later ones. The season query returns the
+        # whole year, so cut it at the round's date — otherwise round 1 crowns a
+        # game as the season max using games that had not been played yet.
+        as_of = None
+        dates = [m.scheduled_at for m in inputs.matches if getattr(m, "scheduled_at", None)]
+        if dates:
+            as_of = max(dates)
         return SeasonContext(
-            player_history=self._player_history(season, inputs.player_lines),
+            player_history=self._player_history(season, inputs.player_lines, as_of),
             team_results=self._team_results(season, inputs.matches),
             team_rank=self._team_rank(season),
         )
@@ -212,10 +221,13 @@ class LiveContentAdapter:
         return results
 
     def _player_history(
-        self, season: SeasonCode, player_lines: Sequence[PlayerLineInput]
+        self, season: SeasonCode, player_lines: Sequence[PlayerLineInput],
+        as_of: Optional[datetime] = None,
     ) -> Dict[str, Tuple[int, ...]]:
         # Only fetch history for players who scored enough this round to be a
         # season-high candidate — avoids a season query per benchwarmer.
+        # ``as_of`` cuts the season at the round's date so a season high is
+        # judged only against games already played (never a future round).
         history: Dict[str, Tuple[int, ...]] = {}
         for p in player_lines:
             if p.points < SEASON_HIGH_MIN_POINTS or p.player_external_id in history:
@@ -223,7 +235,10 @@ class LiveContentAdapter:
             stats = self._stats.list_player_stats_by_season(
                 p.player_external_id, season
             )
-            points = tuple(s.points for s in stats)
+            points = tuple(
+                s.points for s in stats
+                if as_of is None or (s.played_at is not None and s.played_at <= as_of)
+            )
             if points:
                 history[p.player_external_id] = points
         return history
