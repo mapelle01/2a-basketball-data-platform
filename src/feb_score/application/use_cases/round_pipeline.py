@@ -400,7 +400,7 @@ class RoundPipeline:
             else:
                 assets["player_initials"] = photo.payload
 
-        if story.template_id == "best_five":
+        if story.template_id in ("best_five", "best_five_court"):
             # Resolve a photo + crest for each of the five, injected into the
             # render data only (the persisted facts stay pure). Missing images
             # fall back to initials per member.

@@ -119,6 +119,10 @@ register("stat_leaderboard", Scope.ROUND)(
 register("best_five", Scope.ROUND)(
     lambda ctx: _one(_ins.detect_best_five(ctx.season_code, ctx.round_number, ctx.player_lines))
 )
+register("best_five_ideal", Scope.BIO)(
+    lambda ctx: _one(_ins.detect_best_five_ideal(
+        ctx.season_code, ctx.round_number, ctx.player_lines, ctx.bio))
+)
 register("iron_man", Scope.ROUND)(
     lambda ctx: _one(_ins.detect_iron_man(ctx.season_code, ctx.round_number, ctx.player_lines))
 )

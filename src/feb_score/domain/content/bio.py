@@ -22,8 +22,37 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
+import unicodedata
 from datetime import date
 from typing import Dict, Mapping, Optional
+
+
+# The five canonical court positions, in the order the court template places
+# them (pívot at the top, then the two forwards, then the two guards).
+POSITIONS = ("Pívot", "A-Pívot", "Alero", "Base", "Escolta")
+
+
+def normalize_position(raw: Optional[str]) -> Optional[str]:
+    """Fold the FEB's Puesto field to one of the five canonical positions, or
+    None when it is missing ("-") or unrecognised. The federation writes it
+    several ways — A-Pivot / A-pívot / A_Pívot / Ala-Pívot, and a typo'd Esolta —
+    so it is stripped of accents and separators before matching."""
+    if not raw:
+        return None
+    folded = unicodedata.normalize("NFKD", raw)
+    token = "".join(c for c in folded if not unicodedata.combining(c))
+    token = "".join(c for c in token.upper() if c.isalnum())
+    if token in ("APIVOT", "ALAPIVOT"):
+        return "A-Pívot"
+    if token == "PIVOT":
+        return "Pívot"
+    if token == "BASE":
+        return "Base"
+    if token in ("ESCOLTA", "ESOLTA"):
+        return "Escolta"
+    if token == "ALERO":
+        return "Alero"
+    return None
 
 
 @dataclass(frozen=True)
@@ -37,9 +66,14 @@ class LeagueBio:
 
     nationality_by_player: Mapping[str, str] = field(default_factory=dict)
     birth_by_player: Mapping[str, str] = field(default_factory=dict)
+    position_by_player: Mapping[str, str] = field(default_factory=dict)
 
     def nationality(self, player_external_id: str) -> Optional[str]:
         return self.nationality_by_player.get(player_external_id)
+
+    def position(self, player_external_id: str) -> Optional[str]:
+        """Canonical court position, or None if unknown."""
+        return self.position_by_player.get(player_external_id)
 
     def age_on(self, player_external_id: str, reference: date) -> Optional[int]:
         """Full years old on ``reference``, or None if no birth date is on
@@ -78,4 +112,5 @@ class LeagueBio:
         return len(self._counts())
 
     def __bool__(self) -> bool:
-        return bool(self.nationality_by_player or self.birth_by_player)
+        return bool(self.nationality_by_player or self.birth_by_player
+                    or self.position_by_player)

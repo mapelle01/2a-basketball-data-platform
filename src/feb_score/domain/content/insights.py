@@ -365,6 +365,65 @@ def detect_best_five(
     )
 
 
+def detect_best_five_ideal(
+    season_code: str,
+    round_number: int,
+    player_lines: Sequence[PlayerLineInput],
+    bio: Optional["LeagueBio"] = None,
+) -> Optional[StoryObject]:
+    """The round's ideal FIVE by position: the best-rated player at each of the
+    five court positions (base, escolta, alero, ala-pívot, pívot). A true
+    lineup, placed on court — so it needs a rated player at EVERY position, and
+    a round short of one position yields no card rather than a hole in the five.
+    Self-skips without roster positions."""
+    from .bio import POSITIONS
+
+    if not bio:
+        return None
+    best: Dict[str, tuple] = {}
+    for p in player_lines:
+        pos = bio.position(p.player_external_id)
+        if pos is None:
+            continue
+        rating = _rating_of(p)
+        if rating is None:
+            continue
+        cur = best.get(pos)
+        if cur is None or rating > cur[1] or (rating == cur[1] and p.points > cur[0].points):
+            best[pos] = (p, rating)
+    if any(pos not in best for pos in POSITIONS):
+        return None
+    # Ordered to match the court spots (pívot, ala-pívot, alero, base, escolta).
+    lineup = []
+    for pos in POSITIONS:
+        p, rating = best[pos]
+        lineup.append({
+            "position": pos,
+            "player_external_id": p.player_external_id,
+            "player_name": display_name(p.player_name),
+            "team_external_id": p.team_external_id,
+            "team_name": p.team_name,
+            "points": p.points,
+            "rebounds": p.rebounds,
+            "assists": p.assists,
+            "rating": rating,
+            "match_external_id": p.match_external_id,
+        })
+    from .rating import FEB_RATING_VERSION
+    return StoryObject(
+        story_type=StoryType.BEST_FIVE_IDEAL,
+        season_code=season_code,
+        round_number=round_number,
+        entities=StoryEntities(),
+        facts={"lineup": lineup, "count": 5, "rating_version": FEB_RATING_VERSION},
+        source_refs={
+            "player_stats": (
+                "2afeb_score://match_player_stats/" + lineup[0]["match_external_id"]
+            ),
+        },
+    )
+
+
 def detect_stat_leaderboard(
     season_code: str,
     round_number: int,

@@ -42,6 +42,14 @@ TEMPLATES: Dict[str, TemplateContract] = {
             "story.facts.lineup",
         ),
     ),
+    "best_five_court": TemplateContract(
+        template_id="best_five_court",
+        version=TEMPLATE_VERSION,
+        canvas="IG_PORTRAIT",
+        required_slots=(
+            "story.facts.lineup",
+        ),
+    ),
     "match_final": TemplateContract(
         template_id="match_final",
         version=TEMPLATE_VERSION,

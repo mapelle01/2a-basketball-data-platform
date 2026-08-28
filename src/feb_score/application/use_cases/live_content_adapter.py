@@ -25,7 +25,7 @@ from ..repositories.interfaces import (
     PlayerRepository,
     TeamRepository,
 )
-from ...domain.content.bio import LeagueBio
+from ...domain.content.bio import LeagueBio, normalize_position
 from ...domain.content.insights import MatchFactsInput, PlayerLineInput
 from ...domain.content.season_aggregate import PlayerSeasonLine, SeasonAggregate
 from ...domain.content.season_insights import SEASON_HIGH_MIN_POINTS, SeasonContext
@@ -174,6 +174,7 @@ class LiveContentAdapter:
         catalog = self._players.get_many_by_external_ids(ids)
         nats: Dict[str, str] = {}
         births: Dict[str, str] = {}
+        positions: Dict[str, str] = {}
         for pid, player in catalog.items():
             if player is None:
                 continue
@@ -182,7 +183,11 @@ class LiveContentAdapter:
                 nats[pid] = nat
             if player.birth_date is not None:
                 births[pid] = player.birth_date.isoformat()
-        return LeagueBio(nationality_by_player=nats, birth_by_player=births)
+            pos = normalize_position(player.position)
+            if pos is not None:
+                positions[pid] = pos
+        return LeagueBio(nationality_by_player=nats, birth_by_player=births,
+                         position_by_player=positions)
 
     def _team_names_by_ids(self, team_ids: set) -> Dict[str, Optional[str]]:
         if not team_ids:

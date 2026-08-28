@@ -767,16 +767,23 @@ def render_best_five_court(data: Dict[str, Any]) -> str:
 
     players: List[str] = []
     r = 60
-    for (pos, fx, fy), row in zip(_LINEUP_SPOTS, lineup):
+    for (spot, fx, fy), row in zip(_LINEUP_SPOTS, lineup):
         px, py = bx + bw * fx, by + bh * fy
         name = row.get("player_name") or row.get("player_external_id", "—")
+        position = row.get("position", "")
         rating = row.get("rating")
         players.append(C.avatar(px, py, r, initials=C.initials_of(name),
                                 photo_uri=row.get("photo_uri"), badge_uri=row.get("badge_uri")))
-        players.append(C.text(px, py + r + 34, name.upper(), size=FontSize.MICRO,
+        # The position is the whole point of this card, so it leads — a red tag
+        # above the name.
+        if position:
+            players.append(C.text(px, py + r + 30, position.upper(), size=FontSize.MICRO,
+                                  weight=FontWeight.LABEL, fill=Color.RED, anchor="middle",
+                                  tracking=LetterSpacing.CAPS, upper=True))
+        players.append(C.text(px, py + r + 56, name.upper(), size=FontSize.MICRO,
                               weight=FontWeight.TITLE, fill=Color.WHITE, anchor="middle", upper=True))
         if rating is not None:
-            chip, _ = C.rating_badge(px - 23, py + r + 48, float(rating), size="s")
+            chip, _ = C.rating_badge(px - 23, py + r + 72, float(rating), size="s")
             players.append(chip)
 
     ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB", season=season)
@@ -1002,6 +1009,7 @@ _RENDERERS: Dict[str, Callable[[Dict[str, Any]], str]] = {
     "round_recap": render_round_recap,
     "stat_leaderboard": render_stat_leaderboard,
     "best_five": render_best_five_grid,
+    "best_five_court": render_best_five_court,
     "team_streak": render_team_streak,
     "best_duo": render_best_duo,
 }

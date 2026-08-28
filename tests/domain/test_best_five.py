@@ -11,7 +11,10 @@ import re
 import xml.etree.ElementTree as ET
 
 from feb_score.domain.content.copy import generate_copy
-from feb_score.domain.content.insights import PlayerLineInput, detect_best_five
+from feb_score.domain.content.bio import LeagueBio, normalize_position
+from feb_score.domain.content.insights import (
+    PlayerLineInput, detect_best_five, detect_best_five_ideal,
+)
 from feb_score.domain.content.registry import DetectionContext, Scope, run_detectors
 from feb_score.domain.content.story import STORY_TO_TEMPLATE, StoryType
 from feb_score.domain.content.validation import validate_copy
@@ -105,3 +108,70 @@ class TestCard:
         # badge, so check membership, not exact position)
         ranks = set(re.findall(r'>([1-5])<', svg))
         assert {"1", "2", "3", "4", "5"} <= ranks
+
+
+class TestPositionNormalizer:
+    def test_folds_every_observed_variant(self):
+        assert normalize_position("A-Pivot") == "A-Pívot"
+        assert normalize_position("A_Pívot") == "A-Pívot"
+        assert normalize_position("Ala-Pívot") == "A-Pívot"
+        assert normalize_position("Pivot") == "Pívot"
+        assert normalize_position("Esolta") == "Escolta"
+        assert normalize_position("Base") == "Base"
+
+    def test_missing_or_unknown_is_none(self):
+        for raw in ("-", "", None, "Entrenador"):
+            assert normalize_position(raw) is None
+
+    def test_pivot_is_not_swallowed_by_a_pivot(self):
+        # "A-Pívot" contains "Pívot" once folded — the order must not misclassify
+        assert normalize_position("A-Pívot") == "A-Pívot"
+        assert normalize_position("Pívot") == "Pívot"
+
+
+class TestIdealFive:
+    def _lines(self):
+        # one clear best per position, plus a weaker duplicate base
+        return [
+            _rated("b1", "BASE UNO", 24), _rated("e1", "ESC UNO", 22),
+            _rated("al1", "ALERO UNO", 28), _rated("ap1", "APIV UNO", 18),
+            _rated("p1", "PIVOT UNO", 15), _rated("b2", "BASE DOS", 8),
+        ]
+
+    def _bio(self):
+        return LeagueBio(position_by_player={
+            "b1": "Base", "e1": "Escolta", "al1": "Alero",
+            "ap1": "A-Pívot", "p1": "Pívot", "b2": "Base",
+        })
+
+    def test_needs_a_rated_player_at_every_position(self):
+        bio = LeagueBio(position_by_player={  # no pívot
+            "b1": "Base", "e1": "Escolta", "al1": "Alero", "ap1": "A-Pívot",
+        })
+        assert detect_best_five_ideal("2024-2025", 24, self._lines(), bio) is None
+
+    def test_skips_without_positions(self):
+        assert detect_best_five_ideal("2024-2025", 24, self._lines(), None) is None
+        assert detect_best_five_ideal("2024-2025", 24, self._lines(), LeagueBio()) is None
+
+    def test_one_per_position_in_court_order(self):
+        s = detect_best_five_ideal("2024-2025", 24, self._lines(), self._bio())
+        lineup = s.facts["lineup"]
+        assert [r["position"] for r in lineup] == ["Pívot", "A-Pívot", "Alero", "Base", "Escolta"]
+        # the better base wins its slot, the weaker one is dropped
+        base = next(r for r in lineup if r["position"] == "Base")
+        assert base["player_external_id"] == "b1"
+        assert len(lineup) == 5
+
+    def test_renders_on_a_court_with_position_tags(self):
+        from feb_score.infrastructure.rendering.component_templates import render_template
+        s = detect_best_five_ideal("2024-2025", 24, self._lines(), self._bio())
+        svg = render_template("best_five_court", {
+            "story": {"facts": s.facts, "round_number": 24, "season_code": "2024-2025",
+                      "story_type": "best_five_ideal"},
+            "display": {}, "assets": {}, "copy": {}, "meta": {},
+        })
+        ET.fromstring(svg)
+        assert "El quinteto ideal" in svg
+        for pos in ("PÍVOT", "BASE", "ESCOLTA", "ALERO"):
+            assert pos in svg
