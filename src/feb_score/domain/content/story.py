@@ -145,6 +145,34 @@ STORY_LABELS: Dict[StoryType, Dict[str, str]] = {
 }
 
 
+# Human label for a story type, for the candidate chooser (where a card does not
+# yet carry a section_label). Player-card types reuse their section from
+# STORY_LABELS; these cover the rest.
+STORY_DISPLAY_NAMES: Dict[str, str] = {
+    "match_final": "Resultado del partido",
+    "biggest_win": "Mayor paliza de la jornada",
+    "closest_game": "El partido más ajustado",
+    "stat_leaderboard": "Ranking de la jornada",
+    "upset": "Sorpresa de la jornada",
+    "win_streak": "Racha ganadora",
+    "loss_streak": "Mala racha",
+    "comeback": "Remontada",
+    "best_duo": "El mejor dúo",
+    "top_scorer": "Máximo anotador de la temporada",
+    "top_rebounder": "Máximo reboteador de la temporada",
+    "top_assist_provider": "Máximo asistente de la temporada",
+}
+
+
+def display_name_for(story_type) -> str:
+    """A readable Spanish label for any story type, for the chooser."""
+    section = labels_for(story_type).get("section")
+    if section:
+        return section
+    key = story_type.value if hasattr(story_type, "value") else str(story_type)
+    return STORY_DISPLAY_NAMES.get(key, key)
+
+
 def labels_for(story_type) -> Dict[str, str]:
     """Section + badge a card of this type should carry."""
     return STORY_LABELS.get(story_type, {"section": "", "badge": ""})

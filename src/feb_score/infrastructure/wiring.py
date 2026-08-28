@@ -588,15 +588,40 @@ class _GatewayBase(CommandGateway):
             )
         return self._content_pipeline
 
-    def run_content_pipeline(
-        self, season_code: str, round_number: int, top_n: int = 5
-    ) -> Dict[str, Any]:
+    def _content_inputs(self, season_code: str, round_number: int):
         inputs = self._content_adapter.build_round_inputs(season_code, round_number)
-        season_context = self._content_adapter.build_season_context(
-            season_code, round_number, inputs
+        return (
+            inputs,
+            self._content_adapter.build_season_context(season_code, round_number, inputs),
+            self._content_adapter.build_season_aggregate(season_code),
+            self._content_adapter.build_league_bio(season_code),
         )
-        season_aggregate = self._content_adapter.build_season_aggregate(season_code)
-        league_bio = self._content_adapter.build_league_bio(season_code)
+
+    def preview_round_candidates(
+        self, season_code: str, round_number: int
+    ) -> Dict[str, Any]:
+        inputs, season_context, season_aggregate, league_bio = self._content_inputs(
+            season_code, round_number
+        )
+        candidates = self._pipeline().detect_candidates(
+            inputs.season_code, inputs.round_number,
+            inputs.matches, inputs.player_lines,
+            season_context=season_context, season=season_aggregate, bio=league_bio,
+        )
+        return {
+            "season_code": season_code,
+            "round_number": round_number,
+            "matches_considered": len(inputs.matches),
+            "candidates": candidates,
+        }
+
+    def run_content_pipeline(
+        self, season_code: str, round_number: int, top_n: int = 5,
+        story_keys: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        inputs, season_context, season_aggregate, league_bio = self._content_inputs(
+            season_code, round_number
+        )
         pipeline = self._pipeline()
         result = pipeline.run(
             inputs.season_code,
@@ -607,6 +632,7 @@ class _GatewayBase(CommandGateway):
             season_context=season_context,
             season=season_aggregate,
             bio=league_bio,
+            only_keys=story_keys,
         )
         return {
             "season_code": season_code,

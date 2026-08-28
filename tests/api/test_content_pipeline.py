@@ -199,6 +199,53 @@ class TestQueueAndRender:
         assert r.status_code == 404
 
 
+class TestDetectThenChoose:
+    """Generation is opt-in per card now: detect shows every candidate without
+    writing anything, then the operator generates exactly the ones they pick."""
+
+    def test_preview_writes_nothing_and_returns_keys(self, client):
+        _seed_round(client)
+        before = client.get("/v1/content/queue").json()["count"]
+        r = client.get("/v1/content/pipeline/rounds/2025-2026/7/candidates",
+                       headers=auth_header("system"))
+        assert r.status_code == 200
+        body = r.json()
+        assert body["candidates"], "expected candidates"
+        # nothing was queued by a preview
+        assert client.get("/v1/content/queue").json()["count"] == before
+        c = body["candidates"][0]
+        assert set(c) >= {"story_key", "story_type", "family", "subject", "label", "priority"}
+        assert c["family"] in {"jornada", "ficha", "temporada"}
+
+    def test_preview_requires_a_key(self, client):
+        _seed_round(client)
+        r = client.get("/v1/content/pipeline/rounds/2025-2026/7/candidates")
+        assert r.status_code == 401
+
+    def test_generates_only_the_chosen_candidates(self, client):
+        _seed_round(client)
+        cands = client.get("/v1/content/pipeline/rounds/2025-2026/7/candidates",
+                           headers=auth_header("system")).json()["candidates"]
+        pick = [cands[0]["story_key"]]
+        r = client.post("/v1/content/pipeline/rounds/2025-2026/7",
+                        json={"story_keys": pick}, headers=auth_header("system"))
+        assert r.status_code == 200
+        # exactly one card was created — not the automatic top-5
+        assert r.json()["content_generated"] == 1
+
+    def test_story_keys_must_be_a_list(self, client):
+        r = client.post("/v1/content/pipeline/rounds/2025-2026/7",
+                        json={"story_keys": "nope"}, headers=auth_header("system"))
+        assert r.status_code == 400
+
+    def test_no_body_still_runs_the_automatic_top_n(self, client):
+        _seed_round(client)
+        r = client.post("/v1/content/pipeline/rounds/2025-2026/7",
+                        headers=auth_header("system"))
+        assert r.status_code == 200
+        assert r.json()["content_generated"] >= 1
+
+
 class TestPublishableImage:
     """The pipeline used to end at an SVG, which Instagram does not accept —
     one step short of a post. These cover that last step."""
@@ -442,6 +489,8 @@ class TestReviewPage:
         assert "clipboard" in html            # copy-caption for one-shot publishing
         assert "PATCH" in html                # hand-edit title + caption in place
         assert "section_label" in html and "caption" in html
+        assert "/candidates" in html          # detect-then-choose preview
+        assert "story_keys" in html           # generate only the picked ones
 
     def test_key_is_never_persisted_beyond_the_tab(self, client):
         html = client.get("/v1/content/review").text

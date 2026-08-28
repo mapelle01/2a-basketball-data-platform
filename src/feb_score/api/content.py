@@ -50,15 +50,43 @@ def register_content_routes(app: FastAPI) -> None:
         season_code: str,
         round_number: int,
         request: Request,
+        body: dict = Body(default=None),
         top_n: int = Query(default=5, ge=1, le=20, description="Max stories to select"),
     ):
         auth: AuthenticationProvider = request.app.state.auth
         principal = auth.authenticate(request)
         if principal is None:
             return err.error_response(401, "UNAUTHENTICATED", "API key required")
+        # Detect-then-choose: when the caller sends story_keys (from the preview),
+        # generate exactly those; otherwise fall back to the automatic top-N.
+        story_keys = (body or {}).get("story_keys")
+        if story_keys is not None and not isinstance(story_keys, list):
+            return err.error_response(400, "INVALID_PARAMETER", "story_keys must be a list")
         try:
             return request.app.state.gateway.run_content_pipeline(
-                season_code, round_number, top_n
+                season_code, round_number, top_n, story_keys=story_keys
+            )
+        except ValueError as exc:
+            return err.error_response(400, "INVALID_PARAMETER", str(exc))
+
+    @app.get(
+        "/v1/content/pipeline/rounds/{season_code}/{round_number}/candidates",
+        tags=["content"],
+        summary="Preview the stories a round would generate",
+        description="Runs detection only — no rendering, no queue writes — and "
+        "returns every candidate story with a stable story_key, its family "
+        "(jornada / ficha / temporada), subject and suggested priority. Feed the "
+        "chosen keys back to the pipeline POST to generate exactly those. "
+        "Authenticated.",
+    )
+    def preview_round_candidates(
+        season_code: str, round_number: int, request: Request,
+    ):
+        if request.app.state.auth.authenticate(request) is None:
+            return err.error_response(401, "UNAUTHENTICATED", "API key required")
+        try:
+            return request.app.state.gateway.preview_round_candidates(
+                season_code, round_number
             )
         except ValueError as exc:
             return err.error_response(400, "INVALID_PARAMETER", str(exc))

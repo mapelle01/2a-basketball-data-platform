@@ -208,11 +208,23 @@ class CommandGateway(ABC):
 
     # ------------------------------------------------ Content Engine pipeline
     @abstractmethod
+    def preview_round_candidates(
+        self, season_code: str, round_number: int
+    ) -> Dict[str, Any]:
+        """Detect every story for a round WITHOUT rendering or queuing — the
+        list an operator picks from. Each candidate carries a stable
+        ``story_key`` that ``run_content_pipeline`` accepts back."""
+        raise NotImplementedError
+
+    @abstractmethod
     def run_content_pipeline(
-        self, season_code: str, round_number: int, top_n: int = 5
+        self, season_code: str, round_number: int, top_n: int = 5,
+        story_keys: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Run the Content Engine over a finalized round; returns a summary of
-        the queued content items (no rendered SVG in the summary)."""
+        the queued content items (no rendered SVG in the summary). When
+        ``story_keys`` is given, generate exactly those candidates (from the
+        preview) instead of the automatic top-N selection."""
         raise NotImplementedError
 
     @abstractmethod

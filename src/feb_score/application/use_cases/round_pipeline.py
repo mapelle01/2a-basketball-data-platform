@@ -22,16 +22,27 @@ from ...domain.content.bio import LeagueBio
 
 from ...domain.content.copy import generate_copy
 from ...domain.content.insights import MatchFactsInput, PlayerLineInput
-from ...domain.content.planner import plan
+from ...domain.content.planner import plan, score_story
 from ...domain.content.queue import ContentItem, ContentStatus, InMemoryContentQueue
-from ...domain.content.registry import DetectionContext, run_detectors
+from ...domain.content.registry import DetectionContext, Scope, run_detectors
 from ...domain.content.review import decide_review
 from ...domain.content.season_aggregate import SeasonAggregate
 from ...domain.content.season_insights import SeasonContext
-from ...domain.content.story import StoryObject, StoryStatus
+from ...domain.content.story import StoryObject, StoryStatus, display_name_for
 from ...domain.errors import InvalidContentEdit
 from ...domain.content.templates import TEMPLATE_VERSION, TEMPLATES
 from ...domain.content.validation import validate_copy, validate_visual
+
+
+import dataclasses as _dataclasses
+
+
+def _as_selected(story: StoryObject) -> StoryObject:
+    """Mark a hand-picked story as SELECTED so the render loop takes it, scoring
+    it for the priority field the metrics/queue expect."""
+    return _dataclasses.replace(
+        story, status=StoryStatus.SELECTED, priority=score_story(story).total
+    )
 
 
 DESIGN_SYSTEM_VERSION_DEFAULT = "1.0"
@@ -147,6 +158,68 @@ class RoundPipeline:
             self._queue.update(item)
         return item
 
+    _SCOPE_FAMILY = ((Scope.ROUND, "jornada"), (Scope.BIO, "ficha"), (Scope.SEASON, "temporada"))
+
+    def detect_candidates(
+        self,
+        season_code: str,
+        round_number: int,
+        matches: Sequence[MatchFactsInput],
+        player_lines: Sequence[PlayerLineInput],
+        season_context: Optional[SeasonContext] = None,
+        season: Optional[SeasonAggregate] = None,
+        bio: Optional[LeagueBio] = None,
+    ) -> List[Dict[str, Any]]:
+        """Every story the detectors find for this round, WITHOUT rendering or
+        queuing any of it — the "detect" half of detect-then-choose. Each
+        candidate carries a stable ``story_key`` (its identity) that ``run`` can
+        be handed back to generate exactly the chosen ones. Detection is pure, so
+        the same round yields the same keys.
+        """
+        ctx = DetectionContext(
+            season_code=season_code, round_number=round_number,
+            matches=tuple(matches), player_lines=tuple(player_lines),
+            season_context=season_context, season=season, bio=bio,
+        )
+        out: List[Dict[str, Any]] = []
+        seen_keys = set()
+        for scope, family in self._SCOPE_FAMILY:
+            for story in run_detectors(ctx, {scope}):
+                if story.template_id is None:
+                    continue  # nothing can render it → not offerable
+                key = story.identity_key
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+                out.append({
+                    "story_key": key,
+                    "story_type": story.story_type.value,
+                    "family": family,
+                    "subject": self._subject_label(story),
+                    "label": self._headline_label(story),
+                    "priority": score_story(story).total,
+                    "already_queued": self._queue.by_story_identity(key) is not None,
+                })
+        out.sort(key=lambda c: -c["priority"])
+        return out
+
+    @staticmethod
+    def _subject_label(story: StoryObject) -> str:
+        f = story.facts
+        winner = f.get("biggest_win_winner") or {}
+        return (
+            f.get("player_name") or f.get("team_name")
+            or f.get("top_scorer_name") or winner.get("team_name")
+            or f.get("home_team_name") or "La jornada"
+        )
+
+    @staticmethod
+    def _headline_label(story: StoryObject) -> str:
+        f = story.facts
+        if f.get("section_label"):
+            return f["section_label"]
+        return display_name_for(story.story_type)
+
     def run(
         self,
         season_code: str,
@@ -157,6 +230,7 @@ class RoundPipeline:
         season_context: Optional[SeasonContext] = None,
         season: Optional[SeasonAggregate] = None,
         bio: Optional[LeagueBio] = None,
+        only_keys: Optional[Sequence[str]] = None,
     ) -> "RunResult":
         # One call to the detector registry: every registered detector whose
         # scope has data runs and self-skips otherwise. Adding a pattern later
@@ -168,9 +242,18 @@ class RoundPipeline:
         )
         stories = run_detectors(ctx)
 
-        # Real novelty: which story types are already covered for this round?
-        seen_types = self._seen_story_types(stories, season_code, round_number)
-        planned = plan(stories, top_n=top_n, seen_story_types=seen_types)
+        if only_keys is not None:
+            # Detect-then-choose: the operator already picked. Generate exactly
+            # those stories — no priority cut, no per-type/subject cap; the human
+            # made the selection the planner would otherwise make.
+            wanted = set(only_keys)
+            planned = [
+                _as_selected(s) for s in stories if s.identity_key in wanted
+            ]
+        else:
+            # Real novelty: which story types are already covered for this round?
+            seen_types = self._seen_story_types(stories, season_code, round_number)
+            planned = plan(stories, top_n=top_n, seen_story_types=seen_types)
 
         items: List[ContentItem] = []
         pending_template: List[StoryObject] = []

@@ -84,6 +84,20 @@ a.btn:focus-visible{outline:2px solid var(--red);outline-offset:2px}
   background:var(--panel-2);border:1px solid var(--rule);color:var(--ink);resize:vertical}
 .editor textarea{min-height:74px;line-height:1.45}
 .editor .row{display:flex;gap:8px}
+.cand{margin:22px 0 8px;border:1px solid var(--rule);background:var(--panel);padding:16px 18px}
+.cand h2{margin:0;font-size:14px;font-weight:800;letter-spacing:-.01em;text-transform:none;color:var(--ink)}
+.cand .sub{color:var(--grey);font-size:12px;margin:4px 0 6px}
+.cand .fam{margin-top:14px;font-size:10.5px;letter-spacing:.14em;color:var(--grey);text-transform:uppercase;
+  display:flex;gap:10px;align-items:center}
+.cand .fam button{font-size:10px;padding:2px 7px}
+.cand .row{display:flex;gap:10px;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--rule)}
+.cand .row label{display:flex;gap:10px;align-items:baseline;cursor:pointer;flex:1}
+.cand .subj{font-weight:700;font-size:13.5px}
+.cand .lab{color:var(--ink-2);font-size:12.5px}
+.cand .pri{margin-left:auto;color:var(--grey);font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cand .dup{color:var(--red);font-size:10.5px;letter-spacing:.06em}
+.cand .foot{display:flex;gap:10px;margin-top:16px;align-items:center;flex-wrap:wrap}
+.cand .foot .n{color:var(--grey);font-size:12px}
 .empty,.loading{color:var(--grey);padding:40px 0}
 </style>
 </head>
@@ -109,6 +123,7 @@ a.btn:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 </header>
 
 <main>
+  <div id="candidates"></div>
   <div id="out" class="loading">Cargando la cola…</div>
 </main>
 
@@ -142,40 +157,97 @@ const gRound = document.getElementById('ground');
 document.getElementById('gen').onclick = generate;
 gRound.addEventListener('keydown', e => { if (e.key === 'Enter') generate(); });
 
+const CAND = document.getElementById('candidates');
+const FAMILY_LABEL = {jornada:'De la jornada', ficha:'Curiosos de ficha', temporada:'De temporada'};
+
+// Step 1 — detect. Show every candidate; the operator picks. Nothing is created
+// or rendered until "Crear seleccionadas".
 async function generate(){
   const season = gSeason.value.trim() || gSeason.placeholder;
   const round = parseInt(gRound.value, 10);
   if (!apiKey()) { genMsg.textContent = 'Hace falta la clave de API para generar.'; return; }
   if (!round) { genMsg.textContent = 'Escribe el número de jornada.'; return; }
 
-  // Re-running a round that already has cards DUPLICATES them (the card identity
-  // includes a hash of its facts), so warn before doing it rather than after.
-  const existing = ITEMS.filter(i =>
-    i.story.round_number === round && i.story.season_code === season).length;
-  if (existing && !confirm(
-      `La jornada ${round} ya tiene ${existing} cartas. Volver a generar creará `
-      + `DUPLICADOS, no las reemplazará. ¿Seguir?`)) return;
-
   const btn = document.getElementById('gen');
-  btn.disabled = true; genMsg.textContent = `Generando la jornada ${round}…`;
+  btn.disabled = true; genMsg.textContent = `Detectando la jornada ${round}…`;
+  try{
+    const r = await fetch(
+      `/v1/content/pipeline/rounds/${encodeURIComponent(season)}/${round}/candidates`,
+      {headers:{'Authorization':'Bearer ' + apiKey()}});
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok){ genMsg.textContent = `Error ${r.status}: ${data?.error?.message || 'no se pudo detectar'}`; return; }
+    const cands = data.candidates || [];
+    genMsg.textContent = cands.length
+      ? `Jornada ${round}: ${cands.length} candidatas. Marca las que quieras crear.`
+      : `Jornada ${round}: no se detectó nada (¿partidos finalizados con datos?).`;
+    renderCandidates(season, round, cands);
+  }catch(e){ genMsg.textContent = String(e); }
+  finally{ btn.disabled = false; }
+}
+
+function renderCandidates(season, round, cands){
+  CAND.innerHTML = '';
+  if (!cands.length) return;
+  const box = document.createElement('section');
+  box.className = 'cand';
+  box.innerHTML = `<h2>Jornada ${round} · ${esc(season)}</h2>`
+    + `<p class="sub">Elige qué convertir en carta. Nada se crea hasta que le des a Crear.</p>`;
+  const groups = {jornada:[], ficha:[], temporada:[]};
+  cands.forEach(c => (groups[c.family] || (groups[c.family] = [])).push(c));
+
+  ['jornada','ficha','temporada'].forEach(fam => {
+    const list = groups[fam]; if (!list || !list.length) return;
+    const head = document.createElement('div'); head.className = 'fam';
+    const title = document.createElement('span'); title.textContent = FAMILY_LABEL[fam] || fam;
+    const all = document.createElement('button'); all.textContent = 'marcar todo';
+    const none = document.createElement('button'); none.textContent = 'ninguno';
+    head.append(title, all, none); box.appendChild(head);
+    list.forEach(c => box.appendChild(candRow(c, fam)));
+    all.onclick = () => box.querySelectorAll(`input[data-fam="${fam}"]:not(:disabled)`).forEach(x => x.checked = true);
+    none.onclick = () => box.querySelectorAll(`input[data-fam="${fam}"]`).forEach(x => x.checked = false);
+  });
+
+  const foot = document.createElement('div'); foot.className = 'foot';
+  const create = document.createElement('button'); create.className = 'go'; create.textContent = 'Crear seleccionadas';
+  const cancel = document.createElement('button'); cancel.textContent = 'Cancelar';
+  const note = document.createElement('span'); note.className = 'n';
+  cancel.onclick = () => { CAND.innerHTML = ''; genMsg.textContent = ''; };
+  create.onclick = () => createSelected(season, round, box, note, create);
+  foot.append(create, cancel, note); box.appendChild(foot);
+  CAND.appendChild(box);
+}
+
+function candRow(c, fam){
+  const row = document.createElement('div'); row.className = 'row';
+  const dup = c.already_queued;
+  row.innerHTML = `
+    <label>
+      <input type="checkbox" data-fam="${fam}" value="${c.story_key}" ${dup ? 'disabled' : 'checked'}>
+      <span class="subj">${esc(c.subject)}</span>
+      <span class="lab">${esc(c.label)}</span>
+    </label>
+    <span class="pri">${dup ? '<span class=\'dup\'>ya en cola</span>' : 'prioridad ' + Math.round(c.priority)}</span>`;
+  return row;
+}
+
+// Step 2 — create exactly the checked ones.
+async function createSelected(season, round, box, note, btn){
+  const keys = [...box.querySelectorAll('input[type=checkbox]:checked')].map(x => x.value);
+  if (!keys.length) { note.textContent = 'no has marcado ninguna'; return; }
+  btn.disabled = true; note.textContent = `creando ${keys.length}…`;
   try{
     const r = await fetch(
       `/v1/content/pipeline/rounds/${encodeURIComponent(season)}/${round}`,
-      {method:'POST', headers:{'Authorization':'Bearer ' + apiKey(),
-                               'Content-Type':'application/json'}, body:'{}'});
+      {method:'POST', headers:{'Authorization':'Bearer ' + apiKey(), 'Content-Type':'application/json'},
+       body: JSON.stringify({story_keys: keys})});
     const data = await r.json().catch(() => ({}));
-    if (!r.ok){
-      genMsg.textContent = `Error ${r.status}: ${data?.error?.message || 'no se pudo generar'}`;
-    } else {
-      const n = data.content_generated ?? (data.items || []).length;
-      genMsg.textContent = n
-        ? `Jornada ${round}: ${n} cartas nuevas en la cola.`
-        : `Jornada ${round}: no había partidos finalizados con datos para generar.`;
-      FILTER = 'pending_review';
-      await load();
-    }
-  }catch(e){ genMsg.textContent = String(e); }
-  finally{ btn.disabled = false; }
+    if (!r.ok){ note.textContent = `error ${r.status}: ${data?.error?.message || ''}`; btn.disabled = false; return; }
+    const n = data.content_generated ?? (data.items || []).length;
+    CAND.innerHTML = '';
+    genMsg.textContent = `Jornada ${round}: ${n} cartas nuevas en la cola.`;
+    FILTER = 'pending_review';
+    await load();
+  }catch(e){ note.textContent = String(e); btn.disabled = false; }
 }
 
 /* --------------------------------------------------------------- load/read */
