@@ -101,9 +101,12 @@ register("match_final", Scope.ROUND)(
 register("player_of_round", Scope.ROUND)(
     lambda ctx: _one(_ins.detect_player_of_round(ctx.season_code, ctx.round_number, ctx.player_lines))
 )
-register("round_recap", Scope.ROUND)(
-    lambda ctx: _one(_ins.detect_round_recap(ctx.season_code, ctx.round_number, ctx.matches, ctx.player_lines))
-)
+# round_recap is intentionally NOT registered: it crammed four unrelated numbers
+# (matches played, top scorer, biggest win, closest game) onto one card, which
+# is neither a single story nor coherent on a one-match round (biggest win ==
+# closest game). Editorial decision (Marc, Aug 2026) — the detector, template and
+# copy remain for reference but the pipeline never emits it. Re-register here to
+# revive it.
 register("biggest_win", Scope.ROUND)(
     lambda ctx: _one(_ins.detect_biggest_win(ctx.season_code, ctx.round_number, ctx.matches))
 )
