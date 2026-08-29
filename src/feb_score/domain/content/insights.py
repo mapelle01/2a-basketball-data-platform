@@ -173,67 +173,126 @@ def detect_player_of_round(
     )
 
 
+def _rating_str(v):
+    return (f"{v:.1f}").replace(".", ",")
+
+
 def detect_round_recap(
     season_code: str,
     round_number: int,
     matches: Sequence[MatchFactsInput],
     player_lines: Sequence[PlayerLineInput],
+    season_context: "Optional[SeasonContext]" = None,
+    bio: "Optional[LeagueBio]" = None,
 ) -> Optional[StoryObject]:
+    """The round in five stories, curated — one per role, each drawn from a real
+    detection. The rule: a slot that has no story simply does not appear (up to
+    five, never padded). Fewer than three real stories is not a recap, so it
+    yields nothing rather than a thin card."""
     if not matches:
         return None
 
-    biggest_win = max(matches, key=lambda m: abs(m.home_score - m.away_score))
-    closest_game = min(matches, key=lambda m: abs(m.home_score - m.away_score))
+    slots: List[Dict[str, Any]] = []
 
-    top_scorer = max(player_lines, key=lambda p: p.points) if player_lines else None
+    # --- Top Performance (needed first so Hero Stat can avoid duplicating it) ---
+    por = detect_player_of_round(season_code, round_number, player_lines)
+    por_pid = por.facts.get("player_external_id") if por else None
 
-    def _winner(m: MatchFactsInput) -> Dict[str, Any]:
-        if m.home_score >= m.away_score:
-            return {"team_external_id": m.home_team_external_id, "team_name": m.home_team_name}
-        return {"team_external_id": m.away_team_external_id, "team_name": m.away_team_name}
-
-    facts: Dict[str, Any] = {
-        "matches_played": len(matches),
-        "biggest_win_margin": abs(biggest_win.home_score - biggest_win.away_score),
-        "biggest_win_match_external_id": biggest_win.external_id,
-        "biggest_win_winner": _winner(biggest_win),
-        "closest_game_margin": abs(closest_game.home_score - closest_game.away_score),
-        "closest_game_match_external_id": closest_game.external_id,
-    }
-    if top_scorer:
-        facts.update({
-            "top_scorer_external_id": top_scorer.player_external_id,
-            "top_scorer_name": display_name(top_scorer.player_name),
-            "top_scorer_team_external_id": top_scorer.team_external_id,
-            "top_scorer_team_name": top_scorer.team_name,
-            "top_scorer_points": top_scorer.points,
+    # --- Hero Stat: the round's single biggest scoring number. If that player
+    # is already the Top Performance, fall back to the biggest win margin so the
+    # two slots never tell the same story. ---
+    hero = max(player_lines, key=lambda p: p.points) if player_lines else None
+    biggest = detect_biggest_win(season_code, round_number, matches)
+    if hero and hero.points > 0 and hero.player_external_id != por_pid:
+        slots.append({
+            "role": "hero_stat", "label": "EL GRAN DATO",
+            "value": str(hero.points), "unit": "PTS",
+            "subject": display_name(hero.player_name),
+            "line": f"{display_name(hero.player_name)} · {hero.team_name or ''}".strip(" ·"),
+        })
+    elif biggest:
+        f = biggest.facts
+        win = f["home_team_name"] if f["home_score"] >= f["away_score"] else f["away_team_name"]
+        slots.append({
+            "role": "hero_stat", "label": "EL GRAN DATO",
+            "value": f"+{f['margin']}", "unit": "",
+            "subject": win or "",
+            "line": f"La mayor diferencia · {win or ''}".strip(" ·"),
         })
 
-    source_refs = {
-        "matches": (
-            f"2afeb_score://seasons/{season_code}/rounds/{round_number}/matches"
-        ),
-        "biggest_win_match": (
-            f"2afeb_score://matches/{biggest_win.external_id}"
-        ),
-        "closest_game_match": (
-            f"2afeb_score://matches/{closest_game.external_id}"
-        ),
-    }
+    # --- Top Performance ---
+    if por:
+        f = por.facts
+        rating = f.get("rating")
+        slots.append({
+            "role": "top_performance", "label": "MEJOR ACTUACIÓN",
+            "value": _rating_str(rating) if rating is not None else str(f.get("points", 0)),
+            "unit": "NOTA" if rating is not None else "PTS",
+            "subject": f.get("player_name") or "",
+            "line": (f"{f.get('player_name')} · {f.get('points')} pts, "
+                     f"{f.get('rebounds')} reb, {f.get('assists')} ast"),
+        })
+
+    # --- Team Story: the biggest win, if the round had a blowout (else skip) ---
+    if biggest and not (slots and slots[0]["role"] == "hero_stat"
+                        and slots[0]["value"].startswith("+")):
+        f = biggest.facts
+        win = f["home_team_name"] if f["home_score"] >= f["away_score"] else f["away_team_name"]
+        slots.append({
+            "role": "team_story", "label": "HISTORIA DE EQUIPO",
+            "value": f"{f['home_score']}-{f['away_score']}", "unit": "",
+            "subject": win or "",
+            "line": f"{win or ''} · +{f['margin']}".strip(" ·"),
+        })
+
+    # --- Trend: the round's best active team streak ---
+    if season_context is not None:
+        from .season_insights import detect_streaks
+        streaks = detect_streaks(season_code, round_number, matches, season_context)
+        wins = [st for st in streaks if st.facts.get("streak_kind") == "win"]
+        best = max(wins, key=lambda st: st.facts.get("streak_length", 0), default=None)
+        if best:
+            f = best.facts
+            slots.append({
+                "role": "trend", "label": "LA RACHA",
+                "value": str(f["streak_length"]), "unit": "SEGUIDAS",
+                "subject": f.get("team_name") or "",
+                "line": f"{f.get('team_name') or ''} · victorias consecutivas".strip(" ·"),
+            })
+
+    # --- Fun Fact: the first curioso the round offers ---
+    fun = (
+        detect_lone_flag(season_code, round_number, player_lines, bio)
+        or detect_young_gun(season_code, round_number, player_lines, bio, matches)
+        or detect_veteran(season_code, round_number, player_lines, bio, matches)
+        or detect_defensive_anchor(season_code, round_number, player_lines)
+    )
+    if fun:
+        f = fun.facts
+        name = f.get("player_name") or ""
+        if fun.story_type is StoryType.LONE_FLAG:
+            val, unit, line = "1", "ÚNICO", f"{name} · único de {f.get('nationality')}"
+        elif fun.story_type in (StoryType.YOUNG_GUN, StoryType.VETERAN):
+            val, unit, line = str(f.get("age")), "AÑOS", f"{name} · {f.get('points')} pts"
+        else:  # defensive anchor
+            val = str(f.get("defensive_actions"))
+            unit, line = "ROB+TAP", f"{name} · defensa de la jornada"
+        slots.append({"role": "fun_fact", "label": "DATO CURIOSO",
+                      "value": val, "unit": unit, "subject": name, "line": line})
+
+    if len(slots) < 3:
+        return None
 
     return StoryObject(
         story_type=StoryType.ROUND_RECAP,
         season_code=season_code,
         round_number=round_number,
         entities=StoryEntities(),
-        facts=facts,
-        source_refs=source_refs,
+        facts={"slots": slots[:5], "matches_played": len(matches)},
+        source_refs={
+            "round": f"2afeb_score://seasons/{season_code}/rounds/{round_number}",
+        },
     )
-
-
-# ---------------------------------------------------------------------------
-# Additional deterministic detectors (round data only — no season context)
-# ---------------------------------------------------------------------------
 
 BLOWOUT_MARGIN = 20  # a win by 20+ is "the rout of the round" material
 

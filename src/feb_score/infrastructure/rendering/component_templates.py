@@ -509,65 +509,50 @@ def render_player_of_round(data: Dict[str, Any]) -> str:
 
 
 def render_round_recap(data: Dict[str, Any]) -> str:
+    """The round in up to five curated stories, one per role. Each slot is a
+    block: a small role label, the story's number, and one line naming it. Slots
+    that carried no story never reached here, so the card shows only what
+    actually happened — never a padded five."""
     facts = data["story"]["facts"]
-    display = data.get("display", {})
     season = data["story"].get("season_code")
     round_number = data["story"].get("round_number")
-    matches_played = facts.get("matches_played", 0)
+    slots = facts.get("slots", [])
 
     body: List[str] = []
-    # HEADER — season lives in the footer, so keep this to the section name.
-    hdr, _ = C.match_header(
-        CONTENT_X, MARGIN, CONTENT_W,
-        competition="Segunda FEB", round_label="Resumen de la jornada",
-    )
-    body.append(hdr)
+    body.append(C.text(CONTENT_X, 176, "Resumen de la jornada", size=76,
+                       weight=FontWeight.DISPLAY, fill=Color.WHITE, tracking=LetterSpacing.HEADLINE))
+    body.append(C.text(CONTENT_X, 224, f"JORNADA {round_number}", size=FontSize.LABEL,
+                       weight=FontWeight.LABEL, fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True))
     body.append(_corner_mark())
 
-    # HERO — giant round number + matches played.
-    body.append(C.text(CONTENT_X, 200, "JORNADA", size=FontSize.LABEL, weight=FontWeight.LABEL,
-                       fill=Color.GREY, tracking=LetterSpacing.EYEBROW, upper=True))
-    body.append(C.text(CONTENT_X, 370, str(round_number), size=FontSize.HERO + 40,
-                       weight=FontWeight.HERO, fill=Color.WHITE, tracking=LetterSpacing.HERO))
-    body.append(C.text(CONTENT_X, 448, f"{matches_played} partidos disputados",
-                       size=FontSize.BODY, weight=FontWeight.TITLE, fill=Color.WHITE))
-
-    # HIGHLIGHTS — three editorial rows that fill the vertical space; the key
-    # value sits right in red. Top scorer row shown only when known.
-    rows = []
-    top = display.get("top_scorer")
-    if top and top != "—":
-        rows.append(("Máximo anotador", top, f"{facts.get('top_scorer_points', '')} PTS"))
-    rows.append(("Mayor diferencia", None, f"+{facts.get('biggest_win_margin', 0)}"))
-    rows.append(("Partido más ajustado", None, f"{facts.get('closest_game_margin', 0)} PTS"))
-
-    # Red discipline: only the headline row (the first — top scorer when present)
-    # carries the red value; the rest read in white, so one red datum leads.
-    # Density: start the rows right after the hero and distribute to the footer,
-    # closing the empty band between the round number and the highlights.
-    ry = 540
-    step = min(220, (FOOTER_Y - 40 - ry) // max(1, len(rows)))
-    for i, (label, subject, value) in enumerate(rows):
-        value_color = Color.RED if i == 0 else Color.WHITE
-        body.append(C.hline(CONTENT_X, ry, CONTENT_W, weight=Line.THIN, color=Color.GREY, opacity=0.28))
-        body.append(C.text(CONTENT_X, ry + 46, label.upper(), size=FontSize.MICRO,
-                           weight=FontWeight.LABEL, fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True))
-        if subject:
-            body.append(C.text(CONTENT_X, ry + 100, subject.upper(), size=FontSize.H3,
-                               weight=FontWeight.TITLE, fill=Color.WHITE, upper=True))
-        body.append(C.text(CONTENT_X + CONTENT_W, ry + 92, value, size=FontSize.H2,
-                           weight=FontWeight.HERO, fill=value_color, anchor="end"))
-        ry += step
+    # One block per slot, distributed down the page to the footer.
+    top = 320
+    n = max(1, len(slots))
+    step = min(180, (FOOTER_Y - 40 - top) // n)
+    for i, slot in enumerate(slots):
+        by = top + i * step
+        body.append(C.hline(CONTENT_X, by, CONTENT_W, weight=Line.THIN,
+                            color=Color.GREY, opacity=0.28))
+        body.append(C.text(CONTENT_X, by + 40, str(slot.get("label", "")).upper(),
+                           size=FontSize.MICRO, weight=FontWeight.LABEL, fill=Color.RED,
+                           tracking=LetterSpacing.CAPS, upper=True))
+        # the number, big, on the right; its unit tucked after it
+        val = str(slot.get("value", ""))
+        body.append(C.text(CONTENT_X + CONTENT_W, by + 70, val, size=FontSize.H1,
+                           weight=FontWeight.HERO, fill=Color.WHITE, anchor="end",
+                           tracking=LetterSpacing.DISPLAY))
+        unit = str(slot.get("unit", ""))
+        if unit:
+            body.append(C.text(CONTENT_X + CONTENT_W, by + 96, unit, size=FontSize.MICRO,
+                               weight=FontWeight.LABEL, fill=Color.GREY, anchor="end",
+                               tracking=LetterSpacing.CAPS, upper=True))
+        # the story line, left, under the label
+        body.append(C.text(CONTENT_X, by + 78, str(slot.get("line", "")),
+                           size=FontSize.H3, weight=FontWeight.TITLE, fill=Color.WHITE))
 
     ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB", season=season)
     body.append(ft)
-    return _svg_document("".join(body), IMAGE_BACKGROUND)
-
-
-# ---------------------------------------------------------------------------
-# Template: STAT LEADERBOARD (top scorers ranking, with FEB Rating chips)
-# ---------------------------------------------------------------------------
-
+    return _svg_document("".join(body), BG_DARK)
 
 def render_stat_leaderboard(data: Dict[str, Any]) -> str:
     facts = data["story"]["facts"]

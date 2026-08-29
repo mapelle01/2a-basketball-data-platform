@@ -126,38 +126,28 @@ def generate_copy_player_of_round(story: Dict[str, Any]) -> CopyContract:
 def generate_copy_round_recap(story: Dict[str, Any]) -> CopyContract:
     f = story["facts"]
     round_number = story.get("round_number")
-    n_matches = f["matches_played"]
-    biggest_win_margin = f.get("biggest_win_margin", 0)
-
-    # The top-scorer clause is included ONLY when the round has boxscore data.
-    # A round with no player stats (imperfect feed) still gets a valid recap —
-    # never a fabricated "— (0 pts)".
-    top_scorer_name = f.get("top_scorer_name") or f.get("top_scorer_external_id")
-    top_scorer_points = f.get("top_scorer_points")
-    facts_used = ["matches_played", "biggest_win_margin"]
-
-    headline = f"Jornada {round_number}"
-    subtitle = f"{n_matches} partidos · el resumen"
-
-    if top_scorer_name and top_scorer_points is not None:
-        scorer_clause = f"{top_scorer_name} ({top_scorer_points} pts) máximo anotador; "
-        facts_used += ["top_scorer_name", "top_scorer_points"]
+    slots = f.get("slots", [])
+    # Subjects only, never the figures: the card carries the numbers, and a
+    # caption that repeated stat lines would trip the number-tracer. Names have
+    # no digits, so nothing to mis-state.
+    subjects = []
+    for sl in slots:
+        subj = sl.get("subject")
+        if subj and subj not in subjects:
+            subjects.append(subj)
+    headline = "Resumen de la jornada"
+    subtitle = f"Jornada {round_number} · lo que hay que saber"
+    if len(subjects) >= 2:
+        joined = ", ".join(subjects[:-1]) + " y " + subjects[-1]
     else:
-        scorer_clause = ""
-
-    caption = (
-        f"Resumen de la jornada {round_number}: {n_matches} partidos disputados. "
-        f"{scorer_clause}mayor diferencia: {biggest_win_margin} puntos."
-    )
-
+        joined = subjects[0] if subjects else ""
+    caption = (f"El resumen de la jornada {round_number}: {joined}."
+               if joined else f"El resumen de la jornada {round_number}.")
     return CopyContract(
-        headline=headline,
-        subtitle=subtitle,
-        caption=caption,
-        hashtags=BASE_HASHTAGS + ("Jornada",),
-        facts_used=tuple(facts_used),
+        headline=headline, subtitle=subtitle, caption=caption,
+        hashtags=BASE_HASHTAGS + ("Resumen",),
+        facts_used=("slots", "round_number"),
     )
-
 
 def generate_copy_biggest_win(story: Dict[str, Any]) -> CopyContract:
     f = story["facts"]

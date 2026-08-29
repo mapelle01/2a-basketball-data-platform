@@ -252,26 +252,23 @@ class TestImperfectData:
             # The external_id shows up as the display name; not a hallucination.
             assert item.fact_validation["ok"] is True
 
-    def test_round_recap_is_not_emitted_by_the_pipeline(self):
-        # round_recap was retired (see registry): it crammed four unrelated
-        # numbers onto one card. The pipeline must no longer produce it.
+    def test_round_recap_needs_enough_stories(self):
+        # Redefined recap: up to five curated stories, and fewer than three is
+        # not a recap. A round with matches but NO player data cannot field
+        # three stories, so no recap is emitted — while match_final still is.
         matches = [
             _match(external_id="m1", home=88, away=76),
             _match(external_id="m2", home=104, away=72),
         ]
         items = _pipeline().run("2025-2026", 12, matches, []).items
         assert not [i for i in items if i.story.story_type is StoryType.ROUND_RECAP]
-        # the round still produces content — one story per match, plus the
-        # biggest win — just not the grab-bag recap.
         assert [i for i in items if i.story.story_type is StoryType.MATCH_FINAL]
 
-    def test_round_recap_detector_still_fabricates_no_zero_scorer(self):
-        # The detector is dormant, not deleted; if it is ever revived it must
-        # still never invent a "0 pts" top scorer when no boxscore rows exist.
+    def test_round_recap_detector_returns_none_when_too_thin(self):
+        # One match, no boxscore rows → not enough stories → no recap (never a
+        # padded or fabricated one). The rich case is covered in test_round_recap.
         matches = [_match(external_id="m1", home=88, away=76)]
-        story = detect_round_recap("2025-2026", 12, matches, [])
-        assert story is not None
-        assert "top_scorer_points" not in story.facts
+        assert detect_round_recap("2025-2026", 12, matches, []) is None
 
     def test_player_of_round_approved_without_player_name(self):
         matches = [_match(external_id="m1")]

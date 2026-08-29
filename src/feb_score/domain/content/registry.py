@@ -107,6 +107,11 @@ register("player_of_round", Scope.ROUND)(
 # closest game). Editorial decision (Marc, Aug 2026) — the detector, template and
 # copy remain for reference but the pipeline never emits it. Re-register here to
 # revive it.
+register("round_recap", Scope.ROUND)(
+    lambda ctx: _one(_ins.detect_round_recap(
+        ctx.season_code, ctx.round_number, ctx.matches, ctx.player_lines,
+        ctx.season_context, ctx.bio))
+)
 register("biggest_win", Scope.ROUND)(
     lambda ctx: _one(_ins.detect_biggest_win(ctx.season_code, ctx.round_number, ctx.matches))
 )

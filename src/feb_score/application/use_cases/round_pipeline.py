@@ -425,16 +425,6 @@ class RoundPipeline:
                 },
             }
 
-        if story.template_id == "round_recap":
-            top_scorer = f.get("top_scorer_name") or f.get("top_scorer_external_id")
-            winner = f.get("biggest_win_winner") or {}
-            biggest_win_team = winner.get("team_name") or winner.get("team_external_id")
-            display = {
-                "top_scorer": top_scorer or "—",
-                "has_top_scorer": bool(top_scorer),
-                "biggest_win_team": biggest_win_team or "—",
-            }
-
         return {
             "story": story.to_dict(),
             "copy": copy,
