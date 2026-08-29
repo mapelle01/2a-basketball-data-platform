@@ -126,16 +126,19 @@ def generate_copy_player_of_round(story: Dict[str, Any]) -> CopyContract:
 def generate_copy_round_recap(story: Dict[str, Any]) -> CopyContract:
     f = story["facts"]
     round_number = story.get("round_number")
-    slots = f.get("slots", [])
-    # Subjects only, never the figures: the card carries the numbers, and a
-    # caption that repeated stat lines would trip the number-tracer. Names have
-    # no digits, so nothing to mis-state.
-    subjects = []
-    for sl in slots:
-        subj = sl.get("subject")
-        if subj and subj not in subjects:
-            subjects.append(subj)
-    headline = "Resumen de la jornada"
+    # Subjects only, never the figures: the card carries the numbers.
+    subjects: List[str] = []
+    hero = f.get("hero") or {}
+    top = f.get("top") or {}
+    for who in (hero.get("name"), top.get("name")):
+        if who and who not in subjects:
+            subjects.append(who)
+    for tile in f.get("tiles", []):
+        sub = (tile.get("sub") or "").split(" ")[0]
+        # tile subs start with a team name; keep it clean, drop trailing digits
+        if sub and not sub.isdigit() and sub not in subjects:
+            subjects.append(sub)
+    headline = "La jornada en datos"
     subtitle = f"Jornada {round_number} · lo que hay que saber"
     if len(subjects) >= 2:
         joined = ", ".join(subjects[:-1]) + " y " + subjects[-1]
@@ -146,7 +149,7 @@ def generate_copy_round_recap(story: Dict[str, Any]) -> CopyContract:
     return CopyContract(
         headline=headline, subtitle=subtitle, caption=caption,
         hashtags=BASE_HASHTAGS + ("Resumen",),
-        facts_used=("slots", "round_number"),
+        facts_used=("hero", "top", "tiles", "round_number"),
     )
 
 def generate_copy_biggest_win(story: Dict[str, Any]) -> CopyContract:

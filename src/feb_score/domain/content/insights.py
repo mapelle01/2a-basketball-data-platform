@@ -185,83 +185,88 @@ def detect_round_recap(
     season_context: "Optional[SeasonContext]" = None,
     bio: "Optional[LeagueBio]" = None,
 ) -> Optional[StoryObject]:
-    """The round in a few curated stories — one per role (hero stat, top
-    performance, team story, trend), each drawn from a real detection. The rule:
-    a slot that has no story simply does not appear, never padded. Fewer than
-    three real stories is not a recap, so it yields nothing rather than a thin
-    card."""
+    """The round in a hierarchy of curated stories: a hero stat, the top
+    performance (with its line), and a row of secondary tiles. Each piece is
+    drawn from a real detection and omitted when there is no story; fewer than
+    three real data points is not a recap. ``bio`` is accepted for signature
+    stability (the fun-fact slot was removed)."""
     if not matches:
         return None
 
-    slots: List[Dict[str, Any]] = []
+    facts: Dict[str, Any] = {"matches_played": len(matches)}
+    points = 0
 
-    # --- Top Performance (needed first so Hero Stat can avoid duplicating it) ---
+    # --- Top performance: the player of the round, with the line behind it ---
     por = detect_player_of_round(season_code, round_number, player_lines)
-    por_pid = por.facts.get("player_external_id") if por else None
-
-    # --- Hero Stat: the round's single biggest scoring number. If that player
-    # is already the Top Performance, fall back to the biggest win margin so the
-    # two slots never tell the same story. ---
-    hero = max(player_lines, key=lambda p: p.points) if player_lines else None
-    biggest = detect_biggest_win(season_code, round_number, matches)
-    if hero and hero.points > 0 and hero.player_external_id != por_pid:
-        slots.append({
-            "role": "hero_stat", "label": "EL GRAN DATO",
-            "value": str(hero.points), "unit": "PTS",
-            "subject": display_name(hero.player_name),
-            "line": f"{display_name(hero.player_name)} · {hero.team_name or ''}".strip(" ·"),
-        })
-    elif biggest:
-        f = biggest.facts
-        win = f["home_team_name"] if f["home_score"] >= f["away_score"] else f["away_team_name"]
-        slots.append({
-            "role": "hero_stat", "label": "EL GRAN DATO",
-            "value": f"+{f['margin']}", "unit": "",
-            "subject": win or "",
-            "line": f"La mayor diferencia · {win or ''}".strip(" ·"),
-        })
-
-    # --- Top Performance ---
+    top_pid = por.facts.get("player_external_id") if por else None
     if por:
         f = por.facts
-        rating = f.get("rating")
-        slots.append({
-            "role": "top_performance", "label": "MEJOR ACTUACIÓN",
-            "value": _rating_str(rating) if rating is not None else str(f.get("points", 0)),
-            "unit": "NOTA" if rating is not None else "PTS",
-            "subject": f.get("player_name") or "",
-            "line": (f"{f.get('player_name')} · {f.get('points')} pts, "
-                     f"{f.get('rebounds')} reb, {f.get('assists')} ast"),
-        })
+        facts["top"] = {
+            "name": f.get("player_name"), "team": f.get("team_name"),
+            "team_external_id": f.get("team_external_id"),
+            "player_external_id": top_pid,
+            "points": f.get("points"), "rebounds": f.get("rebounds"),
+            "assists": f.get("assists"), "rating": f.get("rating"),
+        }
+        points += 1
 
-    # --- Team Story: the biggest win, if the round had a blowout (else skip) ---
-    if biggest and not (slots and slots[0]["role"] == "hero_stat"
-                        and slots[0]["value"].startswith("+")):
-        f = biggest.facts
-        win = f["home_team_name"] if f["home_score"] >= f["away_score"] else f["away_team_name"]
-        slots.append({
-            "role": "team_story", "label": "HISTORIA DE EQUIPO",
-            "value": f"{f['home_score']}-{f['away_score']}", "unit": "",
-            "subject": win or "",
-            "line": f"{win or ''} · +{f['margin']}".strip(" ·"),
-        })
+    biggest = detect_biggest_win(season_code, round_number, matches)
 
-    # --- Trend: the round's best active team streak ---
+    # --- Hero Stat: the round's biggest scoring number. If that is the top
+    # performer too, the hero becomes the biggest win margin so the two never
+    # tell the same story. ---
+    hero_is_margin = False
+    hero = max(player_lines, key=lambda p: p.points) if player_lines else None
+    if hero and hero.points > 0 and hero.player_external_id != top_pid:
+        facts["hero"] = {
+            "value": str(hero.points), "unit": "PTS",
+            "note": "Máxima anotación de la jornada",
+            "name": display_name(hero.player_name), "team": hero.team_name,
+            "team_external_id": hero.team_external_id,
+        }
+        points += 1
+    elif biggest:
+        bf = biggest.facts
+        win = bf["home_team_name"] if bf["home_score"] >= bf["away_score"] else bf["away_team_name"]
+        facts["hero"] = {
+            "value": f"+{bf['margin']}", "unit": "",
+            "note": "La mayor diferencia de la jornada",
+            "name": win, "team": None, "team_external_id": None,
+        }
+        hero_is_margin = True
+        points += 1
+
+    # --- Secondary tiles ---
+    tiles: List[Dict[str, Any]] = []
+    if biggest and not hero_is_margin:
+        bf = biggest.facts
+        win = bf["home_team_name"] if bf["home_score"] >= bf["away_score"] else bf["away_team_name"]
+        tiles.append({
+            "label": "MAYOR DIFERENCIA", "value": f"+{bf['margin']}",
+            "sub": f"{win or ''} {bf['home_score']}-{bf['away_score']}".strip(),
+        })
     if season_context is not None:
         from .season_insights import detect_streaks
-        streaks = detect_streaks(season_code, round_number, matches, season_context)
-        wins = [st for st in streaks if st.facts.get("streak_kind") == "win"]
+        wins = [st for st in detect_streaks(season_code, round_number, matches, season_context)
+                if st.facts.get("streak_kind") == "win"]
         best = max(wins, key=lambda st: st.facts.get("streak_length", 0), default=None)
         if best:
             f = best.facts
-            slots.append({
-                "role": "trend", "label": "LA RACHA",
-                "value": str(f["streak_length"]), "unit": "SEGUIDAS",
-                "subject": f.get("team_name") or "",
-                "line": f"{f.get('team_name') or ''} · victorias consecutivas".strip(" ·"),
+            tiles.append({
+                "label": "RACHA", "value": str(f["streak_length"]),
+                "sub": f.get("team_name") or "",
             })
+    # Highest team output of the round — always available from the scores.
+    top_team_match = max(matches, key=lambda m: max(m.home_score, m.away_score))
+    tp = max(top_team_match.home_score, top_team_match.away_score)
+    tt = (top_team_match.home_team_name if top_team_match.home_score >= top_team_match.away_score
+          else top_team_match.away_team_name)
+    tiles.append({"label": "MÁS ANOTADOR", "value": str(tp), "sub": tt or ""})
 
-    if len(slots) < 3:
+    facts["tiles"] = tiles[:3]
+    points += len(facts["tiles"])
+
+    if points < 3:
         return None
 
     return StoryObject(
@@ -269,7 +274,7 @@ def detect_round_recap(
         season_code=season_code,
         round_number=round_number,
         entities=StoryEntities(),
-        facts={"slots": slots[:5], "matches_played": len(matches)},
+        facts=facts,
         source_refs={
             "round": f"2afeb_score://seasons/{season_code}/rounds/{round_number}",
         },

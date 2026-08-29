@@ -1,9 +1,9 @@
-"""ROUND RECAP, redefined — the round in a few curated stories.
+"""ROUND RECAP, redefined — the round as a hierarchy of curated stories.
 
-Not the old grab-bag of four random numbers: one slot per role (hero stat, top
-performance, team story, trend), each drawn from a real detection, and the
-rule — a slot with no story does not appear. Fewer than three real stories is
-not a recap.
+Not the old grab-bag of four random numbers: a dominant hero stat, the top
+performance with its line, and a row of secondary tiles. Each piece is drawn
+from a real detection and omitted when there is no story; fewer than three real
+data points is not a recap.
 """
 
 from __future__ import annotations
@@ -41,75 +41,75 @@ def _line(pid, name, team, tn, pts, reb=4, ast=2, fgm=8, fga=14):
 
 
 def _full_round():
-    matches = [_match("m1", "tA", "tB", 100, 60, "Alicante", "CB Prat"),
-               _match("m2", "tC", "tD", 88, 84, "Fibwi", "Salou")]
+    matches = [_match("m1", "tA", "tB", 100, 60, "Alicante", "Ourense"),
+               _match("m2", "tC", "tD", 89, 84, "Zamora", "Salou")]
     lines = [
         _line("scorer", "GARCIA, LUCAS", "tA", "Alicante", 40, reb=3, ast=1, fgm=15, fga=28),
-        _line("star", "SCHOTT, FYNN", "tA", "Alicante", 28, reb=12, ast=10, fgm=10, fga=15),
-        _line("kid", "MITEO, MERVEDI", "tC", "Fibwi", 18, fgm=7, fga=12),
-        _line("c", "LOPEZ, ANA", "tB", "CB Prat", 15),
+        _line("star", "SCHOTT, FYNN", "tC", "Zamora", 28, reb=12, ast=10, fgm=10, fga=15),
+        _line("c", "LOPEZ, ANA", "tB", "Ourense", 15),
         _line("d", "RUIZ, PABLO", "tD", "Salou", 14),
     ]
     sc = SeasonContext(team_results={"tA": ((21, True), (22, True), (23, True), (24, True))})
-    bio = LeagueBio(birth_by_player={"kid": "2008-09-01"},
-                    nationality_by_player={"kid": "BENIN"})
-    return matches, lines, sc, bio
+    return matches, lines, sc
 
 
 class TestAssembly:
-    def test_fills_the_roles_from_real_detections(self):
-        matches, lines, sc, bio = _full_round()
-        s = detect_round_recap("2024-2025", 24, matches, lines, sc, bio)
-        roles = [sl["role"] for sl in s.facts["slots"]]
-        assert roles == ["hero_stat", "top_performance", "team_story", "trend"]
-        assert len(s.facts["slots"]) <= 5
+    def test_builds_hero_top_and_tiles(self):
+        matches, lines, sc = _full_round()
+        s = detect_round_recap("2024-2025", 24, matches, lines, sc)
+        assert s.facts["hero"]["value"] == "40" and s.facts["hero"]["unit"] == "PTS"
+        assert s.facts["top"]["name"] == "FYNN SCHOTT"
+        assert s.facts["top"]["rating"] is not None
+        labels = [t["label"] for t in s.facts["tiles"]]
+        assert "MAYOR DIFERENCIA" in labels and "RACHA" in labels and "MÁS ANOTADOR" in labels
 
-    def test_hero_stat_does_not_duplicate_top_performance(self):
-        matches, lines, sc, bio = _full_round()
-        s = detect_round_recap("2024-2025", 24, matches, lines, sc, bio)
-        hero = next(sl for sl in s.facts["slots"] if sl["role"] == "hero_stat")
-        top = next(sl for sl in s.facts["slots"] if sl["role"] == "top_performance")
-        assert hero["subject"] != top["subject"]
+    def test_hero_does_not_duplicate_top_performance(self):
+        matches, lines, sc = _full_round()
+        s = detect_round_recap("2024-2025", 24, matches, lines, sc)
+        assert s.facts["hero"]["name"] != s.facts["top"]["name"]
 
-    def test_a_slot_with_no_story_is_omitted(self):
-        # no season context → no trend slot
-        matches, lines, _, _ = _full_round()
-        s = detect_round_recap("2024-2025", 24, matches, lines, None, None)
-        roles = {sl["role"] for sl in s.facts["slots"]}
-        assert "trend" not in roles
-        assert "top_performance" in roles       # the ones that had a story remain
+    def test_hero_falls_back_to_margin_when_top_scorer_is_the_star(self):
+        # one dominant all-rounder who is ALSO the top scorer → hero becomes the
+        # biggest-win margin instead of repeating him
+        matches = [_match("m1", "tA", "tB", 100, 60, "Alicante", "Ourense")]
+        lines = [_line("star", "SCHOTT, FYNN", "tA", "Alicante", 40, reb=14, ast=11, fgm=15, fga=22),
+                 _line("b", "OTRO", "tB", "Ourense", 12)]
+        s = detect_round_recap("2024-2025", 24, matches, lines, None)
+        assert s.facts["hero"]["value"].startswith("+")     # the margin, not a player
 
-    def test_fewer_than_three_stories_is_not_a_recap(self):
-        # a single low-scoring game: player-of-round only, no blowout/streak/curioso
-        matches = [_match("m1", "tA", "tB", 70, 68, "Alicante", "CB Prat")]
-        lines = [_line("a", "UNO", "tA", "Alicante", 11),
-                 _line("b", "DOS", "tB", "CB Prat", 9)]
-        assert detect_round_recap("2024-2025", 24, matches, lines, None, None) is None
+    def test_a_missing_story_is_omitted(self):
+        matches, lines, _ = _full_round()
+        s = detect_round_recap("2024-2025", 24, matches, lines, None)  # no streak
+        assert "RACHA" not in [t["label"] for t in s.facts["tiles"]]
+
+    def test_fewer_than_three_data_points_is_not_a_recap(self):
+        matches = [_match("m1", "tA", "tB", 70, 68, "Alicante", "Ourense")]
+        lines = [_line("a", "UNO", "tA", "Alicante", 11), _line("b", "DOS", "tB", "Ourense", 9)]
+        assert detect_round_recap("2024-2025", 24, matches, lines, None) is None
 
     def test_no_matches_no_recap(self):
-        assert detect_round_recap("2024-2025", 24, [], [], None, None) is None
+        assert detect_round_recap("2024-2025", 24, [], [], None) is None
 
 
 class TestCopyAndCard:
     def test_caption_has_no_untraceable_numbers(self):
-        matches, lines, sc, bio = _full_round()
-        s = detect_round_recap("2024-2025", 24, matches, lines, sc, bio)
+        matches, lines, sc = _full_round()
+        s = detect_round_recap("2024-2025", 24, matches, lines, sc)
         c = generate_copy({"story_type": "round_recap", "round_number": 24, "facts": s.facts})
         assert validate_copy(c.to_dict(), {**s.facts, "round_number": 24}).ok
-        assert c.headline == "Resumen de la jornada"
+        assert c.headline == "La jornada en datos"
 
-    def test_renders_one_block_per_role(self):
+    def test_renders_the_hierarchy(self):
         assert STORY_TO_TEMPLATE[StoryType.ROUND_RECAP] == "round_recap"
-        matches, lines, sc, bio = _full_round()
-        s = detect_round_recap("2024-2025", 24, matches, lines, sc, bio)
+        matches, lines, sc = _full_round()
+        s = detect_round_recap("2024-2025", 24, matches, lines, sc)
         svg = render_template("round_recap", {
             "story": {"facts": s.facts, "round_number": 24, "season_code": "2024-2025",
                       "story_type": "round_recap"},
             "display": {}, "assets": {}, "copy": {}, "meta": {},
         })
         ET.fromstring(svg)
-        assert "Resumen de la jornada" in svg
-        for label in ("EL GRAN DATO", "MEJOR ACTUACIÓN", "HISTORIA DE EQUIPO",
-                      "LA RACHA"):
+        assert "LA JORNADA" in svg and "EN DATOS" in svg
+        for label in ("EL GRAN DATO", "MEJOR ACTUACIÓN", "MAYOR DIFERENCIA", "MÁS ANOTADOR"):
             assert label in svg
-        assert "DATO CURIOSO" not in svg   # the fun-fact slot was removed
+        assert "NOTA FEB" in svg

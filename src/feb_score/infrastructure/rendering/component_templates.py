@@ -508,53 +508,121 @@ def render_player_of_round(data: Dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _wrap_words(text: str, max_chars: int) -> List[str]:
+    """Greedy word-wrap into short lines — for the hero note's narrow column."""
+    lines, cur = [], ""
+    for w in text.split():
+        if cur and len(cur) + 1 + len(w) > max_chars:
+            lines.append(cur); cur = w
+        else:
+            cur = f"{cur} {w}".strip()
+    if cur:
+        lines.append(cur)
+    return lines or [""]
+
+
 def render_round_recap(data: Dict[str, Any]) -> str:
-    """The round in up to five curated stories, one per role. Each slot is a
-    block: a small role label, the story's number, and one line naming it. Slots
-    that carried no story never reached here, so the card shows only what
-    actually happened — never a padded five."""
+    """The round in a hierarchy: a dominant hero stat, the top performance with
+    its line, and a row of secondary tiles. Slots that carried no story never
+    reach here, so the card shows only what happened."""
     facts = data["story"]["facts"]
     season = data["story"].get("season_code")
     round_number = data["story"].get("round_number")
-    slots = facts.get("slots", [])
-
+    hero = facts.get("hero")
+    top = facts.get("top")
+    tiles = facts.get("tiles", [])
+    X, W = CONTENT_X, CONTENT_W
     body: List[str] = []
-    body.append(C.text(CONTENT_X, 176, "Resumen de la jornada", size=76,
-                       weight=FontWeight.DISPLAY, fill=Color.WHITE, tracking=LetterSpacing.HEADLINE))
-    body.append(C.text(CONTENT_X, 224, f"JORNADA {round_number}", size=FontSize.LABEL,
-                       weight=FontWeight.LABEL, fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True))
-    body.append(_corner_mark())
 
-    # One block per slot, distributed down the page to the footer.
-    top = 320
-    n = max(1, len(slots))
-    step = min(180, (FOOTER_Y - 40 - top) // n)
-    for i, slot in enumerate(slots):
-        by = top + i * step
-        body.append(C.hline(CONTENT_X, by, CONTENT_W, weight=Line.THIN,
-                            color=Color.GREY, opacity=0.28))
-        body.append(C.text(CONTENT_X, by + 40, str(slot.get("label", "")).upper(),
-                           size=FontSize.MICRO, weight=FontWeight.LABEL, fill=Color.RED,
-                           tracking=LetterSpacing.CAPS, upper=True))
-        # The number is the row's anchor: a small red unit sits ABOVE it as a
-        # header (brand accent, never grey), the big figure right below. Unit
-        # and role label share the top line, bookending the row in red.
-        unit = str(slot.get("unit", ""))
-        if unit:
-            body.append(C.text(CONTENT_X + CONTENT_W, by + 40, unit, size=FontSize.MICRO,
-                               weight=FontWeight.LABEL, fill=Color.RED, anchor="end",
+    # Eyebrow + two-line title.
+    body.append(C.text(X, 96, f"SEGUNDA FEB · JORNADA {round_number}", size=FontSize.LABEL,
+                       weight=FontWeight.LABEL, fill=Color.RED, tracking=LetterSpacing.CAPS, upper=True))
+    body.append(C.text(X, 214, "LA JORNADA", size=104, weight=FontWeight.HERO,
+                       fill=Color.WHITE, tracking=LetterSpacing.HERO))
+    body.append(C.text(X, 312, "EN DATOS", size=104, weight=FontWeight.HERO,
+                       fill=Color.WHITE, tracking=LetterSpacing.HERO))
+    body.append(C.accent_bar(X, 344, 92, Line.HEAVY))
+
+    # HERO — the dominant stat, number huge in red on the right.
+    if hero:
+        by = 430
+        body.append(C.hline(X, by - 20, W, weight=Line.THIN, color=Color.GREY, opacity=0.22))
+        body.append(C.text(X, by + 22, "EL GRAN DATO", size=FontSize.MICRO, weight=FontWeight.LABEL,
+                           fill=Color.RED, tracking=LetterSpacing.CAPS, upper=True))
+        body.append(C.text(X, by + 76, str(hero["name"]).upper(), size=FontSize.H2,
+                           weight=FontWeight.DISPLAY, fill=Color.WHITE, upper=True))
+        if hero.get("team"):
+            body.append(C.text(X, by + 112, str(hero["team"]).upper(), size=FontSize.MICRO,
+                               weight=FontWeight.LABEL, fill=Color.GREY,
                                tracking=LetterSpacing.CAPS, upper=True))
-        val = str(slot.get("value", ""))
-        body.append(C.text(CONTENT_X + CONTENT_W, by + 104, val, size=FontSize.H1,
-                           weight=FontWeight.HERO, fill=Color.WHITE, anchor="end",
-                           tracking=LetterSpacing.DISPLAY))
-        # the story line, left, under the label
-        body.append(C.text(CONTENT_X, by + 88, str(slot.get("line", "")),
-                           size=FontSize.H3, weight=FontWeight.TITLE, fill=Color.WHITE))
+        if hero.get("badge_uri"):
+            body.append(f'<image href="{hero["badge_uri"]}" x="{X}" y="{by + 132}"'
+                        f' width="52" height="52" preserveAspectRatio="xMidYMid meet"/>')
+        body.append(C.text(X + 600, by + 176, str(hero["value"]), size=168,
+                           weight=FontWeight.HERO, fill=Color.RED, anchor="middle",
+                           tracking=LetterSpacing.HERO))
+        if hero.get("unit"):
+            body.append(C.text(X + W, by + 70, hero["unit"], size=FontSize.H2,
+                               weight=FontWeight.HERO, fill=Color.RED, anchor="end"))
+        for j, ln in enumerate(_wrap_words(str(hero.get("note", "")).upper(), 16)):
+            body.append(C.text(X + W, by + 116 + j * 26, ln, size=FontSize.MICRO,
+                               weight=FontWeight.LABEL, fill=Color.GREY, anchor="end",
+                               tracking=LetterSpacing.CAPS, upper=True))
 
-    ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB", season=season)
+    # MEJOR ACTUACIÓN — name + line breakdown + the note on the right.
+    if top:
+        by = 730
+        body.append(C.hline(X, by - 20, W, weight=Line.THIN, color=Color.GREY, opacity=0.22))
+        body.append(C.text(X, by + 22, "MEJOR ACTUACIÓN", size=FontSize.MICRO, weight=FontWeight.LABEL,
+                           fill=Color.RED, tracking=LetterSpacing.CAPS, upper=True))
+        body.append(C.text(X, by + 76, str(top["name"]).upper(), size=FontSize.H2,
+                           weight=FontWeight.DISPLAY, fill=Color.WHITE, upper=True))
+        if top.get("team"):
+            body.append(C.text(X, by + 112, str(top["team"]).upper(), size=FontSize.MICRO,
+                               weight=FontWeight.LABEL, fill=Color.GREY,
+                               tracking=LetterSpacing.CAPS, upper=True))
+        # three-stat breakdown, centred block on the right half
+        stat_cells = [(top.get("points"), "PTS"), (top.get("rebounds"), "REB"), (top.get("assists"), "AST")]
+        cx0 = X + 560
+        col = 128
+        for i, (val, lab) in enumerate(stat_cells):
+            cx = cx0 + i * col
+            if i > 0:
+                body.append(C.vline(cx - 24, by + 48, 66, color=Color.GREY, opacity=0.3))
+            body.append(C.text(cx, by + 104, str(val), size=FontSize.H2, weight=FontWeight.HERO,
+                               fill=Color.WHITE, anchor="middle", tracking=LetterSpacing.DISPLAY))
+            body.append(C.text(cx, by + 132, lab, size=FontSize.MICRO, weight=FontWeight.LABEL,
+                               fill=Color.GREY, anchor="middle", tracking=LetterSpacing.CAPS, upper=True))
+        rating = top.get("rating")
+        if rating is not None:
+            body.append(C.text(X + W, by + 104, C._fmt_rating(float(rating)), size=FontSize.H2,
+                               weight=FontWeight.HERO, fill=Color.RED, anchor="end",
+                               tracking=LetterSpacing.DISPLAY))
+            body.append(C.text(X + W, by + 132, "NOTA FEB", size=FontSize.MICRO, weight=FontWeight.LABEL,
+                               fill=Color.GREY, anchor="end", tracking=LetterSpacing.CAPS, upper=True))
+
+    # TILES — up to three equal secondary cards.
+    if tiles:
+        ty = 940
+        body.append(C.hline(X, ty - 20, W, weight=Line.THIN, color=Color.GREY, opacity=0.22))
+        n = len(tiles)
+        col_w = W / n
+        for i, tile in enumerate(tiles):
+            tx = X + i * col_w
+            if i > 0:
+                body.append(C.vline(tx, ty + 6, 150, color=Color.GREY, opacity=0.25))
+            body.append(C.text(tx + 24, ty + 44, str(tile["label"]), size=FontSize.MICRO,
+                               weight=FontWeight.LABEL, fill=Color.RED,
+                               tracking=LetterSpacing.CAPS, upper=True))
+            body.append(C.text(tx + 24, ty + 116, str(tile["value"]), size=FontSize.H1,
+                               weight=FontWeight.HERO, fill=Color.WHITE, tracking=LetterSpacing.DISPLAY))
+            body.append(C.text(tx + 24, ty + 150, str(tile.get("sub", "")), size=FontSize.MICRO,
+                               weight=FontWeight.LABEL, fill=Color.GREY, tracking=LetterSpacing.LABEL))
+
+    ft, _ = C.brand_footer(X, FOOTER_Y, W, competition="Números que cuentan historias", season=season)
     body.append(ft)
     return _svg_document("".join(body), BG_DARK)
+
 
 def render_stat_leaderboard(data: Dict[str, Any]) -> str:
     facts = data["story"]["facts"]
