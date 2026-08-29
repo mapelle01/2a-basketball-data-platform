@@ -1,9 +1,9 @@
-"""ROUND RECAP, redefined — the round in up to five curated stories.
+"""ROUND RECAP, redefined — the round in a few curated stories.
 
-Not the old grab-bag of four numbers: one slot per role (hero stat, top
-performance, team story, trend, fun fact), each drawn from a real detection,
-and the rule — a slot with no story does not appear. Fewer than three real
-stories is not a recap.
+Not the old grab-bag of four random numbers: one slot per role (hero stat, top
+performance, team story, trend), each drawn from a real detection, and the
+rule — a slot with no story does not appear. Fewer than three real stories is
+not a recap.
 """
 
 from __future__ import annotations
@@ -57,11 +57,11 @@ def _full_round():
 
 
 class TestAssembly:
-    def test_fills_the_five_roles_from_real_detections(self):
+    def test_fills_the_roles_from_real_detections(self):
         matches, lines, sc, bio = _full_round()
         s = detect_round_recap("2024-2025", 24, matches, lines, sc, bio)
         roles = [sl["role"] for sl in s.facts["slots"]]
-        assert roles == ["hero_stat", "top_performance", "team_story", "trend", "fun_fact"]
+        assert roles == ["hero_stat", "top_performance", "team_story", "trend"]
         assert len(s.facts["slots"]) <= 5
 
     def test_hero_stat_does_not_duplicate_top_performance(self):
@@ -72,11 +72,11 @@ class TestAssembly:
         assert hero["subject"] != top["subject"]
 
     def test_a_slot_with_no_story_is_omitted(self):
-        # no season context and no bio → no trend, no fun fact
+        # no season context → no trend slot
         matches, lines, _, _ = _full_round()
         s = detect_round_recap("2024-2025", 24, matches, lines, None, None)
         roles = {sl["role"] for sl in s.facts["slots"]}
-        assert "trend" not in roles and "fun_fact" not in roles
+        assert "trend" not in roles
         assert "top_performance" in roles       # the ones that had a story remain
 
     def test_fewer_than_three_stories_is_not_a_recap(self):
@@ -110,5 +110,6 @@ class TestCopyAndCard:
         ET.fromstring(svg)
         assert "Resumen de la jornada" in svg
         for label in ("EL GRAN DATO", "MEJOR ACTUACIÓN", "HISTORIA DE EQUIPO",
-                      "LA RACHA", "DATO CURIOSO"):
+                      "LA RACHA"):
             assert label in svg
+        assert "DATO CURIOSO" not in svg   # the fun-fact slot was removed

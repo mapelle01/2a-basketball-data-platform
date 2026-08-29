@@ -185,10 +185,11 @@ def detect_round_recap(
     season_context: "Optional[SeasonContext]" = None,
     bio: "Optional[LeagueBio]" = None,
 ) -> Optional[StoryObject]:
-    """The round in five stories, curated — one per role, each drawn from a real
-    detection. The rule: a slot that has no story simply does not appear (up to
-    five, never padded). Fewer than three real stories is not a recap, so it
-    yields nothing rather than a thin card."""
+    """The round in a few curated stories — one per role (hero stat, top
+    performance, team story, trend), each drawn from a real detection. The rule:
+    a slot that has no story simply does not appear, never padded. Fewer than
+    three real stories is not a recap, so it yields nothing rather than a thin
+    card."""
     if not matches:
         return None
 
@@ -259,26 +260,6 @@ def detect_round_recap(
                 "subject": f.get("team_name") or "",
                 "line": f"{f.get('team_name') or ''} · victorias consecutivas".strip(" ·"),
             })
-
-    # --- Fun Fact: the first curioso the round offers ---
-    fun = (
-        detect_lone_flag(season_code, round_number, player_lines, bio)
-        or detect_young_gun(season_code, round_number, player_lines, bio, matches)
-        or detect_veteran(season_code, round_number, player_lines, bio, matches)
-        or detect_defensive_anchor(season_code, round_number, player_lines)
-    )
-    if fun:
-        f = fun.facts
-        name = f.get("player_name") or ""
-        if fun.story_type is StoryType.LONE_FLAG:
-            val, unit, line = "1", "ÚNICO", f"{name} · único de {f.get('nationality')}"
-        elif fun.story_type in (StoryType.YOUNG_GUN, StoryType.VETERAN):
-            val, unit, line = str(f.get("age")), "AÑOS", f"{name} · {f.get('points')} pts"
-        else:  # defensive anchor
-            val = str(f.get("defensive_actions"))
-            unit, line = "ROB+TAP", f"{name} · defensa de la jornada"
-        slots.append({"role": "fun_fact", "label": "DATO CURIOSO",
-                      "value": val, "unit": unit, "subject": name, "line": line})
 
     if len(slots) < 3:
         return None

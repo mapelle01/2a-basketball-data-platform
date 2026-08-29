@@ -536,18 +536,20 @@ def render_round_recap(data: Dict[str, Any]) -> str:
         body.append(C.text(CONTENT_X, by + 40, str(slot.get("label", "")).upper(),
                            size=FontSize.MICRO, weight=FontWeight.LABEL, fill=Color.RED,
                            tracking=LetterSpacing.CAPS, upper=True))
-        # the number, big, on the right; its unit tucked after it
-        val = str(slot.get("value", ""))
-        body.append(C.text(CONTENT_X + CONTENT_W, by + 70, val, size=FontSize.H1,
-                           weight=FontWeight.HERO, fill=Color.WHITE, anchor="end",
-                           tracking=LetterSpacing.DISPLAY))
+        # The number is the row's anchor: a small red unit sits ABOVE it as a
+        # header (brand accent, never grey), the big figure right below. Unit
+        # and role label share the top line, bookending the row in red.
         unit = str(slot.get("unit", ""))
         if unit:
-            body.append(C.text(CONTENT_X + CONTENT_W, by + 96, unit, size=FontSize.MICRO,
-                               weight=FontWeight.LABEL, fill=Color.GREY, anchor="end",
+            body.append(C.text(CONTENT_X + CONTENT_W, by + 40, unit, size=FontSize.MICRO,
+                               weight=FontWeight.LABEL, fill=Color.RED, anchor="end",
                                tracking=LetterSpacing.CAPS, upper=True))
+        val = str(slot.get("value", ""))
+        body.append(C.text(CONTENT_X + CONTENT_W, by + 104, val, size=FontSize.H1,
+                           weight=FontWeight.HERO, fill=Color.WHITE, anchor="end",
+                           tracking=LetterSpacing.DISPLAY))
         # the story line, left, under the label
-        body.append(C.text(CONTENT_X, by + 78, str(slot.get("line", "")),
+        body.append(C.text(CONTENT_X, by + 88, str(slot.get("line", "")),
                            size=FontSize.H3, weight=FontWeight.TITLE, fill=Color.WHITE))
 
     ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB", season=season)
