@@ -508,6 +508,15 @@ def render_player_of_round(data: Dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _fit_to_width(text: str, width: float, max_size: int, min_size: int = 30) -> int:
+    """Largest size at which ``text`` fits ``width``. The recap puts a name and
+    a big number side by side, so the name must yield rather than collide — a
+    long name shrinks instead of running into the figure."""
+    n = max(1, len(text))
+    size = int(width / (n * _HEAD_ADVANCE))
+    return max(min_size, min(max_size, size))
+
+
 def _wrap_words(text: str, max_chars: int) -> List[str]:
     """Greedy word-wrap into short lines — for the hero note's narrow column."""
     lines, cur = [], ""
@@ -549,7 +558,9 @@ def render_round_recap(data: Dict[str, Any]) -> str:
         body.append(C.hline(X, by - 20, W, weight=Line.THIN, color=Color.GREY, opacity=0.22))
         body.append(C.text(X, by + 22, "EL GRAN DATO", size=FontSize.MICRO, weight=FontWeight.LABEL,
                            fill=Color.RED, tracking=LetterSpacing.CAPS, upper=True))
-        body.append(C.text(X, by + 76, str(hero["name"]).upper(), size=FontSize.H2,
+        hero_name = str(hero["name"]).upper()
+        body.append(C.text(X, by + 76, hero_name,
+                           size=_fit_to_width(hero_name, 430, FontSize.H2, min_size=26),
                            weight=FontWeight.DISPLAY, fill=Color.WHITE, upper=True))
         if hero.get("team"):
             body.append(C.text(X, by + 112, str(hero["team"]).upper(), size=FontSize.MICRO,
@@ -558,16 +569,16 @@ def render_round_recap(data: Dict[str, Any]) -> str:
         if hero.get("badge_uri"):
             body.append(f'<image href="{hero["badge_uri"]}" x="{X}" y="{by + 132}"'
                         f' width="52" height="52" preserveAspectRatio="xMidYMid meet"/>')
-        body.append(C.text(X + 600, by + 176, str(hero["value"]), size=168,
+        body.append(C.text(X + 570, by + 176, str(hero["value"]), size=168,
                            weight=FontWeight.HERO, fill=Color.RED, anchor="middle",
                            tracking=LetterSpacing.HERO))
         if hero.get("unit"):
             body.append(C.text(X + W, by + 70, hero["unit"], size=FontSize.H2,
                                weight=FontWeight.HERO, fill=Color.RED, anchor="end"))
-        for j, ln in enumerate(_wrap_words(str(hero.get("note", "")).upper(), 16)):
-            body.append(C.text(X + W, by + 116 + j * 26, ln, size=FontSize.MICRO,
+        for j, ln in enumerate(_wrap_words(str(hero.get("note", "")).upper(), 13)):
+            body.append(C.text(X + W, by + 122 + j * 30, ln, size=FontSize.MICRO,
                                weight=FontWeight.LABEL, fill=Color.GREY, anchor="end",
-                               tracking=LetterSpacing.CAPS, upper=True))
+                               tracking=LetterSpacing.LABEL, upper=True))
 
     # MEJOR ACTUACIÓN — name + line breakdown + the note on the right.
     if top:
@@ -575,16 +586,18 @@ def render_round_recap(data: Dict[str, Any]) -> str:
         body.append(C.hline(X, by - 20, W, weight=Line.THIN, color=Color.GREY, opacity=0.22))
         body.append(C.text(X, by + 22, "MEJOR ACTUACIÓN", size=FontSize.MICRO, weight=FontWeight.LABEL,
                            fill=Color.RED, tracking=LetterSpacing.CAPS, upper=True))
-        body.append(C.text(X, by + 76, str(top["name"]).upper(), size=FontSize.H2,
+        top_name = str(top["name"]).upper()
+        body.append(C.text(X, by + 76, top_name,
+                           size=_fit_to_width(top_name, 380, FontSize.H2, min_size=26),
                            weight=FontWeight.DISPLAY, fill=Color.WHITE, upper=True))
         if top.get("team"):
             body.append(C.text(X, by + 112, str(top["team"]).upper(), size=FontSize.MICRO,
                                weight=FontWeight.LABEL, fill=Color.GREY,
-                               tracking=LetterSpacing.CAPS, upper=True))
+                               tracking=LetterSpacing.LABEL, upper=True))
         # three-stat breakdown, centred block on the right half
         stat_cells = [(top.get("points"), "PTS"), (top.get("rebounds"), "REB"), (top.get("assists"), "AST")]
-        cx0 = X + 560
-        col = 128
+        cx0 = X + 470
+        col = 120
         for i, (val, lab) in enumerate(stat_cells):
             cx = cx0 + i * col
             if i > 0:
@@ -592,14 +605,15 @@ def render_round_recap(data: Dict[str, Any]) -> str:
             body.append(C.text(cx, by + 104, str(val), size=FontSize.H2, weight=FontWeight.HERO,
                                fill=Color.WHITE, anchor="middle", tracking=LetterSpacing.DISPLAY))
             body.append(C.text(cx, by + 132, lab, size=FontSize.MICRO, weight=FontWeight.LABEL,
-                               fill=Color.GREY, anchor="middle", tracking=LetterSpacing.CAPS, upper=True))
+                               fill=Color.GREY, anchor="middle", tracking=LetterSpacing.LABEL, upper=True))
         rating = top.get("rating")
         if rating is not None:
+            body.append(C.vline(X + W - 150, by + 48, 66, color=Color.GREY, opacity=0.3))
             body.append(C.text(X + W, by + 104, C._fmt_rating(float(rating)), size=FontSize.H2,
                                weight=FontWeight.HERO, fill=Color.RED, anchor="end",
                                tracking=LetterSpacing.DISPLAY))
             body.append(C.text(X + W, by + 132, "NOTA FEB", size=FontSize.MICRO, weight=FontWeight.LABEL,
-                               fill=Color.GREY, anchor="end", tracking=LetterSpacing.CAPS, upper=True))
+                               fill=Color.GREY, anchor="end", tracking=LetterSpacing.LABEL, upper=True))
 
     # TILES — up to three equal secondary cards.
     if tiles:
@@ -616,10 +630,11 @@ def render_round_recap(data: Dict[str, Any]) -> str:
                                tracking=LetterSpacing.CAPS, upper=True))
             body.append(C.text(tx + 24, ty + 116, str(tile["value"]), size=FontSize.H1,
                                weight=FontWeight.HERO, fill=Color.WHITE, tracking=LetterSpacing.DISPLAY))
-            body.append(C.text(tx + 24, ty + 150, str(tile.get("sub", "")), size=FontSize.MICRO,
-                               weight=FontWeight.LABEL, fill=Color.GREY, tracking=LetterSpacing.LABEL))
+            body.append(C.text(tx + 24, ty + 150, str(tile.get("sub", "")).upper(),
+                               size=FontSize.MICRO, weight=FontWeight.LABEL, fill=Color.GREY,
+                               tracking=LetterSpacing.LABEL, upper=True))
 
-    ft, _ = C.brand_footer(X, FOOTER_Y, W, competition="Números que cuentan historias", season=season)
+    ft, _ = C.brand_footer(X, FOOTER_Y, W, competition="Segunda FEB", season=season)
     body.append(ft)
     return _svg_document("".join(body), BG_DARK)
 
