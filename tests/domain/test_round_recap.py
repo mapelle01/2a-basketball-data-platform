@@ -61,7 +61,8 @@ class TestAssembly:
         assert s.facts["top"]["name"] == "FYNN SCHOTT"
         assert s.facts["top"]["rating"] is not None
         labels = [t["label"] for t in s.facts["tiles"]]
-        assert "MAYOR DIFERENCIA" in labels and "RACHA" in labels and "MÁS ANOTADOR" in labels
+        assert labels == ["MAYOR DIFERENCIA", "VICTORIAS CONSECUTIVAS",
+                          "MÁXIMA ANOTACIÓN DE EQUIPO"]
 
     def test_hero_does_not_duplicate_top_performance(self):
         matches, lines, sc = _full_round()
@@ -80,7 +81,7 @@ class TestAssembly:
     def test_a_missing_story_is_omitted(self):
         matches, lines, _ = _full_round()
         s = detect_round_recap("2024-2025", 24, matches, lines, None)  # no streak
-        assert "RACHA" not in [t["label"] for t in s.facts["tiles"]]
+        assert "VICTORIAS CONSECUTIVAS" not in [t["label"] for t in s.facts["tiles"]]
 
     def test_fewer_than_three_data_points_is_not_a_recap(self):
         matches = [_match("m1", "tA", "tB", 70, 68, "Alicante", "Ourense")]
@@ -110,6 +111,39 @@ class TestCopyAndCard:
         })
         ET.fromstring(svg)
         assert "LA JORNADA" in svg and "EN DATOS" in svg
-        for label in ("EL GRAN DATO", "MEJOR ACTUACIÓN", "MAYOR DIFERENCIA", "MÁS ANOTADOR"):
+        for label in ("EL GRAN DATO", "MEJOR ACTUACIÓN", "MAYOR DIFERENCIA",
+                      "MÁXIMA ANOTACIÓN DE EQUIPO"):
             assert label in svg
         assert "NOTA FEB" in svg
+
+
+class TestColourDiscipline:
+    """Red is the brand, never a verdict. The recap once painted its hero
+    figure red, which reads as "this number is good" — the one thing the
+    identity forbids. Every FIGURE must be white; red is left to labels, rules
+    and one small indicator."""
+
+    @staticmethod
+    def _svg():
+        matches, lines, sc = _full_round()
+        s = detect_round_recap("2024-2025", 24, matches, lines, sc)
+        return render_template("round_recap", {
+            "story": {"facts": s.facts, "round_number": 24, "season_code": "2024-2025",
+                      "story_type": "round_recap"},
+            "display": {}, "assets": {}, "copy": {}, "meta": {},
+        })
+
+    def test_every_figure_is_white(self):
+        import re
+        from feb_score.infrastructure.rendering.design_system import Color
+
+        svg = self._svg()
+        # any <text> whose content is a bare figure must not be painted red
+        for m in re.finditer(r'<text([^>]*)>([^<]*)</text>', svg):
+            attrs, txt = m.group(1), m.group(2).strip()
+            if re.fullmatch(r"[+\-]?[\d.,]+", txt):
+                assert f'fill="{Color.RED}"' not in attrs, f"figure {txt!r} painted red"
+
+    def test_red_is_still_present_as_the_brand(self):
+        from feb_score.infrastructure.rendering.design_system import Color
+        assert Color.RED in self._svg()      # labels, rules, indicator

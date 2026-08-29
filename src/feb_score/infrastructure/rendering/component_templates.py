@@ -517,6 +517,16 @@ def _fit_to_width(text: str, width: float, max_size: int, min_size: int = 30) ->
     return max(min_size, min(max_size, size))
 
 
+def _fit_caps(text: str, width: float, max_size: int, min_size: int = 12) -> int:
+    """Largest size at which a tracked, uppercase label fits ``width``. Measured
+    with the same advance the stat labels use, so a long label shrinks instead
+    of running past the margin."""
+    size = max_size
+    while size > min_size and C._caps_width(text.upper(), size) > width:
+        size -= 1
+    return size
+
+
 def _wrap_words(text: str, max_chars: int) -> List[str]:
     """Greedy word-wrap into short lines — for the hero note's narrow column."""
     lines, cur = [], ""
@@ -531,9 +541,13 @@ def _wrap_words(text: str, max_chars: int) -> List[str]:
 
 
 def render_round_recap(data: Dict[str, Any]) -> str:
-    """The round in a hierarchy: a dominant hero stat, the top performance with
-    its line, and a row of secondary tiles. Slots that carried no story never
-    reach here, so the card shows only what happened."""
+    """LA JORNADA EN DATOS — the round as an editorial data sheet.
+
+    Hierarchy comes from size, position and weight, never from colour: every
+    figure is WHITE. Red is the brand only — the eyebrow, the block labels, the
+    rules and one small rating indicator. Laid out on an 8px grid with wide
+    negative space so the piece scans at thumbnail size.
+    """
     facts = data["story"]["facts"]
     season = data["story"].get("season_code")
     round_number = data["story"].get("round_number")
@@ -541,97 +555,114 @@ def render_round_recap(data: Dict[str, Any]) -> str:
     top = facts.get("top")
     tiles = facts.get("tiles", [])
     X, W = CONTENT_X, CONTENT_W
+    R = X + W
     body: List[str] = []
 
-    # Eyebrow + two-line title.
-    body.append(C.text(X, 96, f"SEGUNDA FEB · JORNADA {round_number}", size=FontSize.LABEL,
-                       weight=FontWeight.LABEL, fill=Color.RED, tracking=LetterSpacing.CAPS, upper=True))
-    body.append(C.text(X, 214, "LA JORNADA", size=104, weight=FontWeight.HERO,
-                       fill=Color.WHITE, tracking=LetterSpacing.HERO))
-    body.append(C.text(X, 312, "EN DATOS", size=104, weight=FontWeight.HERO,
-                       fill=Color.WHITE, tracking=LetterSpacing.HERO))
-    body.append(C.accent_bar(X, 344, 92, Line.HEAVY))
+    # The blueprint must never compete with the data: a soft scrim calms it.
+    body.append(f'<rect x="0" y="0" width="{CANVAS.width}" height="{CANVAS.height}"'
+                f' fill="{Color.BLACK}" fill-opacity="0.45"/>')
 
-    # HERO — the dominant stat, number huge in red on the right.
+    # ---- HEADER (8px grid: 104 / 200 / 280 / 312) -------------------------
+    body.append(C.text(X, 104, f"SEGUNDA FEB · JORNADA {round_number}",
+                       size=FontSize.MICRO, weight=FontWeight.LABEL, fill=Color.RED,
+                       tracking=LetterSpacing.EYEBROW, upper=True))
+    body.append(C.text(X, 200, "LA JORNADA", size=80, weight=FontWeight.HERO,
+                       fill=Color.WHITE, tracking=LetterSpacing.HERO))
+    body.append(C.text(X, 280, "EN DATOS", size=80, weight=FontWeight.HERO,
+                       fill=Color.WHITE, tracking=LetterSpacing.HERO))
+    body.append(C.accent_bar(X, 312, 88, Line.HEAVY))
+
+    def rule(y: float) -> None:
+        body.append(C.hline(X, y, W, weight=Line.THIN, color=Color.GREY, opacity=0.28))
+
+    # ---- BLOCK 1 · EL GRAN DATO (392 → 660) -------------------------------
     if hero:
-        by = 430
-        body.append(C.hline(X, by - 20, W, weight=Line.THIN, color=Color.GREY, opacity=0.22))
-        body.append(C.text(X, by + 22, "EL GRAN DATO", size=FontSize.MICRO, weight=FontWeight.LABEL,
-                           fill=Color.RED, tracking=LetterSpacing.CAPS, upper=True))
-        hero_name = str(hero["name"]).upper()
-        body.append(C.text(X, by + 76, hero_name,
-                           size=_fit_to_width(hero_name, 430, FontSize.H2, min_size=26),
+        rule(392)
+        body.append(C.text(X, 432, "EL GRAN DATO", size=FontSize.MICRO,
+                           weight=FontWeight.LABEL, fill=Color.RED,
+                           tracking=LetterSpacing.CAPS, upper=True))
+        name = str(hero["name"]).upper()
+        body.append(C.text(X, 496, name, size=_fit_to_width(name, 440, FontSize.H2, 26),
                            weight=FontWeight.DISPLAY, fill=Color.WHITE, upper=True))
         if hero.get("team"):
-            body.append(C.text(X, by + 112, str(hero["team"]).upper(), size=FontSize.MICRO,
+            body.append(C.text(X, 528, str(hero["team"]).upper(), size=FontSize.MICRO,
                                weight=FontWeight.LABEL, fill=Color.GREY,
-                               tracking=LetterSpacing.CAPS, upper=True))
-        if hero.get("badge_uri"):
-            body.append(f'<image href="{hero["badge_uri"]}" x="{X}" y="{by + 132}"'
-                        f' width="52" height="52" preserveAspectRatio="xMidYMid meet"/>')
-        body.append(C.text(X + 570, by + 176, str(hero["value"]), size=168,
-                           weight=FontWeight.HERO, fill=Color.RED, anchor="middle",
-                           tracking=LetterSpacing.HERO))
+                               tracking=LetterSpacing.LABEL, upper=True))
+        # The hero figure: white, the largest thing on the card.
+        body.append(C.text(R, 544, str(hero["value"]), size=184, weight=FontWeight.HERO,
+                           fill=Color.WHITE, anchor="end", tracking=LetterSpacing.HERO))
         if hero.get("unit"):
-            body.append(C.text(X + W, by + 70, hero["unit"], size=FontSize.H2,
-                               weight=FontWeight.HERO, fill=Color.RED, anchor="end"))
-        for j, ln in enumerate(_wrap_words(str(hero.get("note", "")).upper(), 13)):
-            body.append(C.text(X + W, by + 122 + j * 30, ln, size=FontSize.MICRO,
-                               weight=FontWeight.LABEL, fill=Color.GREY, anchor="end",
+            body.append(C.text(R, 584, hero["unit"], size=FontSize.MICRO,
+                               weight=FontWeight.LABEL, fill=Color.LIGHT_GREY, anchor="end",
+                               tracking=LetterSpacing.CAPS, upper=True))
+        for j, ln in enumerate(_wrap_words(str(hero.get("note", "")).upper(), 18)):
+            body.append(C.text(R, 616 + j * 24, ln, size=FontSize.MICRO,
+                               weight=FontWeight.BODY, fill=Color.GREY, anchor="end",
                                tracking=LetterSpacing.LABEL, upper=True))
 
-    # MEJOR ACTUACIÓN — name + line breakdown + the note on the right.
+    # ---- BLOCK 2 · MEJOR ACTUACIÓN (720 → 890) ----------------------------
     if top:
-        by = 730
-        body.append(C.hline(X, by - 20, W, weight=Line.THIN, color=Color.GREY, opacity=0.22))
-        body.append(C.text(X, by + 22, "MEJOR ACTUACIÓN", size=FontSize.MICRO, weight=FontWeight.LABEL,
-                           fill=Color.RED, tracking=LetterSpacing.CAPS, upper=True))
-        top_name = str(top["name"]).upper()
-        body.append(C.text(X, by + 76, top_name,
-                           size=_fit_to_width(top_name, 380, FontSize.H2, min_size=26),
+        rule(720)
+        body.append(C.text(X, 760, "MEJOR ACTUACIÓN", size=FontSize.MICRO,
+                           weight=FontWeight.LABEL, fill=Color.RED,
+                           tracking=LetterSpacing.CAPS, upper=True))
+        tname = str(top["name"]).upper()
+        body.append(C.text(X, 824, tname, size=_fit_to_width(tname, 400, FontSize.H2, 26),
                            weight=FontWeight.DISPLAY, fill=Color.WHITE, upper=True))
         if top.get("team"):
-            body.append(C.text(X, by + 112, str(top["team"]).upper(), size=FontSize.MICRO,
+            body.append(C.text(X, 856, str(top["team"]).upper(), size=FontSize.MICRO,
                                weight=FontWeight.LABEL, fill=Color.GREY,
                                tracking=LetterSpacing.LABEL, upper=True))
-        # three-stat breakdown, centred block on the right half
-        stat_cells = [(top.get("points"), "PTS"), (top.get("rebounds"), "REB"), (top.get("assists"), "AST")]
-        cx0 = X + 470
-        col = 120
-        for i, (val, lab) in enumerate(stat_cells):
-            cx = cx0 + i * col
-            if i > 0:
-                body.append(C.vline(cx - 24, by + 48, 66, color=Color.GREY, opacity=0.3))
-            body.append(C.text(cx, by + 104, str(val), size=FontSize.H2, weight=FontWeight.HERO,
-                               fill=Color.WHITE, anchor="middle", tracking=LetterSpacing.DISPLAY))
-            body.append(C.text(cx, by + 132, lab, size=FontSize.MICRO, weight=FontWeight.LABEL,
-                               fill=Color.GREY, anchor="middle", tracking=LetterSpacing.LABEL, upper=True))
+        # A metrics strip on the right: four cells split by hairlines.
         rating = top.get("rating")
+        cells = [(top.get("points"), "PTS"), (top.get("rebounds"), "REB"),
+                 (top.get("assists"), "AST")]
         if rating is not None:
-            body.append(C.vline(X + W - 150, by + 48, 66, color=Color.GREY, opacity=0.3))
-            body.append(C.text(X + W, by + 104, C._fmt_rating(float(rating)), size=FontSize.H2,
-                               weight=FontWeight.HERO, fill=Color.RED, anchor="end",
-                               tracking=LetterSpacing.DISPLAY))
-            body.append(C.text(X + W, by + 132, "NOTA FEB", size=FontSize.MICRO, weight=FontWeight.LABEL,
-                               fill=Color.GREY, anchor="end", tracking=LetterSpacing.LABEL, upper=True))
-
-    # TILES — up to three equal secondary cards.
-    if tiles:
-        ty = 940
-        body.append(C.hline(X, ty - 20, W, weight=Line.THIN, color=Color.GREY, opacity=0.22))
-        n = len(tiles)
-        col_w = W / n
-        for i, tile in enumerate(tiles):
-            tx = X + i * col_w
+            cells.append((C._fmt_rating(float(rating)), "NOTA FEB"))
+        cw = 112
+        for i, (val, lab) in enumerate(cells):
+            cx = R - cw * (len(cells) - i) + cw / 2
             if i > 0:
-                body.append(C.vline(tx, ty + 6, 150, color=Color.GREY, opacity=0.25))
-            body.append(C.text(tx + 24, ty + 44, str(tile["label"]), size=FontSize.MICRO,
+                body.append(C.vline(cx - cw / 2, 776, 88, color=Color.GREY, opacity=0.28))
+            body.append(C.text(cx, 824, str(val), size=FontSize.H2, weight=FontWeight.HERO,
+                               fill=Color.WHITE, anchor="middle", tracking=LetterSpacing.DISPLAY))
+            body.append(C.text(cx, 856, lab, size=FontSize.MICRO, weight=FontWeight.LABEL,
+                               fill=Color.GREY, anchor="middle",
+                               tracking=LetterSpacing.LABEL, upper=True))
+        # The single red mark in the block: a small brand indicator under the
+        # rating. It flags WHICH figure is the mark, not that it is a good one.
+        if rating is not None:
+            body.append(C.rect(R - cw / 2 - 16, 872, 32, 3, Color.RED))
+
+    # ---- BLOCK 3 · THREE SECONDARY STORIES (952 → 1104) -------------------
+    if tiles:
+        rule(952)
+        col = W / 3
+        # One size across all three, so the row reads as a system rather than
+        # three labels that each happen to fit.
+        shown = tiles[:3]
+        label_size = min(
+            _fit_caps(str(t["label"]), col - (0 if i == 0 else 24) - 16, FontSize.MICRO)
+            for i, t in enumerate(shown)
+        )
+        sub_size = min(
+            _fit_caps(str(t.get("sub", "")).upper(), col - (0 if i == 0 else 24) - 16,
+                      FontSize.MICRO)
+            for i, t in enumerate(shown)
+        )
+        for i, tile in enumerate(shown):
+            tx = X + i * col
+            if i > 0:
+                body.append(C.vline(tx, 968, 136, color=Color.GREY, opacity=0.22))
+            pad = 0 if i == 0 else 24
+            body.append(C.text(tx + pad, 1032, str(tile["value"]), size=72,
+                               weight=FontWeight.HERO, fill=Color.WHITE,
+                               tracking=LetterSpacing.DISPLAY))
+            body.append(C.text(tx + pad, 1064, str(tile["label"]), size=label_size,
                                weight=FontWeight.LABEL, fill=Color.RED,
-                               tracking=LetterSpacing.CAPS, upper=True))
-            body.append(C.text(tx + 24, ty + 116, str(tile["value"]), size=FontSize.H1,
-                               weight=FontWeight.HERO, fill=Color.WHITE, tracking=LetterSpacing.DISPLAY))
-            body.append(C.text(tx + 24, ty + 150, str(tile.get("sub", "")).upper(),
-                               size=FontSize.MICRO, weight=FontWeight.LABEL, fill=Color.GREY,
+                               tracking=LetterSpacing.LABEL, upper=True))
+            body.append(C.text(tx + pad, 1092, str(tile.get("sub", "")).upper(),
+                               size=sub_size, weight=FontWeight.BODY, fill=Color.GREY,
                                tracking=LetterSpacing.LABEL, upper=True))
 
     ft, _ = C.brand_footer(X, FOOTER_Y, W, competition="Segunda FEB", season=season)

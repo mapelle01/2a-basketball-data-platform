@@ -243,7 +243,7 @@ def detect_round_recap(
         win = bf["home_team_name"] if bf["home_score"] >= bf["away_score"] else bf["away_team_name"]
         tiles.append({
             "label": "MAYOR DIFERENCIA", "value": f"+{bf['margin']}",
-            "sub": f"{win or ''} {bf['home_score']}-{bf['away_score']}".strip(),
+            "sub": f"{win or ''} {bf['home_score']}\u2013{bf['away_score']}".strip(),
         })
     if season_context is not None:
         from .season_insights import detect_streaks
@@ -253,7 +253,7 @@ def detect_round_recap(
         if best:
             f = best.facts
             tiles.append({
-                "label": "RACHA", "value": str(f["streak_length"]),
+                "label": "VICTORIAS CONSECUTIVAS", "value": str(f["streak_length"]),
                 "sub": f.get("team_name") or "",
             })
     # Highest team output of the round — always available from the scores.
@@ -261,7 +261,8 @@ def detect_round_recap(
     tp = max(top_team_match.home_score, top_team_match.away_score)
     tt = (top_team_match.home_team_name if top_team_match.home_score >= top_team_match.away_score
           else top_team_match.away_team_name)
-    tiles.append({"label": "MÁS ANOTADOR", "value": str(tp), "sub": tt or ""})
+    tiles.append({"label": "MÁXIMA ANOTACIÓN DE EQUIPO", "value": str(tp),
+                  "sub": tt or ""})
 
     facts["tiles"] = tiles[:3]
     points += len(facts["tiles"])

@@ -41,12 +41,13 @@ class Brand:
 # never a dominant surface, never decorative.
 
 class Color:
-    BLACK = "#000000"        # primary / main backgrounds / max contrast
-    INK = "#111111"          # structural surfaces, panels, cards
-    GREY = "#6B6B6B"         # secondary text, metadata, dividers
-    LIGHT_GREY = "#E5E5E5"   # editorial surface, inactive
-    RED = "#E10600"          # accent ONLY — winner, status, key highlight
-    WHITE = "#FFFFFF"        # primary text on dark, contrast
+    BLACK = "#0A0A0A"        # primary / main backgrounds / max contrast
+    INK = "#14161A"          # structural surfaces, panels, cards
+    GREY = "#8A8F98"         # secondary text, metadata, dividers
+    LIGHT_GREY = "#C9CDD3"   # editorial surface, inactive
+    RED = "#E10600"          # brand accent ONLY — labels, rules, indicators.
+                             # NEVER semantic: red never marks a datum "better".
+    WHITE = "#FFFFFF"        # primary text on dark, and every hero figure
 
     # Semantic role aliases (map role → value; components reference roles).
     PRIMARY = BLACK
