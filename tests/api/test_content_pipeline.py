@@ -491,6 +491,7 @@ class TestReviewPage:
         assert "section_label" in html and "caption" in html
         assert "/candidates" in html          # detect-then-choose preview
         assert "story_keys" in html           # generate only the picked ones
+        assert "/v1/content/queue/purge" in html   # housekeeping is reachable
 
     def test_key_is_never_persisted_beyond_the_tab(self, client):
         html = client.get("/v1/content/review").text
