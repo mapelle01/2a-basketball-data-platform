@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Dict, Iterable, Optional
+from typing import Dict, Iterable, Optional, List, Tuple
 
 from ...domain.competition.model import Competition
 from ...domain.correction.model import CorrectionProposal
@@ -37,6 +37,12 @@ class MatchRepository(ABC):
 
     @abstractmethod
     def list_by_season(self, competition_id: CompetitionId, season_code: SeasonCode) -> Iterable[Match]:
+        pass
+
+    @abstractmethod
+    def list_seasons(self) -> "List[Tuple[str, int]]":
+        """Every season that has matches, as (season_code, match_count),
+        newest first. Feeds the season dropdowns in the operator pages."""
         pass
 
     @abstractmethod

@@ -324,3 +324,47 @@ class TestQueryToCard:
         first = self._card(client).json()["content_id"]
         second = self._card(client).json()["content_id"]
         assert first == second
+
+
+class TestSeasons:
+    """The season dropdowns read from here, so it must list what exists — no
+    more, no less — newest first."""
+
+    def _add_match(self, client, external_id, season):
+        client.run(
+            "create_or_update_match",
+            command_id=str(uuid.uuid4()),
+            actor={"id": "t", "role": "system"},
+            payload={
+                "external_id": external_id, "competition_id": "segunda-feb",
+                "season_code": season, "round_number": 1,
+                "scheduled_at": "2025-03-15T20:00:00Z",
+                "home_team": {"external_id": "h", "name": "H"},
+                "away_team": {"external_id": "a", "name": "A"},
+                "source": {"id": "s", "fetched_at": "2025-03-15T19:00:00Z",
+                           "s3_path": "s3://x"},
+            },
+        ) if hasattr(client, "run") else None
+
+    def test_lists_seasons_that_have_matches_newest_first(self, client):
+        gw = client.app.state.gateway
+        for eid, season in [("a", "2023-2024"), ("b", "2024-2025"),
+                            ("c", "2024-2025")]:
+            self._add_match(gw, eid, season)
+        body = client.get("/v1/seasons").json()
+        codes = [s["season_code"] for s in body["seasons"]]
+        assert codes == ["2024-2025", "2023-2024"]     # newest first
+        counts = {s["season_code"]: s["matches"] for s in body["seasons"]}
+        assert counts["2024-2025"] == 2 and counts["2023-2024"] == 1
+
+    def test_a_season_with_no_matches_does_not_appear(self, client):
+        gw = client.app.state.gateway
+        self._add_match(gw, "only", "2024-2025")
+        codes = [s["season_code"] for s in client.get("/v1/seasons").json()["seasons"]]
+        assert codes == ["2024-2025"]
+
+    def test_empty_database_lists_nothing(self, client):
+        assert client.get("/v1/seasons").json() == {"seasons": []}
+
+    def test_it_is_a_public_read(self, client):
+        assert client.get("/v1/seasons").status_code == 200

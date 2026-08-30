@@ -70,7 +70,7 @@ tr.on{background:var(--panel)}
   <a class="home" href="/v1/content/review">← cola</a>
   <a class="home" href="/v1/images/gallery">imágenes</a>
   <div class="bar">
-    <label>Temporada</label><input type="text" id="season" size="10" placeholder="2024-2025">
+    <label>Temporada</label><select id="season"><option>cargando…</option></select>
     <label>Ordenar por</label>
     <select id="metric">
       <option value="points">Puntos</option>
@@ -141,6 +141,7 @@ let facetsLoaded = false;
 // when the first query is built. Without this the filter in a pasted URL would
 // be silently dropped.
 let desired = {};
+let desiredSeason = "";
 
 function initials(name){
   return (name||"?").split(/\s+/).slice(0,2).map(w=>w[0]||"").join("").toUpperCase();
@@ -150,7 +151,7 @@ function initials(name){
 // pasted back — the same result, not an approximation of it.
 function readUrl(){
   const p = new URLSearchParams(location.search);
-  $("season").value = p.get("season") || "2024-2025";
+  desiredSeason = p.get("season") || "";
   for (const [id, key] of [["metric","metric"],["limit","limit"],
                            ["minAge","min_age"],["maxAge","max_age"],["minG","min_games"]]){
     const v = p.get(key); if (v !== null) $(id).value = v;
@@ -353,8 +354,24 @@ $("make").addEventListener("click", async () => {
   }
 });
 
+async function loadSeasons(){
+  let seasons = [];
+  try {
+    const r = await fetch("/v1/seasons");
+    if (r.ok) seasons = (await r.json()).seasons || [];
+  } catch (e) {}
+  const sel = $("season");
+  const codes = seasons.map(s => s.season_code);
+  // A pasted URL may ask for a season the list does not have (yet); keep it so
+  // the link still resolves instead of silently snapping to another season.
+  if (desiredSeason && !codes.includes(desiredSeason)) codes.unshift(desiredSeason);
+  if (!codes.length) codes.push(desiredSeason || "2024-2025");
+  sel.innerHTML = codes.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join("");
+  sel.value = desiredSeason && codes.includes(desiredSeason) ? desiredSeason : codes[0];
+}
+
 readUrl();
-load();
+loadSeasons().then(load);
 </script>
 </body>
 </html>

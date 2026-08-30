@@ -70,8 +70,8 @@ main{padding:24px 28px 80px}
   <div class="tabs" id="tabs"></div>
   <div class="bar">
     <label class="note">Temporada</label>
-    <input type="text" id="season" size="10" placeholder="2024-2025">
-    <button id="reload">Cargar</button>
+    <select id="season"><option>cargando…</option></select>
+    <button id="reload">Recargar</button>
     <input type="password" id="key" placeholder="Clave de API — para subir o quitar imágenes"
            autocomplete="off" spellcheck="false">
     <button id="savekey">Guardar clave</button>
@@ -112,14 +112,30 @@ function setKeyNote(){
 const apiKey = () => (sessionStorage.getItem('febKey') || '').trim();
 
 const seasonInput = document.getElementById('season');
-seasonInput.value = new URLSearchParams(location.search).get('season')
-  || localStorage.getItem('febGallerySeason') || '2024-2025';
+const desiredGallerySeason = new URLSearchParams(location.search).get('season')
+  || localStorage.getItem('febGallerySeason') || '';
 document.getElementById('reload').onclick = load;
-seasonInput.addEventListener('keydown', e => { if (e.key === 'Enter') load(); });
+seasonInput.addEventListener('change', load);
+
+async function loadSeasons(){
+  let seasons = [];
+  try {
+    const r = await fetch('/v1/seasons');
+    if (r.ok) seasons = (await r.json()).seasons || [];
+  } catch (e) {}
+  let codes = seasons.map(s => s.season_code);
+  if (desiredGallerySeason && !codes.includes(desiredGallerySeason))
+    codes.unshift(desiredGallerySeason);
+  if (!codes.length) codes.push(desiredGallerySeason || '2024-2025');
+  seasonInput.innerHTML = codes.map(c =>
+    '<option value="' + c + '">' + c + '</option>').join('');
+  seasonInput.value = (desiredGallerySeason && codes.includes(desiredGallerySeason))
+    ? desiredGallerySeason : codes[0];
+}
 
 async function load(){
   const season = seasonInput.value.trim();
-  if (!season){ MSG.textContent = 'Escribe una temporada.'; return; }
+  if (!season){ MSG.textContent = 'No hay temporada seleccionada.'; return; }
   localStorage.setItem('febGallerySeason', season);
   OUT.className = 'loading'; OUT.textContent = 'Cargando el catálogo…';
   try{
@@ -279,7 +295,7 @@ async function remove(e, el, msg){
 
 function esc(s){ const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
 
-load();
+loadSeasons().then(load);
 </script>
 </body>
 </html>

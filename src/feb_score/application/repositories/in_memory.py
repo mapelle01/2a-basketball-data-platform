@@ -58,6 +58,12 @@ class InMemoryMatchRepository(MatchRepository):
             and str(match.competition_id) == str(competition_id)
         ]
 
+    def list_seasons(self):
+        counts: Dict[str, int] = {}
+        for match in self._matches.values():
+            counts[str(match.season_code)] = counts.get(str(match.season_code), 0) + 1
+        return sorted(counts.items(), key=lambda kv: kv[0], reverse=True)
+
     def search(
         self,
         season_code: SeasonCode,

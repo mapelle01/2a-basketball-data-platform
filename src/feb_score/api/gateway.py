@@ -251,6 +251,12 @@ class CommandGateway(ABC):
         deployment has no rasteriser, ImageRenderingFailed when it refuses."""
         raise NotImplementedError
 
+    @abstractmethod
+    def list_seasons(self) -> List[Dict[str, Any]]:
+        """Seasons present in the database, newest first, each with its match
+        count — the source for the season dropdowns in the operator pages."""
+        raise NotImplementedError
+
     # ----------------------------------------------------------- explorer
     @abstractmethod
     def explore_players(

@@ -240,6 +240,18 @@ class SqliteMatchRepository(_SqliteRepoMixin, MatchRepository):
             if owned:
                 conn.close()
 
+    def list_seasons(self):
+        conn, owned = self._conn()
+        try:
+            rows = conn.execute(
+                "SELECT season_code, COUNT(*) AS n FROM matches "
+                "GROUP BY season_code ORDER BY season_code DESC"
+            ).fetchall()
+            return [(r["season_code"], r["n"]) for r in rows]
+        finally:
+            if owned:
+                conn.close()
+
     def search(
         self,
         season_code: SeasonCode,

@@ -50,6 +50,17 @@ def register_explorer_routes(app: FastAPI) -> None:
         )
 
     @app.get(
+        "/v1/seasons",
+        tags=["explorer"],
+        summary="List the seasons present in the database",
+        description="Every season that has matches, newest first, each with its "
+        "match count. Feeds the season dropdowns in the operator pages so an "
+        "operator picks from what exists instead of typing a code.",
+    )
+    def list_seasons(request: Request):
+        return {"seasons": request.app.state.gateway.list_seasons()}
+
+    @app.get(
         "/v1/explore/players",
         tags=["explorer"],
         summary="Filter and rank a season's players",
