@@ -144,8 +144,12 @@ def context_tab(x: float, y: float, label: str, *, with_mark: bool = True,
         lead_w = lead_h * (_MARK_BBOX[2] / _MARK_BBOX[3])
     else:
         lead_w, gap = 0, 0
-    text_w = len(label) * (C.FontSize.LABEL * 0.54)
-    chev_w = 30 if chevron else 0
+    # 0.62 em is an upper bound on Inter SemiBold's advance, MEASURED with
+    # `resvg --query-all`: the old 0.54 underestimated digit-heavy labels by up
+    # to 16px ("2022-23 → 2024-25" is 218px, not 202), so the chevron crowded
+    # the text. Overestimating only pads the tab; underestimating collides.
+    text_w = len(label) * (C.FontSize.LABEL * 0.62)
+    chev_w = 36 if chevron else 0
     w = pad * 2 + lead_w + gap + text_w + chev_w
 
     parts = [

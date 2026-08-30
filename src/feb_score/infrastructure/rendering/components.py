@@ -183,7 +183,11 @@ def avatar(
         parts.append(
             f'<image href="{photo_uri}" x="{_n(cx - r)}" y="{_n(cy - r)}"'
             f' width="{_n(2 * r)}" height="{_n(2 * r)}" clip-path="url(#{cid})"'
-            f' preserveAspectRatio="xMidYMid slice"/>'
+            # Top-aligned, not centred: these are half-body federation portraits,
+            # so centring the crop lands on the chest and fills the circle with
+            # jersey. Aligning to the top keeps the head whole and crops the
+            # torso, which is what a mugshot slot wants.
+            f' preserveAspectRatio="xMidYMin slice"/>'
         )
     else:
         parts.append(f'<circle cx="{_n(cx)}" cy="{_n(cy)}" r="{_n(r)}" fill="{Color.INK}"/>')
