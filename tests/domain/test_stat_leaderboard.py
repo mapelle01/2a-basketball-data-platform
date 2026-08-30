@@ -40,9 +40,11 @@ class TestFebRating:
 
     def test_bounded_0_10(self):
         assert 0.0 <= self._r(0, 0, 0) <= 10.0
-        assert self._r(100, 50, 30, 10, 10, field_goals_made=40,
+        # v3.0: the extremes are reachable only at full minutes, where the
+        # sample-confidence factor is 1.0 (a short sample regresses toward 6.5).
+        assert self._r(100, 50, 30, 10, 10, minutes=40.0, field_goals_made=40,
                        field_goals_attempted=40) == 10.0
-        assert self._r(0, 0, 0, 0, 0, 200) == 0.0
+        assert self._r(0, 0, 0, 0, 0, 200, minutes=40.0) == 0.0
 
     def test_deterministic(self):
         assert self._r(31, 9, 5, 2, 1, 2) == self._r(31, 9, 5, 2, 1, 2)
@@ -81,7 +83,7 @@ class TestFebRating:
         assert full > cameo
 
     def test_average_game_anchored_near_six_five(self):
-        # Calibrated on 595 real Segunda FEB lines: the median sits at 6.5.
+        # Calibrated on the frozen 4-season pool (v3.0): the median sits at 6.5.
         assert 6.0 <= self._r(12, 4, 2, 1, 0, 2) <= 7.0
 
     def test_low_band_is_alive(self):

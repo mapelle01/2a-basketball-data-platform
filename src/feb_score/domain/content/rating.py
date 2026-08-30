@@ -61,29 +61,55 @@ from __future__ import annotations
 import math
 from typing import Optional
 
-FEB_RATING_VERSION = "v2.1"
+FEB_RATING_VERSION = "3.0"
 
-# A line shorter than this is not rated: too little to judge, and the note
-# would be noise dressed as a verdict.
-MIN_MINUTES = 10.0
+# --- v3.0 (supersedes v2.1) --------------------------------------------------
+# Three structural changes:
+#   1. SHRINKAGE toward the league rate is stronger (20, up from 12), so a short
+#      hot stint can no longer masquerade statistically as a full game.
+#   2. EFFICIENCY is a true-shooting term vs the league median, REPLACING v2.1's
+#      raw miss penalties (which double-counted the same efficiency).
+#   3. CALIBRATION is a FROZEN percentile map fitted ONCE on the 4-season pool
+#      (2022-23..2025-26, 22,431 rateable lines): the rate->note curve below is
+#      fixed and versioned, so a 9,2 means the same thing every season. A
+#      continuous CONFIDENCE factor then regresses low-sample notes toward 6.5.
+# Rating (how good the game was) is deliberately separate from ELIGIBILITY (how
+# far we trust it for rankings): see feb_confidence_tier / RANKING_MIN_MINUTES.
+# NEVER recompute the frozen constants silently — bump FEB_RATING_VERSION, so
+# already-published content stays reproducible.
 
-# Impact weights.
+MIN_MINUTES = 10.0            # a shorter line is not rated at all (noise)
+RANKING_MIN_MINUTES = 15.0    # ...but a leaderboard/award should demand more
+
+# Impact weights (possession value; unchanged from v2.1 except the miss
+# penalties, now folded into the efficiency term).
 _W_PTS, _W_REB, _W_AST, _W_STL, _W_BLK, _W_TO = 1.0, 1.2, 1.5, 2.0, 1.5, 1.0
-_W_MISSED_FG = 0.8   # a missed field goal costs the team a possession
-_W_MISSED_FT = 0.4   # a missed free throw is a cheaper, but real, waste
-_W_FOUL = 0.3        # discipline
-_W_THREE = 0.5       # difficulty bonus on top of the point the shot already scored
-_W_FOUL_DRAWN = 0.5  # drawing contact is a real contribution (free throws, opponent
-                     # foul trouble); the public boxscore records it and v2.0 dropped it
+_W_FOUL = 0.3
+_W_THREE = 0.5        # difficulty premium on top of the point the shot scored
+_W_FOUL_DRAWN = 0.5
 
-# Per-36 normalisation with shrinkage toward the league rate.
-_LEAGUE_RATE = 0.602   # observed impact per minute across the sample
-_SHRINK_MINUTES = 12.0
+# Efficiency: true shooting vs the league median, scaled by shot volume. Frozen.
+_TS_LEAGUE = 0.5112
+_EFF_W = 1.6
+
+# Per-36 with shrinkage toward the league impact rate. Frozen on the pool.
+_LEAGUE_RATE = 0.7259
+_SHRINK_MINUTES = 20.0
 _PER = 36.0
 
-# Logistic rate→note mapping, derived from the real distribution (see above).
-_MID = 13.99
-_STEEP = 0.0892
+# FROZEN calibration: per-36 rate -> note, fitted on the 4-season pool at the
+# target percentiles (median 6.5; 9.5+ ~ top 0.15%; 10 beyond anything observed).
+_CALIBRATION = (
+    (12.250, 3.6), (14.097, 4.2), (15.393, 4.7), (17.300, 5.8),
+    (21.014, 6.1), (25.789, 6.5), (29.845, 6.9), (34.062, 7.4),
+    (37.193, 7.9), (41.699, 8.4), (46.267, 8.9), (49.016, 9.2),
+    (52.319, 9.6), (57.257, 9.8), (69.220, 9.95),
+)
+
+
+def _true_shooting(points: int, fga: int, fta: int) -> Optional[float]:
+    shots = 2.0 * (fga + 0.44 * fta)
+    return (points / shots) if shots > 0 else None
 
 
 def impact_score(
@@ -94,19 +120,58 @@ def impact_score(
     free_throws_made: int = 0, free_throws_attempted: int = 0,
     three_points_made: int = 0, fouls: int = 0, fouls_received: int = 0,
 ) -> float:
-    """Raw weighted impact of a boxscore line (not normalised by minutes)."""
-    missed_fg = max(0, field_goals_attempted - field_goals_made)
-    missed_ft = max(0, free_throws_attempted - free_throws_made)
-    return (
+    """Raw weighted impact of a line (v3.0): possession-value box score plus a
+    true-shooting term vs the league, NOT normalised by minutes. The efficiency
+    term replaces v2.1's raw missed-shot penalties, which double-counted it."""
+    impact = (
         points * _W_PTS + rebounds * _W_REB + assists * _W_AST
         + steals * _W_STL + blocks * _W_BLK
-        - turnovers * _W_TO
-        - missed_fg * _W_MISSED_FG
-        - missed_ft * _W_MISSED_FT
-        - fouls * _W_FOUL
-        + three_points_made * _W_THREE
-        + fouls_received * _W_FOUL_DRAWN
+        - turnovers * _W_TO - fouls * _W_FOUL
+        + three_points_made * _W_THREE + fouls_received * _W_FOUL_DRAWN
     )
+    ts = _true_shooting(points, field_goals_attempted, free_throws_attempted)
+    if ts is not None:
+        volume = field_goals_attempted + 0.44 * free_throws_attempted
+        impact += (ts - _TS_LEAGUE) * volume * _EFF_W
+    return impact
+
+
+def _calibrate(rate: float) -> float:
+    """Map a per-36 rate to a 0..10 note through the frozen percentile curve —
+    piecewise linear, extrapolated past the ends so 10 stays reachable only by a
+    line beyond anything seen in four seasons (and 0 only by a catastrophic one)."""
+    pts = _CALIBRATION
+    if rate <= pts[0][0]:
+        (r0, n0), (r1, n1) = pts[0], pts[1]
+    elif rate >= pts[-1][0]:
+        (r0, n0), (r1, n1) = pts[-2], pts[-1]
+    else:
+        (r0, n0), (r1, n1) = pts[0], pts[1]
+        for i in range(1, len(pts)):
+            if rate < pts[i][0]:
+                (r0, n0), (r1, n1) = pts[i - 1], pts[i]
+                break
+    note = n0 + (n1 - n0) * (rate - r0) / (r1 - r0)
+    return max(0.0, min(10.0, note))
+
+
+def _confidence(minutes: float) -> float:
+    """Continuous sample-confidence in [0,1]: ~0.58 at 10', ~0.82 at 20', 1.0 at
+    30'+. Regresses a low-sample note toward the mean, both ways, no hard cutoff."""
+    return min(1.0, math.sqrt(minutes / _PER * (_PER / 30.0)))  # sqrt(minutes/30)
+
+
+def feb_confidence_tier(minutes: Optional[float]) -> str:
+    """How far a note can be trusted for RANKINGS — separate from the note
+    itself. A great 12-minute game still gets a real rating; it just is not
+    'high' confidence. 'low' lines are kept out of leaderboards/awards."""
+    if minutes is None or minutes < MIN_MINUTES:
+        return "none"
+    if minutes >= 25.0:
+        return "high"
+    if minutes >= RANKING_MIN_MINUTES:
+        return "medium"
+    return "low"
 
 
 def feb_rating(
@@ -119,12 +184,12 @@ def feb_rating(
     free_throws_made: int = 0, free_throws_attempted: int = 0,
     three_points_made: int = 0, fouls: int = 0, fouls_received: int = 0,
 ) -> Optional[float]:
-    """The FEB Rating (0..10, one decimal) for a single boxscore line.
+    """The FEB Rating (0..10, one decimal) for a single boxscore line — v3.0.
 
-    Returns ``None`` — never a fallback number — when the line cannot be rated
-    on the same basis as every other: no minutes, fewer than ``MIN_MINUTES``
-    played, or missing shooting data (rating a line without efficiency would
-    silently produce a systematically higher, non-comparable note).
+    Returns ``None`` — never a fallback number — when the line cannot be graded
+    on the same basis as every other: no minutes, under ``MIN_MINUTES``, or no
+    shooting data. Pipeline: impact -> per-36 with shrinkage -> frozen percentile
+    map -> continuous confidence regression toward 6.5.
     """
     if minutes is None or minutes < MIN_MINUTES:
         return None
@@ -141,14 +206,7 @@ def feb_rating(
         fouls=fouls,
         fouls_received=fouls_received,
     )
-    # Per-36 rate, shrunk toward the league rate so short lines regress.
     rate = ((impact + _SHRINK_MINUTES * _LEAGUE_RATE) / (minutes + _SHRINK_MINUTES)) * _PER
-
-    z = _STEEP * (rate - _MID)
-    if z < -60:
-        note = 0.0
-    elif z > 60:
-        note = 10.0
-    else:
-        note = 10.0 / (1.0 + math.exp(-z))
+    note = _calibrate(rate)
+    note = 6.5 + (note - 6.5) * _confidence(minutes)
     return round(max(0.0, min(10.0, note)), 1)
