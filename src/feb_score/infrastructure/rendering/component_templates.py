@@ -834,7 +834,13 @@ def render_best_five_grid(data: Dict[str, Any]) -> str:
                                weight=FontWeight.HERO, fill=sub, opacity=_LIGHT_SUB_ALPHA))
         body.append(C.avatar(av_cx, ry + 8, av_r, initials=C.initials_of(name),
                              photo_uri=row.get("photo_uri"), badge_uri=row.get("badge_uri")))
-        body.append(C.text(name_x, ry + 10, name.upper(), size=FontSize.H3,
+        # Fit the name to the room left of the rating/value column, so a very
+        # long name ("OLUWASESAN BENJAMIN MICHAEL RUSSELL") shrinks instead of
+        # running under the note box. Reserve enough for either the rating chip
+        # or a right-anchored value.
+        name_avail = (CONTENT_X + CONTENT_W - 150) - name_x
+        name_size = _fit_to_width(name.upper(), name_avail, FontSize.H3, 18)
+        body.append(C.text(name_x, ry + 10, name.upper(), size=name_size,
                            weight=FontWeight.TITLE, fill=ink, upper=True))
         body.append(C.text(name_x, ry + 40, stat, size=FontSize.MICRO,
                            weight=FontWeight.LABEL, fill=sub, opacity=_LIGHT_SUB_ALPHA, tracking=LetterSpacing.LABEL, upper=True))
