@@ -512,6 +512,13 @@ def render_player_of_round(data: Dict[str, Any]) -> str:
 # ---------------------------------------------------------------------------
 
 
+# Secondary text on a LIGHT surface. The brand grey (#8A8F98) is tuned for dark
+# cards — on white it measures 3.25:1, under the 4.5 a small label needs, and it
+# washed out where the blueprint shows through. Softened INK reads 5.6:1 and
+# introduces no seventh colour.
+_LIGHT_SUB_ALPHA = 0.65
+
+
 def _fit_to_width(text: str, width: float, max_size: int, min_size: int = 30) -> int:
     """Largest size at which ``text`` fits ``width``. The recap puts a name and
     a big number side by side, so the name must yield rather than collide — a
@@ -682,14 +689,14 @@ def render_stat_leaderboard(data: Dict[str, Any]) -> str:
 
     # LIGHT DATA mood: rankings read best on the editorial white blueprint, so
     # text inverts to dark and the rating chip uses its on-light tiers.
-    ink, sub = Color.BLACK, Color.GREY
+    ink, sub = Color.BLACK, Color.INK
 
     body: List[str] = []
     # Title + subtitle
     body.append(C.text(CONTENT_X, 180, "Máximos anotadores", size=FontSize.H1,
                        weight=FontWeight.DISPLAY, fill=ink, tracking=LetterSpacing.HEADLINE))
     body.append(C.text(CONTENT_X, 232, "LA JORNADA EN CIFRAS", size=FontSize.LABEL,
-                       weight=FontWeight.LABEL, fill=sub, tracking=LetterSpacing.CAPS, upper=True))
+                       weight=FontWeight.LABEL, fill=sub, opacity=_LIGHT_SUB_ALPHA, tracking=LetterSpacing.CAPS, upper=True))
 
     # Two-tab filter bar: criteria (a red count chip) + scope (competition mark).
     bar, _ = filter_bar(CONTENT_X, 288, [
@@ -700,7 +707,7 @@ def render_stat_leaderboard(data: Dict[str, Any]) -> str:
 
     # Column note so the rating chip reads as a 0..10 score, not a bare number.
     body.append(C.text(CONTENT_X + CONTENT_W, 400, "FEB RATING /10", size=FontSize.MICRO,
-                       weight=FontWeight.LABEL, fill=sub, anchor="end",
+                       weight=FontWeight.LABEL, fill=sub, opacity=_LIGHT_SUB_ALPHA, anchor="end",
                        tracking=LetterSpacing.LABEL, upper=True))
 
     # Ranking rows: rank · avatar · name/team · points · FEB Rating chip.
@@ -717,14 +724,14 @@ def render_stat_leaderboard(data: Dict[str, Any]) -> str:
         team = row.get("team_name") or row.get("team_external_id", "")
         body.append(C.hline(CONTENT_X, ry - 24, CONTENT_W, weight=Line.THIN, color=Color.INK, opacity=0.15))
         body.append(C.text(CONTENT_X, ry + 20, str(row.get("rank", "")), size=FontSize.H3,
-                           weight=FontWeight.HERO, fill=sub))
+                           weight=FontWeight.HERO, fill=sub, opacity=_LIGHT_SUB_ALPHA))
         body.append(C.avatar(av_cx, ry + 8, av_r, initials=C.initials_of(name),
                              photo_uri=row.get("photo_uri"), badge_uri=row.get("badge_uri")))
         body.append(C.text(name_x, ry + 16, name.upper(), size=FontSize.H3,
                            weight=FontWeight.TITLE, fill=ink, upper=True))
         if team:
             body.append(C.text(name_x, ry + 46, team.upper(), size=FontSize.MICRO,
-                               weight=FontWeight.LABEL, fill=sub, tracking=LetterSpacing.LABEL, upper=True))
+                               weight=FontWeight.LABEL, fill=sub, opacity=_LIGHT_SUB_ALPHA, tracking=LetterSpacing.LABEL, upper=True))
         body.append(C.text(CONTENT_X + CONTENT_W - chip - 40, ry + 22, str(row.get("points", 0)),
                            size=FontSize.H2, weight=FontWeight.HERO, fill=ink, anchor="end",
                            tracking=LetterSpacing.DISPLAY))
@@ -759,7 +766,7 @@ def render_best_five_grid(data: Dict[str, Any]) -> str:
     season = data["story"].get("season_code")
     round_number = data["story"].get("round_number")
     lineup = facts.get("lineup", [])
-    ink, sub = Color.BLACK, Color.GREY
+    ink, sub = Color.BLACK, Color.INK
 
     # The same grid serves the round quinteto and the all-time list. Rank
     # numbers are OFF for the latter on purpose: at the top the note saturates
@@ -776,14 +783,14 @@ def render_best_five_grid(data: Dict[str, Any]) -> str:
                        size=_fit_to_width(title, CONTENT_W, 76, 44),
                        weight=FontWeight.DISPLAY, fill=ink, tracking=LetterSpacing.HEADLINE))
     body.append(C.text(CONTENT_X, 232, subtitle, size=FontSize.LABEL,
-                       weight=FontWeight.LABEL, fill=sub, tracking=LetterSpacing.CAPS, upper=True))
+                       weight=FontWeight.LABEL, fill=sub, opacity=_LIGHT_SUB_ALPHA, tracking=LetterSpacing.CAPS, upper=True))
     bar, _ = filter_bar(CONTENT_X, 288, [
         {"label": count_label, "badge": len(lineup), "with_mark": False, "chevron": True},
         {"label": scope_label, "with_mark": True, "chevron": True},
     ])
     body.append(bar)
     body.append(C.text(CONTENT_X + CONTENT_W, 400, "FEB RATING /10", size=FontSize.MICRO,
-                       weight=FontWeight.LABEL, fill=sub, anchor="end",
+                       weight=FontWeight.LABEL, fill=sub, opacity=_LIGHT_SUB_ALPHA, anchor="end",
                        tracking=LetterSpacing.LABEL, upper=True))
 
     ry = 430
@@ -803,13 +810,13 @@ def render_best_five_grid(data: Dict[str, Any]) -> str:
                             color=Color.INK, opacity=0.15))
         if show_rank:
             body.append(C.text(CONTENT_X, ry + 20, str(row.get("rank", i)), size=FontSize.H3,
-                               weight=FontWeight.HERO, fill=sub))
+                               weight=FontWeight.HERO, fill=sub, opacity=_LIGHT_SUB_ALPHA))
         body.append(C.avatar(av_cx, ry + 8, av_r, initials=C.initials_of(name),
                              photo_uri=row.get("photo_uri"), badge_uri=row.get("badge_uri")))
         body.append(C.text(name_x, ry + 10, name.upper(), size=FontSize.H3,
                            weight=FontWeight.TITLE, fill=ink, upper=True))
         body.append(C.text(name_x, ry + 40, stat, size=FontSize.MICRO,
-                           weight=FontWeight.LABEL, fill=sub, tracking=LetterSpacing.LABEL, upper=True))
+                           weight=FontWeight.LABEL, fill=sub, opacity=_LIGHT_SUB_ALPHA, tracking=LetterSpacing.LABEL, upper=True))
         rating = row.get("rating")
         if rating is not None:
             rb, _ = C.rating_badge(CONTENT_X + CONTENT_W - chip, ry - 24,

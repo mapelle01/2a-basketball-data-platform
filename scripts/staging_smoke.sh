@@ -17,6 +17,10 @@ set -euo pipefail
 BASE_URL="${1:?usage: staging_smoke.sh <base_url> <api_key>}"
 API_KEY="${2:?usage: staging_smoke.sh <base_url> <api_key>}"
 EXT="smoke-$(date +%s)"
+# The smoke match is written to a THROWAWAY season, never a real one. It used to
+# land in 2025-2026 round 1, so every production deploy left a fixture behind:
+# 28 of them had accumulated inside a real season, polluting its counts forever.
+SMOKE_SEASON="0000-0000"
 
 echo "==> [1/4] GET ${BASE_URL}/health"
 curl -fsS "${BASE_URL}/health" | grep -q '"status": *"ok"'
@@ -28,7 +32,7 @@ echo "==> [3/4] POST ${BASE_URL}/v1/commands/create_or_update_match (external_id
 post=$(curl -sS -w '\nHTTP %{http_code}' -X POST "${BASE_URL}/v1/commands/create_or_update_match" \
   -H "Authorization: Bearer ${API_KEY}" \
   -H 'Content-Type: application/json' \
-  -d "{\"payload\":{\"external_id\":\"${EXT}\",\"competition_id\":\"smoke-comp\",\"season_code\":\"2025-2026\",\"round_number\":1,\"scheduled_at\":\"2026-02-01T18:30:00Z\",\"home_team\":{\"external_id\":\"smoke-home\",\"name\":\"Home\"},\"away_team\":{\"external_id\":\"smoke-away\",\"name\":\"Away\"},\"source\":{\"id\":\"staging-smoke\",\"fetched_at\":\"2026-02-01T18:00:00Z\",\"s3_path\":\"s3://smoke\"}}}")
+  -d "{\"payload\":{\"external_id\":\"${EXT}\",\"competition_id\":\"smoke-comp\",\"season_code\":\"${SMOKE_SEASON}\",\"round_number\":1,\"scheduled_at\":\"2026-02-01T18:30:00Z\",\"home_team\":{\"external_id\":\"smoke-home\",\"name\":\"Home\"},\"away_team\":{\"external_id\":\"smoke-away\",\"name\":\"Away\"},\"source\":{\"id\":\"staging-smoke\",\"fetched_at\":\"2026-02-01T18:00:00Z\",\"s3_path\":\"s3://smoke\"}}}")
 printf '%s\n' "$post"
 code=$(printf '%s\n' "$post" | tail -n1 | awk '{print $2}')
 [ "$code" = "200" ] || { echo "FAIL: expected HTTP 200, got $code" >&2; exit 1; }

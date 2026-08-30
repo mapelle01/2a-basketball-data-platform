@@ -43,6 +43,12 @@ Rendered = Tuple[SVG, int]  # (fragment, height_used)
 # ---------------------------------------------------------------------------
 
 
+def _opacity_attr(opacity: Optional[float]) -> str:
+    """``fill-opacity`` only when asked. Softening a palette colour is how a
+    light surface gets a legible secondary tone without adding a seventh hue."""
+    return "" if opacity is None else f' fill-opacity="{opacity}"'
+
+
 def text(
     x: float,
     y: float,
@@ -55,11 +61,12 @@ def text(
     tracking: float = LetterSpacing.NORMAL,
     upper: bool = False,
     italic: bool = False,
+    opacity: Optional[float] = None,
 ) -> SVG:
     content = escape(value.upper() if upper else value)
     style = ' font-style="italic"' if italic else ""
     return (
-        f'<text x="{_n(x)}" y="{_n(y)}" fill="{fill}" font-family="{Font.FAMILY}"'
+        f'<text x="{_n(x)}" y="{_n(y)}" fill="{fill}"{_opacity_attr(opacity)} font-family="{Font.FAMILY}"'
         f' font-size="{size}" font-weight="{weight}" text-anchor="{anchor}"'
         f' letter-spacing="{tracking}"{style}>{content}</text>'
     )
