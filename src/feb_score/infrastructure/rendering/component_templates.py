@@ -757,14 +757,25 @@ def render_best_five_grid(data: Dict[str, Any]) -> str:
     lineup = facts.get("lineup", [])
     ink, sub = Color.BLACK, Color.GREY
 
+    # The same grid serves the round quinteto and the all-time list. Rank
+    # numbers are OFF for the latter on purpose: at the top the note saturates
+    # (five 9,8s across three seasons), so numbering them would invent an order
+    # the data does not support.
+    title = facts.get("title", "El quinteto de la jornada")
+    subtitle = facts.get("subtitle", "LOS 5 MEJORES POR NOTA FEB")
+    scope_label = facts.get("scope_label", f"Jornada {round_number}")
+    count_label = facts.get("count_label", "Mejor 5")
+    show_rank = facts.get("show_rank", True)
+
     body: List[str] = []
-    body.append(C.text(CONTENT_X, 176, "El quinteto de la jornada", size=76,
+    body.append(C.text(CONTENT_X, 176, title,
+                       size=_fit_to_width(title, CONTENT_W, 76, 44),
                        weight=FontWeight.DISPLAY, fill=ink, tracking=LetterSpacing.HEADLINE))
-    body.append(C.text(CONTENT_X, 232, "LOS 5 MEJORES POR NOTA FEB", size=FontSize.LABEL,
+    body.append(C.text(CONTENT_X, 232, subtitle, size=FontSize.LABEL,
                        weight=FontWeight.LABEL, fill=sub, tracking=LetterSpacing.CAPS, upper=True))
     bar, _ = filter_bar(CONTENT_X, 288, [
-        {"label": "Mejor 5", "badge": 5, "with_mark": False, "chevron": True},
-        {"label": f"Jornada {round_number}", "with_mark": True, "chevron": True},
+        {"label": count_label, "badge": len(lineup), "with_mark": False, "chevron": True},
+        {"label": scope_label, "with_mark": True, "chevron": True},
     ])
     body.append(bar)
     body.append(C.text(CONTENT_X + CONTENT_W, 400, "FEB RATING /10", size=FontSize.MICRO,
@@ -781,12 +792,14 @@ def render_best_five_grid(data: Dict[str, Any]) -> str:
     for i, row in enumerate(lineup, start=1):
         name = row.get("player_name") or row.get("player_external_id", "—")
         team = row.get("team_name") or row.get("team_external_id", "")
-        stat = (f"{row.get('points', 0)} PTS · {row.get('rebounds', 0)} REB "
-                f"· {row.get('assists', 0)} AST")
+        stat = row.get("context") or (
+            f"{row.get('points', 0)} PTS · {row.get('rebounds', 0)} REB "
+            f"· {row.get('assists', 0)} AST")
         body.append(C.hline(CONTENT_X, ry - 24, CONTENT_W, weight=Line.THIN,
                             color=Color.INK, opacity=0.15))
-        body.append(C.text(CONTENT_X, ry + 20, str(row.get("rank", i)), size=FontSize.H3,
-                           weight=FontWeight.HERO, fill=sub))
+        if show_rank:
+            body.append(C.text(CONTENT_X, ry + 20, str(row.get("rank", i)), size=FontSize.H3,
+                               weight=FontWeight.HERO, fill=sub))
         body.append(C.avatar(av_cx, ry + 8, av_r, initials=C.initials_of(name),
                              photo_uri=row.get("photo_uri"), badge_uri=row.get("badge_uri")))
         body.append(C.text(name_x, ry + 10, name.upper(), size=FontSize.H3,
