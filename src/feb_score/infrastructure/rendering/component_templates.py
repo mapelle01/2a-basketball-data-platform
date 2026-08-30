@@ -442,7 +442,14 @@ def render_player_of_round(data: Dict[str, Any]) -> str:
     # to "MÁXIMO REBOTEADOR DE LA TEMPORADA" and a fixed size would overflow the
     # long ones. A full-bleed scrim sits under it: the blueprint's red diagonals
     # otherwise cut straight through the words (same technique as the footer).
-    head_size = _fit_headline(section, CONTENT_W)
+    # Reserve the top-right corner mark's column so a long headline
+    # ("MÁXIMO REBOTEADOR DE LA TEMPORADA") stops before the Segunda FEB symbol
+    # instead of crowding right up against it. Only the long ones shrink; short
+    # headlines already fit inside the reduced width unchanged. Red-mood cards
+    # draw no mark, so they keep the full width.
+    _mark_w = 52 * (_MARK_BBOX[2] / _MARK_BBOX[3])
+    head_w = CONTENT_W - (0 if red_mood else _mark_w + Spacing.XL)
+    head_size = _fit_headline(section, head_w)
     head_base = MARGIN + 44 + head_size * 0.74
     body.append(
         f'<rect x="0" y="{MARGIN + 30}" width="{CANVAS.width}"'
