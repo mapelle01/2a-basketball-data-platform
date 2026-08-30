@@ -300,6 +300,17 @@ class InMemoryMatchStatsRepository(MatchStatsRepository):
     def list_team_stats(self, match_external_id: str) -> Iterable[TeamStats]:
         return list(self._team.get(match_external_id, {}).values())
 
+    def list_season_player_teams(self, season_code: SeasonCode) -> Dict[str, str]:
+        out: Dict[str, str] = {}
+        for match_id, bucket in self._player.items():
+            if self._player_season.get(match_id) != str(season_code):
+                continue
+            for pid, ps in bucket.items():
+                # first team wins, matching the SQL backends' ordering
+                if pid not in out or ps.team_external_id < out[pid]:
+                    out[pid] = ps.team_external_id
+        return out
+
     def list_player_season_teams(
         self, player_external_id: str, season_code: SeasonCode
     ) -> Iterable[str]:

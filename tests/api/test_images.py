@@ -71,6 +71,15 @@ class TestCatalog:
         teams = {t["external_id"]: t for t in cat["teams"]}
         assert teams["tA"]["name"] == "Basket Navarra"
 
+    def test_players_carry_their_team_so_the_gallery_can_filter(self, client):
+        _seed_catalog(client)
+        cat = client.get(f"/v1/images/catalog?season={SEASON}").json()
+        p1 = next(p for p in cat["players"] if p["external_id"] == "p1")
+        assert p1["team_external_id"] == "tA"
+        assert p1["team_name"] == "Basket Navarra"
+        # a team entry has no team of its own
+        assert "team_external_id" not in cat["teams"][0]
+
     def test_season_is_required(self, client):
         # the app maps request-validation errors to 400
         assert client.get("/v1/images/catalog").status_code == 400
@@ -169,3 +178,7 @@ class TestGalleryPage:
         assert "/v1/images/catalog" in html
         assert "method:'PUT'" in html or "method:\"PUT\"" in html
         assert "sessionStorage" in html and "localStorage" in html  # key session-only
+        # filters: name search, team, and the override state that drives the
+        # gallery's real job — finding who still needs a photo
+        assert 'id="q"' in html and 'id="teamf"' in html
+        assert "has_override" in html and "'miss'" in html

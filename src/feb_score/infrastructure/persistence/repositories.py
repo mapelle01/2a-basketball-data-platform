@@ -779,6 +779,21 @@ class SqliteMatchStatsRepository(_SqliteRepoMixin, MatchStatsRepository):
             if owned:
                 conn.close()
 
+    def list_season_player_teams(self, season_code: SeasonCode) -> Dict[str, str]:
+        conn, owned = self._conn()
+        try:
+            rows = conn.execute(
+                "SELECT player_external_id, team_external_id FROM match_player_stats"
+                " WHERE season_code = ?"
+                " GROUP BY player_external_id"
+                " ORDER BY player_external_id, team_external_id",
+                (str(season_code),),
+            ).fetchall()
+            return {r["player_external_id"]: r["team_external_id"] for r in rows}
+        finally:
+            if owned:
+                conn.close()
+
     def list_player_season_teams(
         self, player_external_id: str, season_code: SeasonCode
     ) -> Iterable[str]:

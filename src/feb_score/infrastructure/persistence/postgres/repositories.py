@@ -776,6 +776,23 @@ class PgMatchStatsRepository(_PgRepoMixin, MatchStatsRepository):
             if owned:
                 conn.close()
 
+    def list_season_player_teams(self, season_code: SeasonCode) -> Dict[str, str]:
+        conn, owned = self._conn()
+        try:
+            rows = conn.execute(
+                "SELECT DISTINCT ON (player_external_id)"
+                "  player_external_id, team_external_id"
+                " FROM match_player_stats WHERE season_code = %s"
+                " ORDER BY player_external_id, team_external_id",
+                (str(season_code),),
+            ).fetchall()
+            return {r["player_external_id"]: r["team_external_id"] for r in rows}
+        except Exception as exc:  # noqa: BLE001 - classify at the boundary
+            raise translate_pg_error(exc) from exc
+        finally:
+            if owned:
+                conn.close()
+
     def list_player_season_teams(
         self, player_external_id: str, season_code: SeasonCode
     ) -> Iterable[str]:

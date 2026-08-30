@@ -335,6 +335,20 @@ class MatchStatsRepository(ABC):
         """
         pass
 
+    @abstractmethod
+    def list_season_player_teams(
+        self, season_code: SeasonCode
+    ) -> "Dict[str, str]":
+        """Every player's team for a season, in ONE query.
+
+        The per-player variant below is fine for a single profile, but the
+        image gallery needs the team of all ~450 players at once; asking one by
+        one turns a page load into hundreds of round trips. A player who
+        appeared for more than one team is attributed to the first, matching
+        how the season aggregate resolves it.
+        """
+        pass
+
     # ------------------------------------------------------------------ 24.2
     @abstractmethod
     def list_player_season_teams(

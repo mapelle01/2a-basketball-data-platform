@@ -725,9 +725,13 @@ class _GatewayBase(CommandGateway):
             rec = catalog.get(pid)
             return rec.name if rec is not None else None
 
-        def _entry(kind, pid, url_tmpl, name):
+        # Each player's team, in ONE query — the gallery filters by team, and
+        # asking per player would be ~450 round trips on a page load.
+        player_team = self._stats_repo.list_season_player_teams(season)
+
+        def _entry(kind, pid, url_tmpl, name, team_id=None):
             meta = overrides.get((kind, pid))
-            return {
+            entry = {
                 "kind": kind,
                 "external_id": pid,
                 "name": name or pid,
@@ -737,9 +741,14 @@ class _GatewayBase(CommandGateway):
                 "has_override": meta is not None,
                 "override_updated_at": meta.updated_at if meta else None,
             }
+            if kind == "player":
+                entry["team_external_id"] = team_id
+                entry["team_name"] = _name(team_names, team_id) if team_id else None
+            return entry
 
         players = sorted(
-            (_entry("player", pid, PLAYER_PHOTO_URL, _name(player_names, pid))
+            (_entry("player", pid, PLAYER_PHOTO_URL, _name(player_names, pid),
+                    player_team.get(pid))
              for pid in player_ids),
             key=lambda e: e["name"].lower(),
         )
