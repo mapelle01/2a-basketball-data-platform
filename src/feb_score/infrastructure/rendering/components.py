@@ -114,7 +114,10 @@ def status_pill(x: float, y: float, label: str, *, live: bool = False) -> SVG:
     """A status tag (FINAL / LIVE / …). Red fill only for live/key states."""
     label_u = label.upper()
     pad_x, h = Spacing.SM, 34
-    w = pad_x * 2 + len(label_u) * (FontSize.MICRO * 0.68)
+    # The text is drawn CAPS-tracked, so its width includes the letter-spacing
+    # between glyphs; sizing the box on the bare advance let the last letters
+    # (the "S" of "MÁX. ASISTENCIAS") spill outside the red rectangle.
+    w = pad_x * 2 + _caps_width(label_u, FontSize.MICRO)
     bg = Color.RED if live else Color.INK
     # Non-live pills get a hairline border so they read on any background.
     border = "" if live else (
@@ -790,7 +793,9 @@ def _group(parts: Sequence[SVG]) -> SVG:
 
 
 def _pill_width(label: str) -> float:
-    return Spacing.SM * 2 + len(label) * (FontSize.MICRO * 0.68)
+    # Must match status_pill's own width exactly, or the centered pill sits off
+    # centre. Same CAPS-tracked measure, including the letter-spacing.
+    return Spacing.SM * 2 + _caps_width(label.upper(), FontSize.MICRO)
 
 
 def _n(v: float) -> str:

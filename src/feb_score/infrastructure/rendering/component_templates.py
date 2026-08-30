@@ -423,7 +423,14 @@ def render_player_of_round(data: Dict[str, Any]) -> str:
     # The chip under the portrait adds a qualifier; when it would only repeat
     # the headline (TRIPLE-DOBLE over a TRIPLE-DOBLE chip) it is dropped.
     badge = facts.get("badge_label") or defaults["badge"] or "MVP"
-    if badge_echoes_headline(section, badge):
+    # The season-leader cards carry a category tag ("MÁX. ANOTADOR") on purpose,
+    # and want it on ALL THREE so a carousel is consistent. The echo guard would
+    # otherwise drop only the scorer's — "ANOTADOR" is verbatim in its headline,
+    # while "REBOTES"/"ASISTENCIAS" don't prefix-match "reboteador"/"asistente" —
+    # leaving the three siblings inconsistent. Skip the guard for these types.
+    _CATEGORY_TAG_TYPES = {"top_scorer", "top_rebounder", "top_assist_provider"}
+    story_type = (data.get("story") or {}).get("story_type")
+    if story_type not in _CATEGORY_TAG_TYPES and badge_echoes_headline(section, badge):
         badge = None
     if story_type in _SEASON_LEADER_STORIES:
         kicker = f"TEMPORADA {_season_label(data['story'].get('season_code', ''))}"
