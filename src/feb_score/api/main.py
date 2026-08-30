@@ -36,6 +36,7 @@ from ..infrastructure.persistence.errors import (
 from . import errors as err
 from .analytics import register_analytics_routes
 from .content import register_content_routes
+from .explorer import register_explorer_routes
 from .images import register_image_routes
 from .auth import (
     AuthenticationProvider,
@@ -141,6 +142,7 @@ def create_app(
     register_exploration_profile_routes(app)
     register_content_routes(app)
     register_image_routes(app)
+    register_explorer_routes(app)
     return app
 
 

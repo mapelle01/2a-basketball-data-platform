@@ -251,6 +251,19 @@ class CommandGateway(ABC):
         deployment has no rasteriser, ImageRenderingFailed when it refuses."""
         raise NotImplementedError
 
+    # ----------------------------------------------------------- explorer
+    @abstractmethod
+    def explore_players(
+        self, season_code: str, *,
+        team: Optional[str] = None, nationality: Optional[str] = None,
+        position: Optional[str] = None, min_age: Optional[int] = None,
+        max_age: Optional[int] = None, min_games: Optional[int] = None,
+        metric: str = "points", per_game: bool = False, limit: int = 25,
+    ) -> Dict[str, Any]:
+        """Free-form search over a season's players, for hunting content.
+        Read-only. Raises ValueError on an unknown metric."""
+        raise NotImplementedError
+
     # ------------------------------------------------------------ imagery
     @abstractmethod
     def list_image_catalog(self, season_code: str) -> Dict[str, Any]:

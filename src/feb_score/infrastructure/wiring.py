@@ -702,6 +702,133 @@ class _GatewayBase(CommandGateway):
         except RasterizationFailed as exc:
             raise ImageRenderingFailed(str(exc)) from exc
 
+    # ------------------------------------------------------------ explorer
+    EXPLORE_METRICS = ("points", "rebounds", "assists", "steals", "blocks",
+                       "turnovers", "minutes", "games_played")
+
+    @staticmethod
+    def _season_reference_date(season_code: str):
+        """The date ages are measured at: the end of the season's second year.
+
+        A season spans two calendar years, so "how old was he" needs a fixed
+        point or the answer drifts every day. The season's April is close enough
+        to the end of the competition to describe the whole year honestly, and
+        it is deterministic — the same query gives the same ages tomorrow.
+        """
+        from datetime import date
+        tail = season_code.split("-")[-1]
+        try:
+            return date(int(tail), 4, 30)
+        except (TypeError, ValueError):
+            return None
+
+    def explore_players(
+        self, season_code: str, *,
+        team: Optional[str] = None, nationality: Optional[str] = None,
+        position: Optional[str] = None, min_age: Optional[int] = None,
+        max_age: Optional[int] = None, min_games: Optional[int] = None,
+        metric: str = "points", per_game: bool = False, limit: int = 25,
+    ) -> Dict[str, Any]:
+        """Free-form search over a season's players — the hunting ground for
+        custom content. Read-only: it never writes and never invents, it just
+        joins what is already stored (stats + catalog + bio + team)."""
+        if metric not in self.EXPLORE_METRICS:
+            raise ValueError(
+                f"metric must be one of {', '.join(self.EXPLORE_METRICS)}")
+
+        season = SeasonCode(season_code)
+        aggregates = list(self._stats_repo.list_season_player_aggregates(season))
+        if not aggregates:
+            # Same envelope shape as a populated answer: the page reads the
+            # keys unconditionally.
+            return {"season_code": season_code, "metric": metric,
+                    "per_game": per_game, "count": 0, "rows": [],
+                    "facets": {"teams": [], "nationalities": [], "positions": []}}
+
+        ids = {a.player_external_id for a in aggregates}
+        catalog = self._player_repo.get_many_by_external_ids(ids)
+        player_team = self._stats_repo.list_season_player_teams(season)
+        team_catalog = self._team_repo.get_many_by_external_ids(set(player_team.values()))
+        team_names = {tid: rec.name for tid, rec in team_catalog.items()
+                      if rec is not None}
+        bio = self._content_adapter.build_league_bio(season_code)
+        ref = self._season_reference_date(season_code)
+        # Same resolution order the renderer uses: an operator override wins
+        # over the FEB photo, so the explorer shows the face a card would.
+        from .rendering.feb_image_assets import PLAYER_PHOTO_URL
+        overrides = self._image_override_repo.list_meta()
+
+        rows: List[Dict[str, Any]] = []
+        for a in aggregates:
+            pid = a.player_external_id
+            rec = catalog.get(pid)
+            tid = player_team.get(pid)
+            games = a.games_played or 0
+            row = {
+                "player_external_id": pid,
+                "name": (rec.name if rec is not None else None) or pid,
+                "team_external_id": tid,
+                "team_name": team_names.get(tid) if tid else None,
+                "nationality": bio.nationality(pid),
+                "position": bio.position(pid),
+                "age": bio.age_on(pid, ref) if ref else None,
+                "games_played": games,
+                "points": a.points, "rebounds": a.rebounds, "assists": a.assists,
+                "steals": a.steals, "blocks": a.blocks, "turnovers": a.turnovers,
+                "minutes": a.minutes,
+                "image_url": (f"/v1/images/player/{pid}"
+                              if ("player", pid) in overrides
+                              else PLAYER_PHOTO_URL.format(player_external_id=pid)),
+            }
+            rows.append(row)
+
+        # Facets come from the WHOLE season, not the filtered set, so the
+        # dropdowns do not shrink as you narrow the search.
+        facets = {
+            "teams": sorted({(r["team_external_id"], r["team_name"] or r["team_external_id"])
+                             for r in rows if r["team_external_id"]},
+                            key=lambda t: (t[1] or "").lower()),
+            "nationalities": sorted({r["nationality"] for r in rows if r["nationality"]}),
+            "positions": sorted({r["position"] for r in rows if r["position"]}),
+        }
+
+        def keep(r: Dict[str, Any]) -> bool:
+            if team and r["team_external_id"] != team:
+                return False
+            if nationality and r["nationality"] != nationality:
+                return False
+            if position and r["position"] != position:
+                return False
+            if min_games is not None and r["games_played"] < min_games:
+                return False
+            if min_age is not None and (r["age"] is None or r["age"] < min_age):
+                return False
+            if max_age is not None and (r["age"] is None or r["age"] > max_age):
+                return False
+            return True
+
+        rows = [r for r in rows if keep(r)]
+        for r in rows:
+            raw = r.get(metric) or 0
+            # Per-game needs games; a player with none is not ranked on an
+            # average that would be a division by zero dressed as a number.
+            r["value"] = round(raw / r["games_played"], 1) if (
+                per_game and r["games_played"]) else raw
+        rows.sort(key=lambda r: (-(r["value"] or 0), r["name"].lower()))
+
+        return {
+            "season_code": season_code,
+            "metric": metric,
+            "per_game": per_game,
+            "count": len(rows),
+            "rows": rows[:limit],
+            "facets": {
+                "teams": [{"external_id": i, "name": n} for i, n in facets["teams"]],
+                "nationalities": facets["nationalities"],
+                "positions": facets["positions"],
+            },
+        }
+
     # ------------------------------------------------------------- imagery
     def list_image_catalog(self, season_code: str) -> Dict[str, Any]:
         from ..domain.value_objects import SeasonCode

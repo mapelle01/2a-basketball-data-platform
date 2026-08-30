@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Explorador · FEB SCORE!</title>
+<style>
+:root{
+  --bg:#0B0A0A; --panel:#141212; --panel-2:#1C1919; --ink:#F7F5F4; --ink-2:#CFC9C7;
+  --grey:#918B89; --rule:#2A2626; --red:#FF2A22;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:15px}
+header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--rule);
+  padding:20px 28px;display:flex;align-items:center;gap:14px 20px;flex-wrap:wrap}
+h1{margin:0;font-size:20px;font-weight:900;letter-spacing:-.03em}
+h1 span{color:var(--red)}
+a.home{color:var(--grey);font-size:12.5px;text-decoration:none}
+a.home:hover{color:var(--ink)}
+button{font:inherit;cursor:pointer;border:1px solid var(--rule);background:var(--panel);
+  color:var(--ink-2);padding:6px 12px;font-size:12px;letter-spacing:.04em}
+button:hover:not(:disabled){border-color:var(--grey)}
+button:disabled{opacity:.5;cursor:default}
+button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:700}
+input,select{font:inherit;font-size:12.5px;padding:7px 9px;
+  background:var(--panel-2);border:1px solid var(--rule);color:var(--ink)}
+input[type=number]{width:74px}
+.bar{width:100%;display:flex;gap:8px 12px;align-items:center;flex-wrap:wrap}
+.bar label{color:var(--grey);font-size:11.5px;letter-spacing:.04em}
+.msg{color:var(--grey);font-size:12px;flex-basis:100%;min-height:16px}
+main{padding:22px 28px 80px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:right;font-size:10px;letter-spacing:.12em;color:var(--grey);font-weight:700;
+  padding:0 10px 9px;border-bottom:1px solid var(--rule);white-space:nowrap}
+th.l,td.l{text-align:left}
+td{padding:9px 10px;border-bottom:1px solid var(--rule);text-align:right;
+  font-variant-numeric:tabular-nums;color:var(--ink-2);white-space:nowrap}
+tbody tr:hover{background:var(--panel)}
+td.rank{color:var(--grey);font-size:11.5px;width:34px}
+td.who{display:flex;align-items:center;gap:10px;text-align:left}
+td.who img{width:34px;height:34px;object-fit:cover;object-position:50% 0;background:#000;flex:none}
+td.who .ph{width:34px;height:34px;background:var(--panel-2);color:var(--grey);flex:none;
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
+.nm{color:var(--ink);font-weight:700;line-height:1.2}
+.sub{color:var(--grey);font-size:10.5px}
+td.val{color:var(--ink);font-weight:800;font-size:15px}
+.empty,.loading{color:var(--grey);padding:44px 0}
+.dim{color:var(--grey)}
+.seg{display:flex;gap:0}
+.seg button{border-right-width:0}
+.seg button:last-child{border-right-width:1px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Explorador FEB SCORE<span>!</span></h1>
+  <a class="home" href="/v1/content/review">← cola</a>
+  <a class="home" href="/v1/images/gallery">imágenes</a>
+  <div class="bar">
+    <label>Temporada</label><input type="text" id="season" size="10" placeholder="2024-2025">
+    <label>Ordenar por</label>
+    <select id="metric">
+      <option value="points">Puntos</option>
+      <option value="rebounds">Rebotes</option>
+      <option value="assists">Asistencias</option>
+      <option value="steals">Robos</option>
+      <option value="blocks">Tapones</option>
+      <option value="turnovers">Pérdidas</option>
+      <option value="minutes">Minutos</option>
+      <option value="games_played">Partidos</option>
+    </select>
+    <span class="seg">
+      <button id="m-tot" aria-pressed="true">Total</button>
+      <button id="m-avg" aria-pressed="false">Por partido</button>
+    </span>
+    <label>Ver</label>
+    <select id="limit">
+      <option>10</option><option selected>25</option><option>50</option><option>100</option>
+    </select>
+  </div>
+  <div class="bar">
+    <select id="team"><option value="">Todos los equipos</option></select>
+    <select id="nat"><option value="">Todas las nacionalidades</option></select>
+    <select id="pos"><option value="">Todas las posiciones</option></select>
+    <label>Edad</label>
+    <input type="number" id="minAge" placeholder="mín" min="14" max="60">
+    <input type="number" id="maxAge" placeholder="máx" min="14" max="60">
+    <label>Partidos mín.</label><input type="number" id="minG" placeholder="0" min="0">
+    <button id="clear">Limpiar filtros</button>
+  </div>
+  <span class="msg" id="msg"></span>
+</header>
+<main>
+  <div class="loading" id="state">Introduce una temporada y pulsa Enter.</div>
+  <table id="tbl" hidden>
+    <thead><tr>
+      <th></th><th class="l">Jugador</th><th class="l">Equipo</th>
+      <th>Nac.</th><th>Pos.</th><th>Edad</th><th data-k="games_played">PJ</th>
+      <th id="valhead">PTS</th>
+      <th data-k="points">PTS</th><th data-k="rebounds">REB</th>
+      <th data-k="assists">AST</th><th data-k="steals">ROB</th>
+      <th data-k="blocks">TAP</th><th data-k="turnovers">PER</th>
+      <th data-k="minutes">MIN</th>
+    </tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const METRIC_LABEL = {points:"PTS", rebounds:"REB", assists:"AST", steals:"ROB",
+                      blocks:"TAP", turnovers:"PER", minutes:"MIN", games_played:"PJ"};
+let perGame = false;
+let facetsLoaded = false;
+// A value the URL asked for that its dropdown cannot hold yet: the facets
+// arrive with the first response, so on a fresh load the select is still empty
+// when the first query is built. Without this the filter in a pasted URL would
+// be silently dropped.
+let desired = {};
+
+function initials(name){
+  return (name||"?").split(/\s+/).slice(0,2).map(w=>w[0]||"").join("").toUpperCase();
+}
+
+// The search lives in the URL, so a query worth keeping can be bookmarked or
+// pasted back — the same result, not an approximation of it.
+function readUrl(){
+  const p = new URLSearchParams(location.search);
+  $("season").value = p.get("season") || "2024-2025";
+  for (const [id, key] of [["metric","metric"],["limit","limit"],
+                           ["minAge","min_age"],["maxAge","max_age"],["minG","min_games"]]){
+    const v = p.get(key); if (v !== null) $(id).value = v;
+  }
+  for (const [id, key] of [["team","team"],["nat","nationality"],["pos","position"]]){
+    const v = p.get(key); if (v) desired[id] = v;
+  }
+  perGame = p.get("per_game") === "1";
+  syncSeg();
+}
+
+function params(){
+  const p = new URLSearchParams();
+  p.set("season", $("season").value.trim());
+  p.set("metric", $("metric").value);
+  p.set("limit", $("limit").value);
+  if (perGame) p.set("per_game", "1");
+  for (const [id, key] of [["team","team"],["nat","nationality"],["pos","position"],
+                           ["minAge","min_age"],["maxAge","max_age"],["minG","min_games"]]){
+    const v = ($(id).value || desired[id] || "").trim(); if (v) p.set(key, v);
+  }
+  return p;
+}
+
+function syncSeg(){
+  $("m-tot").setAttribute("aria-pressed", String(!perGame));
+  $("m-avg").setAttribute("aria-pressed", String(perGame));
+}
+
+function fillFacets(f){
+  // Filled once per season load: the API computes facets over the whole season,
+  // so re-filling on every query would only ever rewrite the same options.
+  const keep = (id, opts, label) => {
+    const sel = $(id);
+    const want = desired[id] || sel.value;
+    sel.innerHTML = `<option value="">${esc(label)}</option>` +
+      opts.map(o => `<option value="${esc(o.v)}">${esc(o.t)}</option>`).join("");
+    sel.value = want;                 // an option the season does not have -> ""
+    delete desired[id];
+  };
+  keep("team", (f.teams||[]).map(t => ({v:t.external_id, t:t.name})), "Todos los equipos");
+  keep("nat", (f.nationalities||[]).map(n => ({v:n, t:n})), "Todas las nacionalidades");
+  keep("pos", (f.positions||[]).map(p => ({v:p, t:p})), "Todas las posiciones");
+  facetsLoaded = true;
+}
+
+function esc(v){
+  return String(v).replace(/[&<>"']/g, c =>
+    ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function fmt(v){ return (v === null || v === undefined) ? "—" : esc(v); }
+
+async function load(){
+  const p = params();
+  history.replaceState(null, "", "?" + p.toString());
+  $("msg").textContent = "";
+  $("state").hidden = false;
+  $("state").textContent = "Buscando…";
+  $("tbl").hidden = true;
+  let data;
+  try {
+    const r = await fetch("/v1/explore/players?" + p.toString());
+    data = await r.json();
+    if (!r.ok){
+      $("state").textContent = (data && data.error && data.error.message) || "Error " + r.status;
+      return;
+    }
+  } catch (e){
+    $("state").textContent = "No se pudo conectar.";
+    return;
+  }
+  if (!facetsLoaded) fillFacets(data.facets || {});
+  const rows = data.rows || [];
+  const label = METRIC_LABEL[data.metric] || "";
+  $("valhead").textContent = label + (data.per_game ? "/P" : "");
+  $("rows").innerHTML = rows.map((r, i) => `
+    <tr>
+      <td class="rank">${i+1}</td>
+      <td class="who"><img src="${esc(r.image_url || "")}"
+            alt="" data-ini="${esc(initials(r.name))}">
+        <span><span class="nm">${esc(r.name)}</span><br>
+        <span class="sub">${esc(r.player_external_id)}</span></span></td>
+      <td class="l">${r.team_name ? esc(r.team_name) : '<span class="dim">—</span>'}</td>
+      <td>${fmt(r.nationality)}</td><td>${fmt(r.position)}</td><td>${fmt(r.age)}</td>
+      <td data-k="games_played">${r.games_played}</td>
+      <td class="val">${fmt(r.value)}</td>
+      <td data-k="points">${r.points}</td><td data-k="rebounds">${r.rebounds}</td>
+      <td data-k="assists">${r.assists}</td><td data-k="steals">${r.steals}</td>
+      <td data-k="blocks">${r.blocks}</td><td data-k="turnovers">${r.turnovers}</td>
+      <td data-k="minutes">${r.minutes}</td>
+    </tr>`).join("");
+  // The ranking column already shows the total; repeating it as a raw column
+  // is noise. With per-game on it is not a repeat (average next to total).
+  for (const cell of document.querySelectorAll("[data-k]"))
+    cell.hidden = (!data.per_game && cell.dataset.k === data.metric);
+  for (const img of $("rows").querySelectorAll("img[data-ini]")){
+    const fallback = () => {
+      const ph = document.createElement("div");
+      ph.className = "ph"; ph.textContent = img.dataset.ini;
+      img.replaceWith(ph);
+    };
+    img.addEventListener("error", fallback, {once:true});
+    // A load that already failed will never fire error again.
+    if (img.complete && img.naturalWidth === 0) fallback();
+  }
+  if (!rows.length){
+    $("state").textContent = data.count === 0
+      ? "Ningún jugador cumple estos filtros."
+      : "Sin datos para esta temporada.";
+    return;
+  }
+  $("state").hidden = true;
+  $("tbl").hidden = false;
+  $("msg").textContent = `${rows.length} de ${data.count} jugadores`;
+}
+
+for (const id of ["metric","limit","team","nat","pos"]) $(id).addEventListener("change", load);
+for (const id of ["minAge","maxAge","minG"]) $(id).addEventListener("change", load);
+$("season").addEventListener("change", () => { facetsLoaded = false; load(); });
+$("m-tot").addEventListener("click", () => { perGame = false; syncSeg(); load(); });
+$("m-avg").addEventListener("click", () => { perGame = true; syncSeg(); load(); });
+$("clear").addEventListener("click", () => {
+  for (const id of ["team","nat","pos","minAge","maxAge","minG"]) $(id).value = "";
+  desired = {};
+  load();
+});
+readUrl();
+load();
+</script>
+</body>
+</html>
