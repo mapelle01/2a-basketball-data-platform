@@ -366,5 +366,14 @@ class TestSeasons:
     def test_empty_database_lists_nothing(self, client):
         assert client.get("/v1/seasons").json() == {"seasons": []}
 
+    def test_the_throwaway_smoke_season_is_hidden(self, client):
+        """The deploy smoke writes into 0000-0000 every deploy; it must never
+        show up as a pickable season in the operator dropdowns."""
+        gw = client.app.state.gateway
+        self._add_match(gw, "real", "2024-2025")
+        self._add_match(gw, "smoke-x", "0000-0000")
+        codes = [s["season_code"] for s in client.get("/v1/seasons").json()["seasons"]]
+        assert codes == ["2024-2025"]
+
     def test_it_is_a_public_read(self, client):
         assert client.get("/v1/seasons").status_code == 200

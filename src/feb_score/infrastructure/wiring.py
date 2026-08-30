@@ -722,14 +722,20 @@ class _GatewayBase(CommandGateway):
         except (TypeError, ValueError):
             return None
 
+    SMOKE_SEASON = "0000-0000"
+
     def list_seasons(self) -> List[Dict[str, Any]]:
         """Every season with matches, newest first. Derived from the matches
         table, so a season shows up as soon as it has a single fixture — which
         is what the dropdowns want: pick from what actually exists, no typing.
         """
+        # The deploy smoke test writes one match per deploy into the throwaway
+        # season 0000-0000, so it would otherwise show up as a pickable season in
+        # every operator dropdown. It is not a real season — hide it.
         return [
             {"season_code": code, "matches": count}
             for code, count in self._match_repo.list_seasons()
+            if code != self.SMOKE_SEASON
         ]
 
     def explore_players(
