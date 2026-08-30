@@ -487,6 +487,11 @@ _SB_COL_RATIO = 0.95        # column width vs the secondary figure size — tigh
 # ROBOS+TAPONES .668), rounded up so the fit is conservative: overestimating
 # only widens a column, underestimating overlaps two.
 _SB_LABEL_ADVANCE = 0.70
+# Upper bound on a HERO-weight digit's advance (incl. the "." in "20.2"), in em.
+# Secondary figures are set with DISPLAY tracking, so this is deliberately
+# generous — overestimating only widens a column, underestimating lets two
+# figures touch.
+_SB_NUM_ADVANCE = 0.66
 _SB_LABEL_MIN = 13          # below this a unit label stops being readable
 
 
@@ -528,7 +533,15 @@ def _stat_stacked(x, y, width, primary, primary_label, secondary, fg, variant, c
         # it to whichever is wider, then shrink the label if even the full
         # content width cannot hold it.
         widest = max(_caps_width(str(lab), lab_size) for _, lab in secondary)
-        band = min(width, max(n * sec_size * 2 * _SB_COL_RATIO, n * (widest + Spacing.MD)))
+        # ...and by the VALUE: a 4-char figure like "20.2" is far wider than the
+        # 2-digit number the old sizing assumed, so it nearly touched its
+        # neighbour ("26 20.2" read as one blob). Size each column to whichever
+        # is wider — label or figure — plus a gap, so short pairs breathe too.
+        widest_val = max(len(str(val)) * sec_size * _SB_NUM_ADVANCE for val, _ in secondary)
+        per_col = max(sec_size * 2 * _SB_COL_RATIO,
+                      widest + Spacing.MD,
+                      widest_val + Spacing.LG)
+        band = min(width, n * per_col)
         bx = (ox - band / 2) if center else x
         col_w = band / n
         if widest + Spacing.MD > col_w:
