@@ -46,6 +46,18 @@ td.who .ph{width:34px;height:34px;background:var(--panel-2);color:var(--grey);fl
 .sub{color:var(--grey);font-size:10.5px}
 td.val{color:var(--ink);font-weight:800;font-size:15px}
 .empty,.loading{color:var(--grey);padding:44px 0}
+.make{width:100%;display:flex;gap:8px 12px;align-items:center;flex-wrap:wrap;
+  border-top:1px solid var(--rule);padding-top:12px;margin-top:2px}
+.make input[type=text]{min-width:220px}
+.make input#ctitle{flex:1;max-width:340px}
+.make button.go{background:var(--red);border-color:var(--red);color:#fff;font-weight:700}
+.make button.go:hover:not(:disabled){border-color:#fff}
+.picked{color:var(--grey);font-size:11.5px}
+td.pick{width:34px}
+td.pick input{width:15px;height:15px;accent-color:var(--red);cursor:pointer}
+tr.on{background:var(--panel)}
+.res{flex-basis:100%;font-size:12.5px;min-height:16px}
+.res a{color:var(--red)}
 .dim{color:var(--grey)}
 .seg{display:flex;gap:0}
 .seg button{border-right-width:0}
@@ -89,13 +101,25 @@ td.val{color:var(--ink);font-weight:800;font-size:15px}
     <label>Partidos mín.</label><input type="number" id="minG" placeholder="0" min="0">
     <button id="clear">Limpiar filtros</button>
   </div>
+  <div class="make">
+    <input type="text" id="ctitle" placeholder="Título de la carta — p. ej. «Los reyes del rebote»"
+           maxlength="80" autocomplete="off">
+    <input type="text" id="cscope" placeholder="Etiqueta — «Temporada 2024-25»"
+           maxlength="40" size="22" autocomplete="off">
+    <label><input type="checkbox" id="crank" checked> Numerar</label>
+    <button class="go" id="make">Crear carta</button>
+    <span class="picked" id="picked">se usan los 5 primeros</span>
+    <input type="password" id="key" placeholder="Clave de API" autocomplete="off"
+           spellcheck="false" size="18">
+    <span class="res" id="res"></span>
+  </div>
   <span class="msg" id="msg"></span>
 </header>
 <main>
   <div class="loading" id="state">Introduce una temporada y pulsa Enter.</div>
   <table id="tbl" hidden>
     <thead><tr>
-      <th></th><th class="l">Jugador</th><th class="l">Equipo</th>
+      <th></th><th></th><th class="l">Jugador</th><th class="l">Equipo</th>
       <th>Nac.</th><th>Pos.</th><th>Edad</th><th data-k="games_played">PJ</th>
       <th id="valhead">PTS</th>
       <th data-k="points">PTS</th><th data-k="rebounds">REB</th>
@@ -205,6 +229,7 @@ async function load(){
   $("rows").innerHTML = rows.map((r, i) => `
     <tr>
       <td class="rank">${i+1}</td>
+      <td class="pick"><input type="checkbox" data-pid="${esc(r.player_external_id)}"></td>
       <td class="who"><img src="${esc(r.image_url || "")}"
             alt="" data-ini="${esc(initials(r.name))}">
         <span><span class="nm">${esc(r.name)}</span><br>
@@ -238,6 +263,7 @@ async function load(){
       : "Sin datos para esta temporada.";
     return;
   }
+  syncPicks();
   $("state").hidden = true;
   $("tbl").hidden = false;
   $("msg").textContent = `${rows.length} de ${data.count} jugadores`;
@@ -253,6 +279,80 @@ $("clear").addEventListener("click", () => {
   desired = {};
   load();
 });
+// ---------------------------------------------------------------- card
+// The picks are a SELECTION, not data: what goes to the server is the query
+// plus these ids. The figures on the card are re-read there, so the page
+// cannot put a number on a card the database does not have.
+let picks = [];
+const MAX_PICKS = 5;
+
+function syncPicks(){
+  const n = picks.length;
+  $("picked").textContent = n
+    ? `${n} elegido${n>1?"s":""}${n>MAX_PICKS?` — sólo entran ${MAX_PICKS}`:""}`
+    : "se usan los 5 primeros";
+  for (const box of $("rows").querySelectorAll("input[data-pid]")){
+    const on = picks.includes(box.dataset.pid);
+    box.checked = on;
+    box.closest("tr").classList.toggle("on", on);
+  }
+}
+
+$("rows").addEventListener("change", e => {
+  const box = e.target.closest("input[data-pid]");
+  if (!box) return;
+  const pid = box.dataset.pid;
+  picks = box.checked ? [...picks.filter(p => p !== pid), pid]
+                      : picks.filter(p => p !== pid);
+  syncPicks();
+});
+
+$("key").value = sessionStorage.getItem("febKey") || "";
+$("key").addEventListener("change", () => {
+  // Session only: the key is the operator's, and it should not outlive the tab.
+  try { sessionStorage.setItem("febKey", $("key").value.trim()); } catch (e) {}
+});
+
+$("make").addEventListener("click", async () => {
+  const title = $("ctitle").value.trim();
+  if (!title){ $("res").textContent = "Ponle un título a la carta."; return; }
+  const key = $("key").value.trim();
+  if (!key){ $("res").textContent = "Hace falta la clave de API para crear."; return; }
+  const p = params();
+  const body = {
+    season: p.get("season"), title,
+    scope_label: $("cscope").value.trim() || null,
+    show_rank: $("crank").checked,
+    player_ids: picks.length ? picks.slice(0, MAX_PICKS) : null,
+    metric: p.get("metric"), per_game: p.get("per_game") === "1",
+    team: p.get("team") || null, nationality: p.get("nationality") || null,
+    position: p.get("position") || null,
+    min_age: p.get("min_age") ? Number(p.get("min_age")) : null,
+    max_age: p.get("max_age") ? Number(p.get("max_age")) : null,
+    min_games: p.get("min_games") ? Number(p.get("min_games")) : null,
+  };
+  $("make").disabled = true;
+  $("res").textContent = "Creando…";
+  try {
+    const r = await fetch("/v1/explore/card", {
+      method: "POST",
+      headers: {"content-type": "application/json", "x-api-key": key},
+      body: JSON.stringify(body),
+    });
+    const data = await r.json();
+    if (!r.ok){
+      $("res").textContent = (data.error && data.error.message) || ("Error " + r.status);
+      return;
+    }
+    $("res").innerHTML = `Carta creada (${esc(data.status)}) · ` +
+      `<a href="/v1/content/review" target="_blank">verla en la cola</a>`;
+  } catch (e){
+    $("res").textContent = "No se pudo crear la carta.";
+  } finally {
+    $("make").disabled = false;
+  }
+});
+
 readUrl();
 load();
 </script>

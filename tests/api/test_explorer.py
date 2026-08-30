@@ -14,6 +14,7 @@ from feb_score.domain.player.model import Player
 from feb_score.domain.statistics.model import PlayerStats
 from feb_score.domain.team.model import Team
 from feb_score.domain.value_objects import ExternalId, PlayerId, SeasonCode, TeamId
+from api_helpers import auth_header
 from feb_score.infrastructure.persistence.repositories import (
     SqliteMatchStatsRepository,
     SqlitePlayerRepository,
@@ -207,3 +208,119 @@ class TestReadOnly:
         _q(client, metric="assists", per_game=1, min_games=1)
         _q(client, team="tA", position="Base", max_age=40)
         assert snapshot() == before
+
+
+class TestQueryToCard:
+    """The bridge: a query becomes a card in the review queue.
+
+    The invariant under test is the one that matters — the request carries the
+    QUERY and the wording, never a figure, so a card cannot claim a number the
+    database does not hold.
+    """
+
+    def _card(self, client, **body):
+        body.setdefault("season", SEASON)
+        body.setdefault("title", "Los que más anotan")
+        return client.post("/v1/explore/card", json=body, headers=auth_header("editor"))
+
+    def test_creates_a_card_from_the_current_query(self, client):
+        _seed(client)
+        r = self._card(client, metric="points")
+        assert r.status_code == 201, r.text
+        item = r.json()
+        assert item["story"]["story_type"] == "custom_five"
+        assert item["template_id"] == "best_five"
+        names = [row["player_name"] for row in item["story"]["facts"]["lineup"]]
+        assert names == ["PRIME, MARC", "VETERANO, LUIS", "KID, TOMÁS"]
+
+    def test_the_card_lands_in_the_queue(self, client):
+        _seed(client)
+        content_id = self._card(client).json()["content_id"]
+        queue = client.get("/v1/content/queue", headers=auth_header("editor")).json()
+        items = queue["items"] if isinstance(queue, dict) else queue
+        assert content_id in {i["content_id"] for i in items}
+
+    def test_it_renders(self, client):
+        _seed(client)
+        content_id = self._card(client).json()["content_id"]
+        svg = client.get(f"/v1/content/items/{content_id}/render.svg")
+        assert svg.status_code == 200
+        assert "Los que más anotan" in svg.text
+
+    def test_the_figures_come_from_the_database_not_the_request(self, client):
+        """A caller sending its own numbers must not be able to place them on a
+        card. There is no field for one, and anything extra is ignored."""
+        _seed(client)
+        r = self._card(client, metric="points", points=9999, value="9999",
+                       lineup=[{"player_name": "INVENTADO", "value": 9999}])
+        assert r.status_code == 201
+        facts = r.json()["story"]["facts"]
+        assert "9999" not in str(facts)
+        assert all(row["player_external_id"] in _LINES for row in facts["lineup"])
+
+    def test_the_column_says_what_the_number_is(self, client):
+        """The automatic quinteto ranks by FEB Rating. A card ranked by steals
+        with a FEB RATING header would be lying about its own column."""
+        _seed(client)
+        facts = self._card(client, metric="steals").json()["story"]["facts"]
+        assert facts["metric_label"] == "ROBOS"
+        facts = self._card(client, metric="steals", per_game=True,
+                           title="Manos rápidas").json()["story"]["facts"]
+        assert facts["metric_label"] == "ROBOS POR PARTIDO"
+
+    def test_the_supporting_line_never_repeats_the_ranked_figure(self, client):
+        _seed(client)
+        facts = self._card(client, metric="rebounds").json()["story"]["facts"]
+        assert "REB" not in facts["lineup"][0]["context"]
+        assert "PTS" in facts["lineup"][0]["context"]
+
+    def test_hand_picked_players_stay_in_ranked_order(self, client):
+        """Ticked in any order, drawn in the metric's order: the card numbers
+        its rows, and a worse line above a better one would be a lie."""
+        _seed(client)
+        r = self._card(client, metric="points", player_ids=["p3", "p2"])
+        ids = [row["player_external_id"] for row in r.json()["story"]["facts"]["lineup"]]
+        assert ids == ["p2", "p3"]          # 300 points before 80
+
+    def test_a_player_outside_the_query_cannot_be_added(self, client):
+        _seed(client)
+        r = self._card(client, position="Base", player_ids=["p1"])
+        assert r.status_code == 400
+        assert "p1" in r.json()["error"]["message"]
+
+    def test_the_subtitle_states_who_was_eligible(self, client):
+        _seed(client)
+        facts = self._card(client, position="Base", min_games=5).json()["story"]["facts"]
+        assert facts["subtitle"] == "BASE · MÍNIMO 5 PARTIDOS"
+
+    def test_a_title_claiming_more_than_the_data_is_refused(self, client):
+        """The FactValidator applies to a hand-written headline exactly as it
+        does to a generated one — and the card is not queued."""
+        _seed(client)
+        r = self._card(client, title="Los 40 mejores")
+        assert r.status_code == 422
+        queue = client.get("/v1/content/queue", headers=auth_header("editor")).json()
+        items = queue["items"] if isinstance(queue, dict) else queue
+        assert not [i for i in items if i["story"]["facts"].get("title") == "Los 40 mejores"]
+
+    def test_an_empty_result_makes_no_card(self, client):
+        _seed(client)
+        assert self._card(client, min_games=500).status_code == 400
+
+    def test_a_title_is_required(self, client):
+        _seed(client)
+        # the app maps a schema rejection to 400
+        assert self._card(client, title="").status_code == 400
+
+    def test_creating_needs_a_key(self, client):
+        _seed(client)
+        r = client.post("/v1/explore/card", json={"season": SEASON, "title": "X"})
+        assert r.status_code == 401
+
+    def test_the_same_query_twice_is_the_same_card(self, client):
+        """Re-running a query the operator liked must not fill the queue with
+        copies of one card."""
+        _seed(client)
+        first = self._card(client).json()["content_id"]
+        second = self._card(client).json()["content_id"]
+        assert first == second

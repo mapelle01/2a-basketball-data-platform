@@ -829,6 +829,147 @@ class _GatewayBase(CommandGateway):
             },
         }
 
+    # A metric's own name, for the column header on the card. The card is in
+    # Spanish; the API parameter is not, so the two are mapped in one place.
+    METRIC_LABELS = {
+        "points": "PUNTOS", "rebounds": "REBOTES", "assists": "ASISTENCIAS",
+        "steals": "ROBOS", "blocks": "TAPONES", "turnovers": "PÉRDIDAS",
+        "minutes": "MINUTOS", "games_played": "PARTIDOS",
+    }
+    CUSTOM_FIVE_SIZE = 5
+
+    def create_custom_five(
+        self, season_code: str, *, title: str, subtitle: str = "",
+        scope_label: Optional[str] = None, player_ids: Optional[List[str]] = None,
+        show_rank: bool = True, **query: Any
+    ) -> Dict[str, Any]:
+        """Turn an explorer query into a card.
+
+        The caller sends the QUERY and the words, never the numbers: the rows
+        are re-read here through ``explore_players``, the same path that drew
+        them on screen. A client that could post its own figures would be a
+        hole straight through the no-invention rule, so there is no parameter
+        for one.
+
+        ``player_ids`` narrows the result to a hand-picked few (still ranked by
+        the query's metric); without it the top five of the query are taken.
+        """
+        from ..domain.content.story import StoryObject, StoryEntities, StoryType
+
+        title = (title or "").strip()
+        if not title:
+            raise ValueError("title is required")
+
+        # Ask for more than five when the operator is picking by hand, so their
+        # choice is not silently cut off by the ranking.
+        query.pop("limit", None)
+        result = self.explore_players(season_code, limit=200, **query)
+        rows = result["rows"]
+        if player_ids:
+            wanted = list(dict.fromkeys(player_ids))
+            by_id = {r["player_external_id"]: r for r in rows}
+            missing = [p for p in wanted if p not in by_id]
+            if missing:
+                raise ValueError(
+                    "these players are not in the query result: " + ", ".join(missing))
+            # Kept in the QUERY's order, not the order they were ticked in: the
+            # card numbers its rows, and a 20-steal player sitting above a
+            # 45-steal one under a "1" would be a ranking that lies.
+            chosen = set(wanted)
+            rows = [r for r in rows if r["player_external_id"] in chosen]
+        rows = rows[: self.CUSTOM_FIVE_SIZE]
+        if not rows:
+            raise ValueError("the query matched no players, so there is no card")
+
+        metric = result["metric"]
+        per_game = result["per_game"]
+        label = self.METRIC_LABELS.get(metric, metric.upper())
+        metric_label = f"{label} POR PARTIDO" if per_game else label
+
+        lineup = [
+            {
+                "rank": i,
+                "player_external_id": r["player_external_id"],
+                "player_name": r["name"],
+                "team_external_id": r["team_external_id"],
+                "team_name": r["team_name"],
+                "points": r["points"], "rebounds": r["rebounds"],
+                "assists": r["assists"],
+                "value": self._es_number(r["value"]),
+                "context": self._custom_context(r, metric),
+            }
+            for i, r in enumerate(rows, start=1)
+        ]
+        facts = {
+            "lineup": lineup,
+            "count": len(lineup),
+            "title": title,
+            "subtitle": subtitle or self._custom_subtitle(query, result["facets"]),
+            "scope_label": scope_label or season_code,
+            "count_label": f"Top {len(lineup)}",
+            "metric_label": metric_label,
+            "metric": metric,
+            "per_game": per_game,
+            "show_rank": show_rank,
+            "filters": {k: v for k, v in query.items() if v not in (None, "")},
+        }
+        story = StoryObject(
+            story_type=StoryType.CUSTOM_FIVE,
+            season_code=season_code,
+            round_number=None,          # a query is not a round
+            entities=StoryEntities(),
+            facts=facts,
+            source_refs={
+                "season_player_aggregates":
+                    f"2afeb_score://season_player_aggregates/{season_code}",
+            },
+        )
+        item = self._pipeline().generate_one(story)
+        return item.to_dict()
+
+    @staticmethod
+    def _es_number(value: Any) -> str:
+        """The cards are written in Spanish: 12,4 — never 12.4."""
+        if isinstance(value, float):
+            return f"{value:.1f}".replace(".", ",")
+        return str(value)
+
+    @staticmethod
+    def _custom_subtitle(query: Dict[str, Any], facets: Dict[str, Any]) -> str:
+        """WHO was eligible, in words — the honest framing of any filtered
+        ranking, and the one thing the card does not say anywhere else. It
+        deliberately does NOT restate the metric: that is the column header.
+
+        Every figure it can contain (an age bound, a games minimum) is a filter
+        recorded in the facts, so the FactValidator can back it.
+        """
+        bits: List[str] = []
+        if query.get("team"):
+            bits.append(next((t["name"] for t in facets.get("teams", [])
+                              if t["external_id"] == query["team"]), query["team"]))
+        for key in ("position", "nationality"):
+            if query.get(key):
+                bits.append(str(query[key]))
+        lo, hi = query.get("min_age"), query.get("max_age")
+        if lo and hi:
+            bits.append(f"de {lo} a {hi} años")
+        elif lo:
+            bits.append(f"{lo} años o más")
+        elif hi:
+            bits.append(f"{hi} años o menos")
+        if query.get("min_games"):
+            bits.append(f"mínimo {query['min_games']} partidos")
+        return " · ".join(bits).upper()
+
+    def _custom_context(self, row: Dict[str, Any], metric: str) -> str:
+        """The supporting line under the name. It never repeats the ranked
+        figure — that one is already the big number on the right."""
+        parts = [(f"{row['games_played']} PJ", "games_played"),
+                 (f"{row['points']} PTS", "points"),
+                 (f"{row['rebounds']} REB", "rebounds"),
+                 (f"{row['assists']} AST", "assists")]
+        return " · ".join(text for text, key in parts if key != metric)
+
     # ------------------------------------------------------------- imagery
     def list_image_catalog(self, season_code: str) -> Dict[str, Any]:
         from ..domain.value_objects import SeasonCode

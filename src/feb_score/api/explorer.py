@@ -9,20 +9,23 @@ team), so anything found here can be traced back the same way a generated card
 is.
 
 Routes:
-  GET /v1/explore                  the browser page (public read)
-  GET /v1/explore/players?season=  the query itself (public read)
+  GET  /v1/explore                  the browser page (public read)
+  GET  /v1/explore/players?season=  the query itself (public read)
+  POST /v1/explore/card             turn a query into a queued card (auth)
 """
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel, Field
 
 from . import errors as err
+from .auth import AuthenticationProvider
 
 _SEASON_RE = re.compile(r"^[0-9]{4}-[0-9]{2,4}$")
 MAX_ROWS = 200
@@ -88,3 +91,71 @@ def register_explorer_routes(app: FastAPI) -> None:
             )
         except ValueError as exc:          # unknown metric
             return err.error_response(400, "INVALID_PARAMETER", str(exc))
+
+    @app.post(
+        "/v1/explore/card",
+        tags=["explorer"],
+        summary="Turn an explorer query into a card",
+        status_code=201,
+        description="Renders the query's top five (or the hand-picked players) "
+        "on the ranking grid and puts the card in the review queue. The request "
+        "carries the query and the wording only — every figure is re-read "
+        "server-side, so a card can never claim a number the database does not "
+        "have. Authenticated. A card whose copy fails fact validation is "
+        "returned with the reason and is NOT queued.",
+    )
+    def create_card(body: CustomFiveRequest, request: Request):
+        auth: AuthenticationProvider = request.app.state.auth
+        if auth.authenticate(request) is None:
+            return err.error_response(401, "UNAUTHENTICATED", "API key required")
+        if not _SEASON_RE.match(body.season):
+            return err.error_response(
+                400, "INVALID_PARAMETER", "season must look like 2024-2025")
+        try:
+            item = request.app.state.gateway.create_custom_five(
+                body.season, title=body.title, subtitle=body.subtitle,
+                scope_label=body.scope_label, player_ids=body.player_ids,
+                show_rank=body.show_rank,
+                team=body.team, nationality=body.nationality,
+                position=body.position, min_age=body.min_age,
+                max_age=body.max_age, min_games=body.min_games,
+                metric=body.metric, per_game=body.per_game,
+            )
+        except ValueError as exc:
+            return err.error_response(400, "INVALID_PARAMETER", str(exc))
+        if item.get("status") in ("rejected", "failed"):
+            # The operator is right there: tell them what the card claimed that
+            # the data does not support, instead of leaving a dead row behind.
+            return err.error_response(
+                422, "CARD_REJECTED",
+                item.get("error") or "the card did not pass validation",
+                details={"validation": item.get("fact_validation")},
+            )
+        return item
+
+
+class CustomFiveRequest(BaseModel):
+    """A card built from a query.
+
+    Note what is NOT here: any figure. The request carries the QUERY and the
+    words; the numbers are re-read server-side from the same place the explorer
+    read them. A field for a caller-supplied statistic would be a hole straight
+    through the no-invention rule.
+    """
+
+    season: str
+    title: str = Field(..., min_length=1, max_length=80)
+    subtitle: str = Field("", max_length=80)
+    scope_label: Optional[str] = Field(None, max_length=40)
+    show_rank: bool = True
+    player_ids: Optional[List[str]] = None
+
+    # the query, exactly as /v1/explore/players takes it
+    team: Optional[str] = None
+    nationality: Optional[str] = None
+    position: Optional[str] = None
+    min_age: Optional[int] = None
+    max_age: Optional[int] = None
+    min_games: Optional[int] = None
+    metric: str = "points"
+    per_game: bool = False

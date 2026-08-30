@@ -54,6 +54,7 @@ class StoryType(str, Enum):
     VETERAN = "veteran"                # oldest player of the round with a real game (bio)
     BEST_FIVE = "best_five"            # the round's five best by FEB Rating (grid)
     BEST_FIVE_IDEAL = "best_five_ideal"  # the round's ideal five by position (court)
+    CUSTOM_FIVE = "custom_five"        # a five the operator picked from a query
     BEST_DUO = "best_duo"             # two teammates, best combined game (round)
     # TOP_SCORER / TOP_REBOUNDER / TOP_ASSIST_PROVIDER are the SEASON leaders.
 
@@ -102,6 +103,11 @@ STORY_TO_TEMPLATE: Dict[StoryType, str] = {
     StoryType.YOUNG_GUN: "player_of_round",
     StoryType.VETERAN: "player_of_round",
     StoryType.BEST_FIVE: "best_five",
+    # The operator's own query, rendered on the same grid. A separate type so
+    # the automatic quinteto's novelty rule ("this round already has a
+    # best_five") is not spent by a hand-made card, and so the queue says where
+    # the card came from.
+    StoryType.CUSTOM_FIVE: "best_five",
     StoryType.BEST_FIVE_IDEAL: "best_five_court",
     StoryType.IRON_MAN: "player_of_round",
     StoryType.SHARPSHOOTER: "player_of_round",
@@ -166,6 +172,7 @@ STORY_DISPLAY_NAMES: Dict[str, str] = {
     "top_rebounder": "Máximo reboteador de la temporada",
     "top_assist_provider": "Máximo asistente de la temporada",
     "best_five": "El quinteto de la jornada",
+    "custom_five": "Quinteto a medida",
     "best_five_ideal": "El quinteto ideal (por posición)",
 }
 

@@ -457,6 +457,39 @@ def generate_copy_best_five(story: Dict[str, Any]) -> CopyContract:
     )
 
 
+def generate_copy_custom_five(story: Dict[str, Any]) -> CopyContract:
+    """A five the operator built from their own query.
+
+    The headline is THEIRS — the whole point of the card is a framing the
+    detectors do not have. What is not theirs is the arithmetic: the names and
+    the scope come from the query that produced the rows, and the caption
+    carries no figures, so the FactValidator has nothing to disagree with.
+    A number written into the title still has to appear in the facts; a title
+    promising ten players over a five-row card fails, which is correct.
+    """
+    f = story["facts"]
+    lineup = f.get("lineup", [])
+    names = [r.get("player_name") or r.get("player_external_id", "") for r in lineup]
+    if len(names) >= 2:
+        joined = ", ".join(names[:-1]) + " y " + names[-1]
+    else:
+        joined = names[0] if names else ""
+
+    headline = f.get("title") or "Quinteto a medida"
+    subtitle = f.get("subtitle") or ""
+    # The scope ("Temporada 2024-25") stays OFF the caption on purpose: its
+    # digits are not a claim the facts can back, and widening the validator to
+    # let them through would widen it for every card. The scope is drawn on the
+    # image, where it belongs; an operator who wants it in the post text can
+    # edit the caption, which is the curated path by design.
+    caption = f"{headline}: {joined}." if joined else headline
+    return CopyContract(
+        headline=headline, subtitle=subtitle, caption=caption,
+        hashtags=BASE_HASHTAGS,
+        facts_used=("lineup", "title"),
+    )
+
+
 def generate_copy_defensive_anchor(story: Dict[str, Any]) -> CopyContract:
     f = story["facts"]
     name = f.get("player_name") or f.get("player_external_id", "El jugador")
@@ -693,6 +726,7 @@ _GENERATORS = {
     "playmaker": generate_copy_playmaker,                        # round director
     "best_five": generate_copy_best_five,                        # quinteto de la jornada
     "best_five_ideal": generate_copy_best_five,                  # quinteto ideal por posición
+    "custom_five": generate_copy_custom_five,                    # quinteto hecho a mano
     "defensive_anchor": generate_copy_defensive_anchor,          # steals + blocks
     "lone_flag": generate_copy_lone_flag,                        # bio: nationality
     "young_gun": generate_copy_young_gun,                        # bio: youngest

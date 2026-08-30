@@ -264,6 +264,18 @@ class CommandGateway(ABC):
         Read-only. Raises ValueError on an unknown metric."""
         raise NotImplementedError
 
+    @abstractmethod
+    def create_custom_five(
+        self, season_code: str, *, title: str, subtitle: str = "",
+        scope_label: Optional[str] = None, player_ids: Optional[List[str]] = None,
+        show_rank: bool = True, **query: Any
+    ) -> Dict[str, Any]:
+        """Turn an explorer query into a queued card. The caller supplies the
+        query and the wording, never the figures — those are re-read from the
+        same source the explorer used. Returns the content item. Raises
+        ValueError on an empty result or an unusable title."""
+        raise NotImplementedError
+
     # ------------------------------------------------------------ imagery
     @abstractmethod
     def list_image_catalog(self, season_code: str) -> Dict[str, Any]:

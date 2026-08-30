@@ -777,6 +777,10 @@ def render_best_five_grid(data: Dict[str, Any]) -> str:
     scope_label = facts.get("scope_label", f"Jornada {round_number}")
     count_label = facts.get("count_label", "Mejor 5")
     show_rank = facts.get("show_rank", True)
+    # What the right-hand column IS. The automatic quinteto ranks by FEB
+    # Rating; a hand-made one can rank by anything, and a card that says
+    # "FEB RATING" over a column of points per game would be lying.
+    metric_label = facts.get("metric_label", "FEB RATING /10")
 
     body: List[str] = []
     body.append(C.text(CONTENT_X, 176, title,
@@ -789,13 +793,16 @@ def render_best_five_grid(data: Dict[str, Any]) -> str:
         {"label": scope_label, "with_mark": True, "chevron": True},
     ])
     body.append(bar)
-    body.append(C.text(CONTENT_X + CONTENT_W, 400, "FEB RATING /10", size=FontSize.MICRO,
+    body.append(C.text(CONTENT_X + CONTENT_W, 400, metric_label, size=FontSize.MICRO,
                        weight=FontWeight.LABEL, fill=sub, opacity=_LIGHT_SUB_ALPHA, anchor="end",
                        tracking=LetterSpacing.LABEL, upper=True))
 
     ry = 430
     n = max(1, len(lineup))
-    step = min(132, (FOOTER_Y - 60 - ry) // n)
+    # A five fills the card at 132. A hand-made ranking can legitimately come
+    # back with four (only four players matched), and four rows at 132 leave the
+    # bottom third empty — so a short list breathes instead of hugging the top.
+    step = min(132 if n >= 5 else 168, (FOOTER_Y - 60 - ry) // n)
     chip = 88
     av_r = 42
     av_cx = CONTENT_X + 40 + av_r
@@ -822,6 +829,13 @@ def render_best_five_grid(data: Dict[str, Any]) -> str:
             rb, _ = C.rating_badge(CONTENT_X + CONTENT_W - chip, ry - 24,
                                    float(rating), size="m", on_dark=False)
             body.append(rb)
+        elif row.get("value") is not None:
+            # No note to show: the ranked figure takes the badge's place as the
+            # number that stands out. Plain type, not a rating box — the box is
+            # the FEB Rating's mark and means /10.
+            body.append(C.text(CONTENT_X + CONTENT_W, ry + 26, str(row["value"]),
+                               size=FontSize.H2, weight=FontWeight.HERO, fill=ink,
+                               anchor="end", tracking=LetterSpacing.HEADLINE))
         ry += step
 
     ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB",

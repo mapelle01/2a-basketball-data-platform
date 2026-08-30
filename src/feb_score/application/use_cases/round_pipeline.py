@@ -158,6 +158,31 @@ class RoundPipeline:
             self._queue.update(item)
         return item
 
+    def generate_one(self, story: StoryObject) -> ContentItem:
+        """Render, validate and queue ONE story the caller built by hand.
+
+        The detector path exists because the machine finds the story; this
+        exists because sometimes the operator does. Everything downstream is
+        identical — same copy generation, same FactValidator, same review
+        policy — so a hand-made card is held to exactly the rules a detected
+        one is. The only difference is who chose the framing.
+
+        A card that fails validation is NOT queued: the operator is standing
+        right there and can fix the title, whereas a detector run has nobody to
+        ask and keeps the rejection as a record. The item comes back either way
+        so the caller can say what went wrong.
+        """
+        if story.template_id is None:
+            raise ValueError(f"story type {story.story_type.value} has no template")
+        existing = self._queue.by_story_identity(story.identity_key)
+        if existing is not None:
+            return existing            # same query, same card: not a second one
+        item = self._render_and_validate(_as_selected(story))
+        if item.status in (ContentStatus.REJECTED, ContentStatus.FAILED):
+            return item
+        self._queue.add(item)
+        return item
+
     _SCOPE_FAMILY = ((Scope.ROUND, "jornada"), (Scope.BIO, "ficha"), (Scope.SEASON, "temporada"))
 
     def detect_candidates(
