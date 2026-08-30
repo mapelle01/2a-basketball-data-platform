@@ -206,12 +206,27 @@ def avatar(
             f' stroke="{Color.GREY}" stroke-opacity="0.4" stroke-width="{Line.THIN}"/>'
         )
     if badge_uri:
-        br = r * 0.42
-        bx, by = cx + r * 0.62, cy + r * 0.62
-        parts.append(f'<circle cx="{_n(bx)}" cy="{_n(by)}" r="{_n(br + 3)}" fill="{Color.BLACK}"/>')
+        # A clean crest "coin": the FEB crest PNGs mostly ship on an OPAQUE WHITE
+        # square, so the old black backing showed a white square with black
+        # corners peeking out — the "se ve mal" the operator flagged. Instead put
+        # the crest on a white disc and clip it to a circle, so an opaque-white
+        # crest melts into the plate and a transparent one sits on neutral white;
+        # a thin ring defines the coin on both the light and dark cards.
+        br = r * 0.44
+        bx, by = cx + r * 0.60, cy + r * 0.60
+        plate = br + 3
+        bid = f"bdg{_n(bx)}_{_n(by)}".replace(".", "").replace("-", "m")
+        pad = br * 0.90            # breathing room so full-bleed crests don't clip
+        parts.append(f'<circle cx="{_n(bx)}" cy="{_n(by)}" r="{_n(plate)}" fill="{Color.WHITE}"/>')
+        parts.append(f'<clipPath id="{bid}"><circle cx="{_n(bx)}" cy="{_n(by)}" r="{_n(br)}"/></clipPath>')
         parts.append(
-            f'<image href="{badge_uri}" x="{_n(bx - br)}" y="{_n(by - br)}"'
-            f' width="{_n(2 * br)}" height="{_n(2 * br)}" preserveAspectRatio="xMidYMid meet"/>'
+            f'<image href="{badge_uri}" x="{_n(bx - pad)}" y="{_n(by - pad)}"'
+            f' width="{_n(2 * pad)}" height="{_n(2 * pad)}" clip-path="url(#{bid})"'
+            f' preserveAspectRatio="xMidYMid meet"/>'
+        )
+        parts.append(
+            f'<circle cx="{_n(bx)}" cy="{_n(by)}" r="{_n(plate)}" fill="none"'
+            f' stroke="{Color.GREY}" stroke-opacity="0.45" stroke-width="{Line.THIN}"/>'
         )
     return _group(parts)
 
