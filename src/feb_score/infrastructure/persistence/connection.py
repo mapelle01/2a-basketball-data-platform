@@ -85,6 +85,12 @@ MIGRATIONS: List[Migration] = [
         destructive=False,
         script=(_MIGRATIONS_DIR / "007_image_overrides.sql").read_text(),
     ),
+    Migration(
+        version=8,
+        name="media_assets",
+        destructive=False,
+        script=(_MIGRATIONS_DIR / "008_media_assets.sql").read_text(),
+    ),
 ]
 
 

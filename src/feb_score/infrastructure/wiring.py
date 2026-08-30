@@ -235,6 +235,7 @@ class _GatewayBase(CommandGateway):
         )
         self._content_queue_repo = repos["content_queue"]
         self._image_override_repo = repos["image_override"]
+        self._media_asset_repo = repos["media_asset"]
         self._content_pipeline: Optional[RoundPipeline] = None
         self._content_lifecycle = None  # lazily built alongside the pipeline
 
@@ -1206,6 +1207,7 @@ class SqliteGateway(_GatewayBase):
 
         from .persistence.content_queue_repo import SqliteContentQueueRepository
         from .persistence.image_override_repo import SqliteImageOverrideRepository
+        from .persistence.media_asset_repo import SqliteMediaAssetRepository
 
         return {
             "idempotency": SqliteIdempotencyRepository(self.db),
@@ -1221,6 +1223,7 @@ class SqliteGateway(_GatewayBase):
             "publication": SqlitePublicationRepository(self.db),
             "content_queue": SqliteContentQueueRepository(self.db),
             "image_override": SqliteImageOverrideRepository(self.db),
+            "media_asset": SqliteMediaAssetRepository(self.db),
         }
 
     def _entity_counts(self) -> Dict[str, int]:
@@ -1296,6 +1299,7 @@ class PgGateway(_GatewayBase):
 
         from .persistence.content_queue_repo import PgContentQueueRepository
         from .persistence.image_override_repo import PgImageOverrideRepository
+        from .persistence.media_asset_repo import PgMediaAssetRepository
 
         return {
             "idempotency": PgIdempotencyRepository(self.db),
@@ -1311,6 +1315,7 @@ class PgGateway(_GatewayBase):
             "publication": PgPublicationRepository(self.db),
             "content_queue": PgContentQueueRepository(self.db),
             "image_override": PgImageOverrideRepository(self.db),
+            "media_asset": PgMediaAssetRepository(self.db),
         }
 
     def _entity_counts(self) -> Dict[str, int]:

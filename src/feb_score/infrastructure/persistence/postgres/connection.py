@@ -88,6 +88,11 @@ MIGRATIONS: List[PgMigration] = [
         name="image_overrides",
         script=(_MIGRATIONS_DIR / "006_image_overrides.sql").read_text(),
     ),
+    PgMigration(
+        version=7,
+        name="media_assets",
+        script=(_MIGRATIONS_DIR / "007_media_assets.sql").read_text(),
+    ),
 ]
 
 
