@@ -775,6 +775,34 @@ class _GatewayBase(CommandGateway):
         from .rendering.feb_image_assets import PLAYER_PHOTO_URL
         overrides = self._image_override_repo.list_meta()
 
+        # Season FEB Rating (average of the per-game notes) and VAL (official
+        # valuation, summed) — derived from the per-game blobs, which carry the
+        # shooting the column aggregate lacks. Never invented: a game with no
+        # shooting data yields no note and no valuation.
+        from collections import defaultdict
+        from ..domain.statistics.metrics import valoracion
+        from ..domain.content.rating import feb_rating
+        feb_sum: Dict[str, float] = defaultdict(float)
+        feb_n: Dict[str, int] = defaultdict(int)
+        val_sum: Dict[str, int] = defaultdict(int)
+        val_n: Dict[str, int] = defaultdict(int)
+        for line in self._stats_repo.list_season_player_lines(season):
+            lpid = line.player_external_id
+            v = valoracion(line)
+            if v is not None:
+                val_sum[lpid] += v; val_n[lpid] += 1
+            r = feb_rating(
+                line.points, line.rebounds, line.assists, line.steals,
+                line.blocks, line.turnovers, minutes=line.minutes,
+                field_goals_made=line.field_goals_made,
+                field_goals_attempted=line.field_goals_attempted,
+                free_throws_made=line.free_throws_made or 0,
+                free_throws_attempted=line.free_throws_attempted or 0,
+                three_points_made=line.three_points_made or 0,
+                fouls=line.fouls or 0, fouls_received=line.fouls_received or 0)
+            if r is not None:
+                feb_sum[lpid] += r; feb_n[lpid] += 1
+
         rows: List[Dict[str, Any]] = []
         for a in aggregates:
             pid = a.player_external_id
@@ -793,6 +821,10 @@ class _GatewayBase(CommandGateway):
                 "points": a.points, "rebounds": a.rebounds, "assists": a.assists,
                 "steals": a.steals, "blocks": a.blocks, "turnovers": a.turnovers,
                 "minutes": a.minutes,
+                # season VAL total (official valuation, summed) and FEB Rating
+                # (average of the game notes); None when unavailable, never 0.
+                "val": val_sum.get(pid) if val_n.get(pid) else None,
+                "feb": round(feb_sum[pid] / feb_n[pid], 1) if feb_n.get(pid) else None,
                 "image_url": (f"/v1/images/player/{pid}"
                               if ("player", pid) in overrides
                               else PLAYER_PHOTO_URL.format(player_external_id=pid)),

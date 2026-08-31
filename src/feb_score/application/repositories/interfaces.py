@@ -264,6 +264,15 @@ class MatchStatsRepository(ABC):
         pass
 
     @abstractmethod
+    def list_season_player_lines(
+        self, season_code: SeasonCode
+    ) -> Iterable["PlayerStats"]:
+        """Every per-game player line of a season (from the blob, so it carries
+        shooting) — for derivations the column aggregate cannot do (FEB Rating,
+        valoración). Each PlayerStats identifies its own player."""
+        pass
+
+    @abstractmethod
     def list_season_team_aggregates(
         self, season_code: SeasonCode, limit: Optional[int] = None
     ) -> Iterable[SeasonTeamStats]:

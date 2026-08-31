@@ -340,6 +340,14 @@ class InMemoryMatchStatsRepository(MatchStatsRepository):
                 result.append(bucket[player_external_id])
         return result
 
+    def list_season_player_lines(self, season_code: SeasonCode) -> Iterable[PlayerStats]:
+        out = []
+        for match_id, bucket in self._player.items():
+            if self._player_season.get(match_id) != str(season_code):
+                continue
+            out.extend(bucket.values())
+        return out
+
     def list_season_player_aggregates(
         self, season_code: SeasonCode, limit: Optional[int] = None
     ) -> Iterable[SeasonPlayerStats]:

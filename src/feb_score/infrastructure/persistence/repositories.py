@@ -791,6 +791,18 @@ class SqliteMatchStatsRepository(_SqliteRepoMixin, MatchStatsRepository):
             if owned:
                 conn.close()
 
+    def list_season_player_lines(self, season_code: SeasonCode) -> Iterable[PlayerStats]:
+        conn, owned = self._conn()
+        try:
+            rows = conn.execute(
+                "SELECT data FROM match_player_stats WHERE season_code = ?",
+                (str(season_code),),
+            ).fetchall()
+            return [_player_stats_from_blob(r["data"]) for r in rows]
+        finally:
+            if owned:
+                conn.close()
+
     def list_season_player_teams(self, season_code: SeasonCode) -> Dict[str, str]:
         conn, owned = self._conn()
         try:

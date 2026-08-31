@@ -377,3 +377,65 @@ class TestSeasons:
 
     def test_it_is_a_public_read(self, client):
         assert client.get("/v1/seasons").status_code == 200
+
+
+class TestFebAndVal:
+    """FEB Rating (season) and VAL are derived from the per-game blobs — which
+    carry shooting — so the explorer can show them without re-ingestion. They
+    are None (never 0) when a player has no rateable/valuable game."""
+
+    def _seed_with_shooting(self, client):
+        from feb_score.domain.statistics.model import PlayerStats
+        from feb_score.domain.value_objects import SeasonCode
+        from feb_score.infrastructure.persistence.repositories import (
+            SqliteMatchStatsRepository, SqlitePlayerRepository, SqliteTeamRepository)
+        import uuid as _uuid
+        from feb_score.domain.player.model import Player
+        from feb_score.domain.team.model import Team
+        from feb_score.domain.value_objects import ExternalId, PlayerId, TeamId
+        db = client.app.state.gateway.db
+        SqliteTeamRepository(db).save(Team(external_id=ExternalId("tA"),
+            team_id=TeamId(str(_uuid.uuid4())), name="Team A"))
+        SqlitePlayerRepository(db).save(Player(external_id=ExternalId("p1"),
+            player_id=PlayerId(str(_uuid.uuid4())), name="STAR, ONE"))
+        SqlitePlayerRepository(db).save(Player(external_id=ExternalId("p2"),
+            player_id=PlayerId(str(_uuid.uuid4())), name="BENCH, TWO"))
+        stats = SqliteMatchStatsRepository(db)
+        def ps(pid, pts, mins, fgm, fga):
+            return PlayerStats(player_external_id=pid, team_external_id="tA",
+                points=pts, rebounds=6, assists=4, steals=1, blocks=0,
+                turnovers=2, minutes=mins, field_goals_made=fgm,
+                field_goals_attempted=fga, free_throws_made=2,
+                free_throws_attempted=2, three_points_made=1, fouls=2)
+        for m in ("M1", "M2"):
+            stats.save_player_stats(m, SeasonCode(SEASON), [
+                ps("p1", 24, 30.0, 9, 15),          # a full, rateable line
+                ps("p2", 3, 6.0, 1, 2),             # under MIN_MINUTES -> no note
+            ])
+
+    def test_feb_and_val_are_present_for_a_full_line(self, client):
+        self._seed_with_shooting(client)
+        rows = {r["player_external_id"]: r
+                for r in _q(client).json()["rows"]}
+        star = rows["p1"]
+        assert star["feb"] is not None and 0.0 <= star["feb"] <= 10.0
+        assert star["val"] is not None and star["val"] > 0     # a season TOTAL
+
+    def test_no_note_when_every_game_is_under_the_minute_floor(self, client):
+        self._seed_with_shooting(client)
+        bench = {r["player_external_id"]: r for r in _q(client).json()["rows"]}["p2"]
+        assert bench["feb"] is None                            # never a fallback 0
+        # VAL does not need minutes, so it is still computed
+        assert bench["val"] is not None
+
+    def test_val_is_a_season_total_summed_over_games(self, client):
+        self._seed_with_shooting(client)
+        star = {r["player_external_id"]: r for r in _q(client).json()["rows"]}["p1"]
+        # one game's valuation, doubled (two identical games)
+        from feb_score.domain.statistics.metrics import valoracion
+        from feb_score.domain.statistics.model import PlayerStats
+        one = valoracion(PlayerStats(player_external_id="p1", team_external_id="tA",
+            points=24, rebounds=6, assists=4, steals=1, blocks=0, turnovers=2,
+            minutes=30.0, field_goals_made=9, field_goals_attempted=15,
+            free_throws_made=2, free_throws_attempted=2, three_points_made=1, fouls=2))
+        assert star["val"] == one * 2

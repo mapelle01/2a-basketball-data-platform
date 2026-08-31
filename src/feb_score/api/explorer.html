@@ -264,8 +264,8 @@ const METRICS = [
   {k:"blocks",       short:"TAP", name:"Tapones",     kind:"stat",   sortable:true, extra:true},
   {k:"turnovers",    short:"PÉR", name:"Pérdidas",    kind:"stat",   sortable:true, extra:true},
   {k:"minutes",      short:"MIN", name:"Minutos",     kind:"stat",   sortable:true, extra:true},
-  {k:"val",          short:"VAL", name:"Valoración",  kind:"soon",   sortable:false},
-  {k:"feb",          short:"FEB", name:"FEB Rating",  kind:"soon",   sortable:false},
+  {k:"val",          short:"VAL", name:"Valoración",  kind:"stat",   sortable:true},
+  {k:"feb",          short:"FEB", name:"FEB Rating",  kind:"rating", sortable:true},
 ];
 // Columns shown in the compact table (the rest live behind sort / future drawer).
 const TABLE_COLS = ["games_played","points","rebounds","assists","val","feb"];
@@ -283,17 +283,18 @@ function fmtInt(v){return v==null?"—":Math.round(v).toLocaleString("es-ES");}
 function fmt1(v){return v==null?"—":(Math.round(v*10)/10).toLocaleString("es-ES",{minimumFractionDigits:1,maximumFractionDigits:1});}
 function cell(row,k){
   const m = METRICS.find(x=>x.k===k);
-  if(m.kind==="soon") return null;               // VAL / FEB not available yet
   const raw = row[k];
   if(raw==null) return null;
+  if(m.kind==="rating") return fmt1(raw);         // a 0-10 note: never summed
   if(k==="games_played") return fmtInt(raw);
   if(k==="minutes") return perGame && row.games_played ? fmt1(raw/row.games_played) : fmt1(raw);
+  // counting stats (incl. VAL): integer total, one-decimal per game
   return perGame && row.games_played ? fmt1(raw/row.games_played) : fmtInt(raw);
 }
 function sortVal(row,k){
-  const m = METRICS.find(x=>x.k===k); if(!m||m.kind==="soon") return -Infinity;
+  const m = METRICS.find(x=>x.k===k); if(!m) return -Infinity;
   const raw = row[k]; if(raw==null) return -Infinity;
-  if(k==="games_played") return raw;
+  if(m.kind==="rating" || k==="games_played") return raw;
   return perGame && row.games_played ? raw/row.games_played : raw;
 }
 
@@ -455,7 +456,7 @@ async function doCreate(){
   const f=activeFilters();
   const body={ season:el("season").value, title,
     scope_label:el("mScope").value.trim()||null, show_rank:el("mRank").checked,
-    player_ids:[...sel], metric:sortKey==="games_played"||METRICS.find(m=>m.k===sortKey).kind==="soon"?"points":sortKey,
+    player_ids:[...sel], metric:["games_played","val","feb"].includes(sortKey)?"points":sortKey,
     per_game:perGame, team:f.team||null, nationality:f.nat||null, position:f.pos||null,
     min_age:f.minAge?+f.minAge:null, max_age:f.maxAge?+f.maxAge:null, min_games:f.minG?+f.minG:null };
   el("mGo").disabled=true; el("mMsg").textContent="Creando…";

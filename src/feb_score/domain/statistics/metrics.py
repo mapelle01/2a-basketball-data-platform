@@ -14,7 +14,10 @@ from __future__ import annotations
 
 from typing import Iterable, List
 
+from typing import Optional as _Optional
+
 from .model import (
+    PlayerStats,
     SeasonPlayerMetrics,
     SeasonPlayerStats,
     SeasonTeamMetrics,
@@ -89,3 +92,28 @@ def compute_team_metrics(
     aggregates: Iterable[SeasonTeamStats],
 ) -> List[SeasonTeamMetrics]:
     return [team_metrics(a) for a in aggregates]
+
+
+def valoracion(stats: "PlayerStats") -> "_Optional[int]":
+    """The FEB/FIBA official valuation of a single boxscore line.
+
+    Unlike the season aggregate (which lacks shooting attempts), a per-game
+    ``PlayerStats`` carries field-goal and free-throw attempts in its blob, so
+    the standard valuation IS derivable here — deterministically, not invented:
+
+        (PTS + REB + AST + STL + BLK + faltas recibidas)
+      - (tiros de campo fallados + tiros libres fallados + pérdidas + faltas)
+
+    Returns ``None`` when shooting attempts are absent (the valuation needs
+    them). It omits ``tapones recibidos`` (blocks against), which the feed does
+    not provide, so it can sit a point or two under the exact official figure;
+    persisting the feed's own ``val`` would close that gap (a re-ingest task).
+    """
+    if stats.field_goals_attempted is None or stats.field_goals_made is None:
+        return None
+    missed_fg = max(0, stats.field_goals_attempted - stats.field_goals_made)
+    missed_ft = max(0, (stats.free_throws_attempted or 0) - (stats.free_throws_made or 0))
+    positive = (stats.points + stats.rebounds + stats.assists + stats.steals
+                + stats.blocks + (stats.fouls_received or 0))
+    negative = missed_fg + missed_ft + stats.turnovers + (stats.fouls or 0)
+    return int(positive - negative)
