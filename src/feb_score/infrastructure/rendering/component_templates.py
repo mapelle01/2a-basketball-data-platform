@@ -738,14 +738,28 @@ def render_stat_hero(data: Dict[str, Any]) -> str:
     body: List[str] = []
 
     # IDENTITY — the crest, large and faint, where a photo would be. Bleeds off
-    # the right edge; the data column sits clear of it on the left.
+    # the right edge; the data column sits clear of it on the left. The FEB crest
+    # PNGs ship on an opaque white box, so a raw low-opacity paste showed the box.
+    # A filter keys it to a clean MONOCHROME silhouette: invert -> luminance to
+    # alpha (white bg -> transparent, logo -> opaque) -> flood white. Any crest,
+    # white-bg or transparent, becomes the same tidy identity echo.
     if crest:
         cs = 660
         cx = CANVAS.width - cs + 150
         cy = 250
         body.append(
-            f'<g opacity="0.14"><image href="{crest}" x="{cx}" y="{cy}"'
-            f' width="{cs}" height="{cs}" preserveAspectRatio="xMidYMid meet"/></g>')
+            '<defs><filter id="crestwm" x="-5%" y="-5%" width="110%" height="110%">'
+            '<feColorMatrix type="matrix" values="'
+            '-1 0 0 0 1  0 -1 0 0 1  0 0 -1 0 1  0 0 0 1 0" result="inv"/>'
+            '<feColorMatrix in="inv" type="luminanceToAlpha" result="a"/>'
+            '<feComponentTransfer in="a" result="a2">'
+            '<feFuncA type="linear" slope="1.35" intercept="0"/></feComponentTransfer>'
+            '<feFlood flood-color="#FFFFFF" result="w"/>'
+            '<feComposite in="w" in2="a2" operator="in"/></filter></defs>')
+        body.append(
+            f'<g opacity="0.16"><image href="{crest}" x="{cx}" y="{cy}"'
+            f' width="{cs}" height="{cs}" preserveAspectRatio="xMidYMid meet"'
+            f' filter="url(#crestwm)"/></g>')
 
     # HEADER
     body.append(C.accent_bar(CONTENT_X, MARGIN, 56, Line.HEAVY))

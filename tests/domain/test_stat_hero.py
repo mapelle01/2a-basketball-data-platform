@@ -40,9 +40,10 @@ def test_the_crest_is_optional_identity_not_required():
     without = render_template("stat_hero", _data())
     d = _data(); d["assets"]["team_crest"] = "data:image/png;base64,AAAA"
     with_crest = render_template("stat_hero", d)
-    # the court background is an <image>, so key off the crest's identity group
-    assert 'opacity="0.14"' not in without   # no crest supplied -> no identity echo
-    assert 'opacity="0.14"' in with_crest    # crest shows as the faint identity
+    # key off the crest's monochrome-silhouette filter (the court background is
+    # also an <image>, so "<image" alone would not distinguish it)
+    assert "url(#crestwm)" not in without    # no crest supplied -> no identity echo
+    assert "url(#crestwm)" in with_crest     # crest shows, keyed to a clean silhouette
 
 
 def test_a_long_number_still_fits():
