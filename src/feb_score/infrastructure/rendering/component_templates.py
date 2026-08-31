@@ -432,7 +432,12 @@ def render_player_of_round(data: Dict[str, Any]) -> str:
     story_type = (data.get("story") or {}).get("story_type")
     if story_type not in _CATEGORY_TAG_TYPES and badge_echoes_headline(section, badge):
         badge = None
-    if story_type in _SEASON_LEADER_STORIES:
+    # A single-game card can name the actual matchup ("JORNADA 5 · VS CB LLÍRIA")
+    # via facts.kicker; without it, fall back to the season (leaders) or the
+    # round number. The rival is what ties the performance to a real game.
+    if facts.get("kicker"):
+        kicker = str(facts["kicker"])
+    elif story_type in _SEASON_LEADER_STORIES:
         kicker = f"TEMPORADA {_season_label(data['story'].get('season_code', ''))}"
     else:
         kicker = f"JORNADA {round_number}"
@@ -693,6 +698,112 @@ def render_round_recap(data: Dict[str, Any]) -> str:
     ft, _ = C.brand_footer(X, FOOTER_Y, W, competition="Segunda FEB", season=season)
     body.append(ft)
     return _svg_document("".join(body), BG_DARK)
+
+
+def render_stat_hero(data: Dict[str, Any]) -> str:
+    """Photo-less hero card: the NUMBER is the protagonist and the team crest is
+    the IDENTITY anchor (where a photo would sit). For maximos / actuacion del
+    ano when there is no usable player photo — so the account never depends on
+    one. No team-colour gradients (rejected): black/white/grey + the red accent,
+    and the crest as a large, low-opacity identity echo.
+    """
+    facts = data["story"]["facts"]
+    display = data.get("display", {})
+    assets = data.get("assets", {})
+    story_type = data["story"].get("story_type")
+    ink, sub = Color.WHITE, Color.GREY
+
+    from ...domain.content.story import StoryType, labels_for
+    try:
+        section = facts.get("section_label") or labels_for(StoryType(story_type))["section"]
+    except ValueError:
+        section = facts.get("section_label") or "Dato de la temporada"
+    if facts.get("kicker"):
+        kicker = str(facts["kicker"])
+    elif story_type in _SEASON_LEADER_STORIES:
+        kicker = f"TEMPORADA {_season_label(data['story'].get('season_code',''))}"
+    else:
+        kicker = f"JORNADA {data['story'].get('round_number')}"
+
+    hero = str(facts.get("hero_value", facts.get("points", 0)))
+    hlab = str(facts.get("hero_label", "PTS"))
+    name = str(display.get("player", "")).upper()
+    team = str(display.get("team", "")).upper()
+    sec_hint = facts.get("secondary") or [
+        [facts.get("rebounds", 0), "REB"], [facts.get("assists", 0), "AST"]]
+    secondary = [(str(v), str(l)) for v, l in sec_hint]
+    rating = facts.get("rating")
+    crest = assets.get("team_crest")
+
+    body: List[str] = []
+
+    # IDENTITY — the crest, large and faint, where a photo would be. Bleeds off
+    # the right edge; the data column sits clear of it on the left.
+    if crest:
+        cs = 660
+        cx = CANVAS.width - cs + 150
+        cy = 250
+        body.append(
+            f'<g opacity="0.14"><image href="{crest}" x="{cx}" y="{cy}"'
+            f' width="{cs}" height="{cs}" preserveAspectRatio="xMidYMid meet"/></g>')
+
+    # HEADER
+    body.append(C.accent_bar(CONTENT_X, MARGIN, 56, Line.HEAVY))
+    _mark_w = 52 * (_MARK_BBOX[2] / _MARK_BBOX[3])
+    head_size = _fit_headline(section, CONTENT_W - _mark_w - Spacing.XL)
+    head_base = MARGIN + 44 + head_size * 0.74
+    body.append(C.text(CONTENT_X, head_base, section.upper(), size=head_size,
+                       weight=FontWeight.DISPLAY, fill=ink,
+                       tracking=LetterSpacing.HEADLINE, upper=True))
+    body.append(C.text(CONTENT_X, head_base + FontSize.LABEL + 16, kicker,
+                       size=FontSize.LABEL, weight=FontWeight.LABEL, fill=sub,
+                       tracking=LetterSpacing.CAPS, upper=True))
+    body.append(_corner_mark())
+
+    # HERO NUMBER — the protagonist.
+    num_size = int(_fit_to_width(hero, CONTENT_W * 0.66, 320, 150))
+    ny = 700
+    body.append(C.text(CONTENT_X - 6, ny, hero, size=num_size, weight=FontWeight.HERO,
+                       fill=ink, tracking=LetterSpacing.HERO))
+    body.append(C.text(CONTENT_X, ny + FontSize.H2, hlab.upper(), size=FontSize.H2,
+                       weight=FontWeight.DISPLAY, fill=Color.RED,
+                       tracking=LetterSpacing.CAPS, upper=True))
+
+    # IDENTITY (text) — name + team.
+    name_y = ny + FontSize.H2 + 96
+    name_size = int(_fit_to_width(name, CONTENT_W, FontSize.H1, 44))
+    body.append(C.text(CONTENT_X, name_y, name, size=name_size,
+                       weight=FontWeight.DISPLAY, fill=ink,
+                       tracking=LetterSpacing.HEADLINE, upper=True))
+    body.append(C.text(CONTENT_X, name_y + 44, team, size=FontSize.LABEL,
+                       weight=FontWeight.LABEL, fill=sub,
+                       tracking=LetterSpacing.CAPS, upper=True))
+
+    # SECONDARY stats.
+    sg, _ = C.stat_group(CONTENT_X, name_y + 92, 560,
+                         [(v, l) for v, l in secondary])
+    body.append(sg)
+
+    # FEB RATING band above the footer (only if present).
+    if rating is not None:
+        rpx = C.RATING_SIZES["l"]
+        band_y = FOOTER_Y - Spacing.MD - rpx
+        body.append(C.hline(CONTENT_X, band_y - Spacing.LG, CONTENT_W,
+                            color=Color.GREY, opacity=0.35))
+        rb, _ = C.rating_badge(CONTENT_X, band_y, float(rating), size="l")
+        body.append(rb)
+        lx = CONTENT_X + rpx + Spacing.LG
+        body.append(C.text(lx, band_y + rpx / 2 - 6, "FEB", size=FontSize.LABEL,
+                           weight=FontWeight.DISPLAY, fill=ink,
+                           tracking=LetterSpacing.CAPS, upper=True))
+        body.append(C.text(lx, band_y + rpx / 2 + 26, "RATING", size=FontSize.LABEL,
+                           weight=FontWeight.LABEL, fill=sub,
+                           tracking=LetterSpacing.CAPS, upper=True))
+
+    ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W, competition="Segunda FEB",
+                           season=data["story"].get("season_code"))
+    body.append(ft)
+    return _svg_document("".join(body), IMAGE_BACKGROUND)
 
 
 def render_stat_leaderboard(data: Dict[str, Any]) -> str:
@@ -1167,6 +1278,7 @@ _RENDERERS: Dict[str, Callable[[Dict[str, Any]], str]] = {
     "player_of_round": render_player_of_round,
     "round_recap": render_round_recap,
     "stat_leaderboard": render_stat_leaderboard,
+    "stat_hero": render_stat_hero,
     "best_five": render_best_five_grid,
     "best_five_court": render_best_five_court,
     "team_streak": render_team_streak,
