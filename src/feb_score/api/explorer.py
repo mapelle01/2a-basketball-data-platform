@@ -28,7 +28,7 @@ from . import errors as err
 from .auth import AuthenticationProvider
 
 _SEASON_RE = re.compile(r"^[0-9]{4}-[0-9]{2,4}$")
-MAX_ROWS = 200
+MAX_ROWS = 600  # the whole season loads at once; the explorer is client-side
 # A basketball career fits inside this; the bound exists so a typo in the URL
 # cannot turn into a filter that silently matches nothing meaningful.
 AGE_MIN, AGE_MAX = 14, 60
