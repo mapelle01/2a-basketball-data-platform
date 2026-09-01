@@ -277,6 +277,12 @@ class CommandGateway(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def generate_round_recap(self, season_code: str, round_number: int) -> Dict[str, Any]:
+        """Generate the round-recap card for a round (detect -> run just that
+        candidate). Raises ValueError when the round has no recap."""
+        raise NotImplementedError
+
+    @abstractmethod
     def create_stat_hero(
         self, season_code: str, *, player_id: str, metric: str = "points",
         per_game: bool = False, title: str, subtitle: Optional[str] = None,

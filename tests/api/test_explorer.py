@@ -8,7 +8,7 @@ data. It writes nothing: a query is not allowed to have a side effect.
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 
 from feb_score.domain.player.model import Player
 from feb_score.domain.statistics.model import PlayerStats
@@ -579,3 +579,57 @@ class TestHeroCard:
             r = client.post("/v1/explore/card", headers=auth_header("editor"), json={
                 "season": SEASON, "template": "hero", "title": "X", "player_ids": ids})
             assert r.status_code == 400
+
+
+class TestStrictStreaks:
+    """DESCUBRIR streaks are STRICT: consecutive games only, ordered by when they
+    were played. A gap resets the count — a season total is not a streak."""
+
+    def _seed_games(self, client, pid, name, team, per_game):
+        db = client.app.state.gateway.db
+        SqliteTeamRepository(db).save(Team(
+            external_id=ExternalId(team), team_id=TeamId(str(uuid.uuid4())), name=team))
+        SqlitePlayerRepository(db).save(Player(
+            external_id=ExternalId(pid), player_id=PlayerId(str(uuid.uuid4())), name=name))
+        stats = SqliteMatchStatsRepository(db)
+        for i, (pts, reb, ast) in enumerate(per_game):
+            stats.save_player_stats(f"M-{pid}-{i}", SeasonCode(SEASON), [
+                PlayerStats(
+                    player_external_id=pid, team_external_id=team,
+                    points=pts, rebounds=reb, assists=ast, steals=0, blocks=0,
+                    turnovers=1, minutes=25.0,
+                    played_at=datetime(2025, 1, 1 + i, 18, 0)),
+            ])
+
+    def _insights(self, client):
+        return client.get(f"/v1/explore/insights?season={SEASON}").json()
+
+    def test_consecutive_20plus_counts_only_the_longest_run(self, client):
+        # 22, 25, 21 (run of 3), then 10 breaks it, then 30 (run of 1).
+        self._seed_games(client, "s1", "RACHA, YAGO", "T1",
+                         [(22, 3, 2), (25, 4, 1), (21, 2, 2), (10, 1, 1), (30, 3, 0)])
+        streaks = self._insights(client)["streaks_scoring"]
+        row = next(s for s in streaks if s["player_external_id"] == "s1")
+        assert row["count"] == 3
+        assert row["team"] == "T1"
+
+    def test_a_gap_resets_the_scoring_streak_below_the_floor(self, client):
+        # 20+ every other game: no run reaches the floor of 3.
+        self._seed_games(client, "s2", "SIERRA, PABLO", "T1",
+                         [(24, 2, 1), (8, 1, 1), (26, 2, 1), (9, 1, 1), (28, 2, 1)])
+        streaks = self._insights(client)["streaks_scoring"]
+        assert all(s["player_external_id"] != "s2" for s in streaks)
+
+    def test_consecutive_double_doubles(self, client):
+        # DD, DD (run of 2), then a non-DD.
+        self._seed_games(client, "d1", "DOBLE, IKER", "T2",
+                         [(12, 11, 1), (10, 10, 2), (8, 4, 1)])
+        streaks = self._insights(client)["streaks_dd"]
+        row = next(s for s in streaks if s["player_external_id"] == "d1")
+        assert row["count"] == 2
+
+    def test_a_single_double_double_is_below_the_floor(self, client):
+        self._seed_games(client, "d2", "UNO, MARC", "T2",
+                         [(12, 11, 1), (8, 4, 1), (9, 3, 2)])
+        streaks = self._insights(client)["streaks_dd"]
+        assert all(s["player_external_id"] != "d2" for s in streaks)

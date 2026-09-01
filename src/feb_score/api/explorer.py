@@ -60,6 +60,27 @@ def register_explorer_routes(app: FastAPI) -> None:
     def list_seasons(request: Request):
         return {"seasons": request.app.state.gateway.list_seasons()}
 
+    @app.post(
+        "/v1/explore/round-recap",
+        tags=["explorer"],
+        summary="Generate the round-recap card for a round",
+        status_code=201,
+        description="Detects the round's stories and generates ONLY the round "
+        "recap — same pipeline, validation and dedup as any card. Authenticated.",
+    )
+    def generate_round_recap(body: RoundRecapRequest, request: Request):
+        auth: AuthenticationProvider = request.app.state.auth
+        if auth.authenticate(request) is None:
+            return err.error_response(401, "UNAUTHENTICATED", "API key required")
+        if not _SEASON_RE.match(body.season):
+            return err.error_response(
+                400, "INVALID_PARAMETER", "season must look like 2024-2025")
+        try:
+            return request.app.state.gateway.generate_round_recap(
+                body.season, body.round_number)
+        except ValueError as exc:
+            return err.error_response(404, "NO_RECAP", str(exc))
+
     @app.get(
         "/v1/explore/insights",
         tags=["explorer"],
@@ -166,6 +187,14 @@ def register_explorer_routes(app: FastAPI) -> None:
                 details={"validation": item.get("fact_validation")},
             )
         return item
+
+
+class RoundRecapRequest(BaseModel):
+    """A one-click round recap. Carries only the round to recap — every figure
+    is re-read and re-validated server-side, same as any card."""
+
+    season: str
+    round_number: int = Field(..., ge=1, description="Round to recap")
 
 
 class CustomFiveRequest(BaseModel):

@@ -155,6 +155,11 @@ td.who .ph{width:40px;height:40px;border-radius:6px;background:var(--field);colo
 .isec{margin-bottom:var(--s6)}
 .isec h4{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
   color:var(--grey);margin:0 0 var(--s2)}
+.recapbar{border:1px solid var(--rule);border-radius:8px;padding:var(--s3)}
+.recapctl{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap}
+.recapctl input{width:96px;height:34px}
+.recapmsg{font-size:12px;color:var(--grey)}
+.recapmsg a{color:var(--red)}
 .recgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:var(--s2)}
 .rec{border:1px solid var(--rule);border-radius:8px;padding:var(--s3);cursor:pointer}
 .rec:hover{border-color:var(--rule-2);background:var(--ink)}
@@ -167,7 +172,11 @@ td.who .ph{width:40px;height:40px;border-radius:6px;background:var(--field);colo
   padding:10px var(--s3);border-top:1px solid var(--rule);cursor:pointer}
 .frow:first-child{border-top:0}
 .frow:hover{background:var(--ink)}
-.frow .who3{min-width:0}
+.frow .who3{min-width:0;display:flex;flex-direction:column;gap:1px;line-height:1.15}
+.frow .who3 .n{font-size:13px;font-weight:700;color:var(--white);letter-spacing:-.01em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.frow .who3 .tm{font-size:10px;font-weight:600;color:var(--grey);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .frow .d{font-size:16px;font-weight:900;color:var(--white);font-variant-numeric:tabular-nums}
 .frow .s{font-size:11px;font-weight:600;color:var(--grey);text-align:right;min-width:96px}
 
@@ -601,11 +610,28 @@ function renderDiscover(d){
       <span class="d">${x.count}</span><span class="s"></span></div>`).join("")
       || '<div class="lempty">Sin dobles-dobles.</div>';
   const tdNote = d.triple_doubles_total ? ` · ${d.triple_doubles_total} triple-doble${d.triple_doubles_total>1?"s":""} en la temporada` : "";
+  const streak=list=>(list||[]).map(x=>`<div class="frow" data-pid="${esc(x.player_external_id)}">
+      <span class="who3"><span class="n">${esc(x.player)}</span><span class="tm">${esc(x.team||"—")}</span></span>
+      <span class="d">${x.count}</span><span class="s">seguidos</span></div>`).join("");
+  const sdd=streak(d.streaks_dd) || '<div class="lempty">Ninguna racha de 2+ dobles-dobles.</div>';
+  const ssc=streak(d.streaks_scoring) || '<div class="lempty">Ninguna racha de 3+ partidos de 20+.</div>';
   el("insights").innerHTML=`
+    <div class="isec recapbar">
+      <h4>Round recap · genera la carta de una jornada</h4>
+      <div class="recapctl">
+        <input id="recapRound" type="number" min="1" inputmode="numeric" placeholder="Jornada">
+        <button class="linkbtn" id="recapGo" onclick="genRoundRecap()">GENERAR RECAP</button>
+        <span id="recapMsg" class="recapmsg"></span>
+      </div>
+    </div>
     <div class="isec"><h4>Récords de la temporada · mejor partido</h4><div class="recgrid">${recs}</div></div>
     <div class="icols">
       <div class="isec"><h4>En racha · últimos 3 vs media</h4><div class="lcard">${form}</div></div>
       <div class="isec"><h4>Más dobles-dobles${tdNote}</h4><div class="lcard">${dd}</div></div>
+    </div>
+    <div class="icols">
+      <div class="isec"><h4>Rachas · dobles-dobles seguidos</h4><div class="lcard">${sdd}</div></div>
+      <div class="isec"><h4>Rachas · partidos de 20+ seguidos</h4><div class="lcard">${ssc}</div></div>
     </div>`;
 }
 
@@ -668,6 +694,30 @@ async function doCreate(){
   }catch(e){ el("mMsg").textContent="No se pudo crear."; }
   finally{ el("mGo").disabled=false; }
 }
+
+// ---- round recap from the explorer (POST /v1/explore/round-recap) ------------
+window.genRoundRecap=async function(){
+  const round=parseInt(el("recapRound").value,10);
+  const msg=el("recapMsg");
+  if(!round||round<1){ msg.textContent="Indica la jornada."; return; }
+  let key=""; try{ key=sessionStorage.getItem("febKey")||""; }catch(e){}
+  if(!key){ key=(window.prompt("Clave de API")||"").trim();
+    if(!key){ msg.textContent="Hace falta la clave de API."; return; }
+    try{ sessionStorage.setItem("febKey",key); }catch(e){} }
+  const btn=el("recapGo"); btn.disabled=true; msg.textContent="Generando…";
+  try{
+    const r=await fetch("/v1/explore/round-recap",{method:"POST",
+      headers:{"content-type":"application/json","x-api-key":key},
+      body:JSON.stringify({season:el("season").value,round_number:round})});
+    const d=await r.json();
+    if(!r.ok){ msg.textContent=(d.error&&d.error.message)||("Error "+r.status); return; }
+    const link=`<a href="/v1/content/review" target="_blank">ver en la cola</a>`;
+    msg.innerHTML = d.created
+      ? `Recap J${round} creado · ${link}`
+      : `Recap J${round} ya estaba en la cola · ${link}`;
+  }catch(e){ msg.textContent="No se pudo generar."; }
+  finally{ btn.disabled=false; }
+};
 
 // ---- player drawer ----------------------------------------------------------
 function dot(st){

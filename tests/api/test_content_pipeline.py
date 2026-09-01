@@ -497,3 +497,63 @@ class TestReviewPage:
         html = client.get("/v1/content/review").text
         assert "sessionStorage" in html
         assert "localStorage" not in html   # would outlive the tab, on disk
+
+
+class TestRoundRecapFromExplorer:
+    """One-click round recap from the Explorer: it must run the SAME pipeline
+    (detect -> generate just the recap), never invent, and dedup like any card."""
+
+    def test_generates_the_round_recap_card(self, client):
+        _seed_round(client)
+        r = client.post(
+            "/v1/explore/round-recap",
+            json={"season": SEASON, "round_number": 7},
+            headers=auth_header("system"),
+        )
+        assert r.status_code == 201, r.text
+        body = r.json()
+        assert body["created"] is True
+        assert body["round_number"] == 7
+        assert body["content_id"]
+        # It really landed in the review queue.
+        queue = client.get("/v1/content/queue").json()
+        assert body["content_id"] in {i["content_id"] for i in queue["items"]}
+
+    def test_it_needs_a_key(self, client):
+        _seed_round(client)
+        r = client.anon().post(
+            "/v1/explore/round-recap",
+            json={"season": SEASON, "round_number": 7},
+        )
+        assert r.status_code == 401
+
+    def test_running_twice_does_not_duplicate(self, client):
+        _seed_round(client)
+        first = client.post(
+            "/v1/explore/round-recap",
+            json={"season": SEASON, "round_number": 7}, headers=auth_header("system"),
+        ).json()
+        assert first["created"] is True
+        again = client.post(
+            "/v1/explore/round-recap",
+            json={"season": SEASON, "round_number": 7}, headers=auth_header("system"),
+        ).json()
+        # Same story identity -> nothing new is queued.
+        assert again["created"] is False
+        assert again["status"] == "already_queued"
+
+    def test_a_round_with_no_data_has_no_recap(self, client):
+        _seed_round(client)
+        r = client.post(
+            "/v1/explore/round-recap",
+            json={"season": SEASON, "round_number": 99}, headers=auth_header("system"),
+        )
+        assert r.status_code == 404
+        assert r.json()["error"]["code"] == "NO_RECAP"
+
+    def test_a_malformed_season_is_rejected(self, client):
+        r = client.post(
+            "/v1/explore/round-recap",
+            json={"season": "nope", "round_number": 7}, headers=auth_header("system"),
+        )
+        assert r.status_code == 400

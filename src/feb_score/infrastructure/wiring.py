@@ -837,9 +837,55 @@ class _GatewayBase(CommandGateway):
                          "delta": round(last3 - season_avg, 1)})
         form.sort(key=lambda f: (-f["delta"], f["player"]))
 
+        # STRICT streaks: the longest run of CONSECUTIVE games meeting a
+        # condition, per player (games ordered by date). A count of games is not
+        # a streak — these are runs that were never broken.
+        def longest_run(pls, cond):
+            ordered = sorted(pls, key=lambda l: (l.played_at or datetime.min))
+            run = best = 0
+            for l in ordered:
+                run = run + 1 if cond(l) else 0
+                best = max(best, run)
+            return best
+
+        def streaks(cond, floor):
+            out = []
+            for pid, pls in by_player.items():
+                run = longest_run(pls, cond)
+                if run >= floor:
+                    out.append({"player": nm(pid), "player_external_id": pid,
+                                "team": tm(pid), "count": run})
+            out.sort(key=lambda x: (-x["count"], x["player"]))
+            return out[:6]
+
+        streaks_dd = streaks(lambda l: dd(l) >= 2, 2)
+        streaks_scoring = streaks(lambda l: l.points >= 20, 3)
+
         return {"season_code": season_code, "records": records,
                 "double_doubles": double_doubles, "triple_doubles_total": td_total,
-                "form_up": form[:6]}
+                "form_up": form[:6],
+                "streaks_dd": streaks_dd, "streaks_scoring": streaks_scoring}
+
+    def generate_round_recap(self, season_code: str, round_number: int) -> Dict[str, Any]:
+        """Generate ONLY the round-recap card for a round, straight from the
+        Explorer. Reuses the pipeline: detect the round's candidates, pick the
+        round_recap, and run exactly that one — same validation and dedup as any
+        other card. Nothing invented; a round with no recap yields no card."""
+        preview = self.preview_round_candidates(season_code, round_number)
+        recap = next((c for c in preview.get("candidates", [])
+                      if c.get("story_type") == "round_recap"), None)
+        if recap is None:
+            raise ValueError("no hay round recap para esa jornada (sin datos suficientes)")
+        result = self.run_content_pipeline(
+            season_code, round_number, story_keys=[recap["story_key"]])
+        items = result.get("items", [])
+        if items:
+            it = items[0]
+            return {"created": True, "status": it["status"],
+                    "content_id": it["content_id"], "round_number": round_number}
+        return {"created": False,
+                "status": "already_queued" if recap.get("already_queued") else "none",
+                "round_number": round_number}
 
     def explore_players(
         self, season_code: str, *,
