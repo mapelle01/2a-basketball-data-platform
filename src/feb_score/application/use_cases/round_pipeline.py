@@ -425,6 +425,17 @@ class RoundPipeline:
             else:
                 assets["player_initials"] = photo.payload
 
+        if story.template_id == "stat_hero":
+            # Photo-less hero: the number is the protagonist; the crest is the
+            # identity echo (keyed to a silhouette by the template).
+            team_id = f.get("team_external_id", "")
+            display = {
+                "player": f.get("player_name") or f.get("player_external_id", ""),
+                "team": f.get("team_name") or team_id,
+            }
+            crest = self._assets.team_logo(team_id)
+            assets = {"team_crest": crest.payload} if crest.payload_type == "data_uri" else {}
+
         if story.template_id in ("best_five", "best_five_court"):
             # Resolve a photo + crest for each of the five, injected into the
             # render data only (the persisted facts stay pure). Missing images

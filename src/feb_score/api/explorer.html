@@ -637,7 +637,10 @@ function openCreate(){
   const ids=[...sel];
   const metric = (METRICS.find(m=>m.k===sortKey)&&sortKey) || "points";
   el("mCtx").textContent = `${ids.length} jugador${ids.length===1?"":"es"} · orden por ${METRICS.find(m=>m.k===sortKey).name}${perGame?" (por partido)":""}`;
-  el("mTpl").innerHTML = `<option value="grid">Ranking (Top ${Math.min(ids.length||5,5)})</option>`;
+  const one = ids.length===1;
+  el("mTpl").innerHTML =
+    (one ? `<option value="hero">Carta individual</option>` : "") +
+    `<option value="grid">Ranking (Top ${Math.min(ids.length||5,5)})</option>`;
   el("mKey").value = sessionStorage.getItem("febKey")||"";
   el("mMsg").textContent="";
   el("scrim").classList.add("open"); el("mTitle").focus();
@@ -650,7 +653,7 @@ async function doCreate(){
   if(!key){ el("mMsg").textContent="Hace falta la clave de API."; return; }
   try{ sessionStorage.setItem("febKey",key); }catch(e){}
   const f=activeFilters();
-  const body={ season:el("season").value, title,
+  const body={ season:el("season").value, title, template:el("mTpl").value,
     scope_label:el("mScope").value.trim()||null, show_rank:el("mRank").checked,
     player_ids:[...sel], metric:["games_played","val","feb"].includes(sortKey)?"points":sortKey,
     per_game:perGame, team:f.team||null, nationality:f.nat||null, position:f.pos||null,

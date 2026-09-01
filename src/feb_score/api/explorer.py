@@ -136,15 +136,25 @@ def register_explorer_routes(app: FastAPI) -> None:
             return err.error_response(
                 400, "INVALID_PARAMETER", "season must look like 2024-2025")
         try:
-            item = request.app.state.gateway.create_custom_five(
-                body.season, title=body.title, subtitle=body.subtitle,
-                scope_label=body.scope_label, player_ids=body.player_ids,
-                show_rank=body.show_rank,
-                team=body.team, nationality=body.nationality,
-                position=body.position, min_age=body.min_age,
-                max_age=body.max_age, min_games=body.min_games,
-                metric=body.metric, per_game=body.per_game,
-            )
+            if body.template == "hero":
+                if not body.player_ids or len(body.player_ids) != 1:
+                    return err.error_response(
+                        400, "INVALID_PARAMETER",
+                        "a single player is required for a carta individual")
+                item = request.app.state.gateway.create_stat_hero(
+                    body.season, player_id=body.player_ids[0], metric=body.metric,
+                    per_game=body.per_game, title=body.title,
+                    subtitle=body.subtitle, scope_label=body.scope_label)
+            else:
+                item = request.app.state.gateway.create_custom_five(
+                    body.season, title=body.title, subtitle=body.subtitle,
+                    scope_label=body.scope_label, player_ids=body.player_ids,
+                    show_rank=body.show_rank,
+                    team=body.team, nationality=body.nationality,
+                    position=body.position, min_age=body.min_age,
+                    max_age=body.max_age, min_games=body.min_games,
+                    metric=body.metric, per_game=body.per_game,
+                )
         except ValueError as exc:
             return err.error_response(400, "INVALID_PARAMETER", str(exc))
         if item.get("status") in ("rejected", "failed"):
@@ -168,6 +178,7 @@ class CustomFiveRequest(BaseModel):
     """
 
     season: str
+    template: str = "grid"          # "grid" (ranking) or "hero" (single player)
     title: str = Field(..., min_length=1, max_length=80)
     subtitle: str = Field("", max_length=80)
     scope_label: Optional[str] = Field(None, max_length=40)

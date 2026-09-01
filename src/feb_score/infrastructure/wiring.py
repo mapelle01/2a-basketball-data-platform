@@ -1004,7 +1004,58 @@ class _GatewayBase(CommandGateway):
         "steals": "ROBOS", "blocks": "TAPONES", "turnovers": "PÉRDIDAS",
         "minutes": "MINUTOS", "games_played": "PARTIDOS",
     }
+    PG_LABELS = {
+        "points": "PPP", "rebounds": "RPP", "assists": "APP", "steals": "ROB/P",
+        "blocks": "TAP/P", "turnovers": "PER/P", "minutes": "MIN/P", "games_played": "PJ",
+    }
     CUSTOM_FIVE_SIZE = 5
+
+    def create_stat_hero(
+        self, season_code: str, *, player_id: str, metric: str = "points",
+        per_game: bool = False, title: str, subtitle: Optional[str] = None,
+        scope_label: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """One player on the photo-less hero layout, built from a query. The
+        caller sends the player and the words; the figures (and the season FEB
+        Rating) are re-read here, never posted by the client."""
+        from ..domain.content.story import StoryObject, StoryEntities, StoryType
+
+        title = (title or "").strip()
+        if not title:
+            raise ValueError("title is required")
+        if metric not in self.EXPLORE_METRICS:
+            raise ValueError(f"metric must be one of {', '.join(self.EXPLORE_METRICS)}")
+        row = next((r for r in self.explore_players(season_code, limit=600)["rows"]
+                    if r["player_external_id"] == player_id), None)
+        if row is None:
+            raise ValueError("that player has no data in the season")
+        total = row.get(metric)
+        if total is None:
+            raise ValueError("no data for that metric")
+        games = row["games_played"] or 0
+        per = round(total / games, 1) if games else 0.0
+        label = self.METRIC_LABELS.get(metric, metric.upper())
+        hero_label = (f"{label} POR PARTIDO" if per_game
+                      else (label if metric in ("games_played",) else f"{label} TOTALES"))
+        kicker = scope_label or f"Temporada {season_code[:4]}-{season_code[-2:]}"
+        facts = {
+            "section_label": title, "subtitle": subtitle or "",
+            "hero_value": self._es_number(per if per_game else total),
+            "hero_label": hero_label,
+            "secondary": [[games, "PART"], [self._es_number(per), self.PG_LABELS.get(metric, "/P")]],
+            "rating": row.get("feb"), "kicker": kicker.upper(),
+            "player_name": row["name"], "team_name": row["team_name"],
+            "team_external_id": row["team_external_id"], "player_external_id": player_id,
+            "points": row["points"], "rebounds": row["rebounds"], "assists": row["assists"],
+        }
+        story = StoryObject(
+            story_type=StoryType.CUSTOM_HERO, season_code=season_code, round_number=None,
+            entities=StoryEntities(player_external_id=player_id,
+                                   team_external_id=row["team_external_id"]),
+            facts=facts,
+            source_refs={"season_player_stats":
+                         f"2afeb_score://season_player_stats/{season_code}/{player_id}"})
+        return self._pipeline().generate_one(story).to_dict()
 
     def create_custom_five(
         self, season_code: str, *, title: str, subtitle: str = "",

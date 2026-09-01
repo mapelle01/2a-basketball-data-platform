@@ -490,6 +490,20 @@ def generate_copy_custom_five(story: Dict[str, Any]) -> CopyContract:
     )
 
 
+def generate_copy_custom_hero(story: Dict[str, Any]) -> CopyContract:
+    """A single-player card the operator built. The headline is theirs; the
+    figures are re-read server-side, so the caption carries names/words, not
+    numbers the validator could reject."""
+    f = story["facts"]
+    name = f.get("player_name") or f.get("player_external_id", "")
+    team = f.get("team_name") or f.get("team_external_id", "")
+    headline = f.get("section_label") or "Carta individual"
+    subtitle = f.get("subtitle") or ""
+    caption = f"{headline}: {name}" + (f" ({team})." if team else ".")
+    return CopyContract(headline=headline, subtitle=subtitle, caption=caption,
+                        hashtags=BASE_HASHTAGS, facts_used=("player_name", "section_label"))
+
+
 def generate_copy_defensive_anchor(story: Dict[str, Any]) -> CopyContract:
     f = story["facts"]
     name = f.get("player_name") or f.get("player_external_id", "El jugador")
@@ -727,6 +741,7 @@ _GENERATORS = {
     "best_five": generate_copy_best_five,                        # quinteto de la jornada
     "best_five_ideal": generate_copy_best_five,                  # quinteto ideal por posición
     "custom_five": generate_copy_custom_five,                    # quinteto hecho a mano
+    "custom_hero": generate_copy_custom_hero,                    # carta individual
     "defensive_anchor": generate_copy_defensive_anchor,          # steals + blocks
     "lone_flag": generate_copy_lone_flag,                        # bio: nationality
     "young_gun": generate_copy_young_gun,                        # bio: youngest

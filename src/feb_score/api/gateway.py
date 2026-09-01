@@ -277,6 +277,16 @@ class CommandGateway(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def create_stat_hero(
+        self, season_code: str, *, player_id: str, metric: str = "points",
+        per_game: bool = False, title: str, subtitle: Optional[str] = None,
+        scope_label: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """One player on the photo-less hero layout, from a query. Figures are
+        re-read server-side; raises ValueError on bad input. Returns the item."""
+        raise NotImplementedError
+
+    @abstractmethod
     def create_custom_five(
         self, season_code: str, *, title: str, subtitle: str = "",
         scope_label: Optional[str] = None, player_ids: Optional[List[str]] = None,

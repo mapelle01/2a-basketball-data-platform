@@ -55,6 +55,7 @@ class StoryType(str, Enum):
     BEST_FIVE = "best_five"            # the round's five best by FEB Rating (grid)
     BEST_FIVE_IDEAL = "best_five_ideal"  # the round's ideal five by position (court)
     CUSTOM_FIVE = "custom_five"        # a five the operator picked from a query
+    CUSTOM_HERO = "custom_hero"        # a single-player hero card built from a query
     BEST_DUO = "best_duo"             # two teammates, best combined game (round)
     # TOP_SCORER / TOP_REBOUNDER / TOP_ASSIST_PROVIDER are the SEASON leaders.
 
@@ -108,6 +109,8 @@ STORY_TO_TEMPLATE: Dict[StoryType, str] = {
     # best_five") is not spent by a hand-made card, and so the queue says where
     # the card came from.
     StoryType.CUSTOM_FIVE: "best_five",
+    # A hand-picked single player rendered on the photo-less hero layout.
+    StoryType.CUSTOM_HERO: "stat_hero",
     StoryType.BEST_FIVE_IDEAL: "best_five_court",
     StoryType.IRON_MAN: "player_of_round",
     StoryType.SHARPSHOOTER: "player_of_round",
@@ -173,6 +176,7 @@ STORY_DISPLAY_NAMES: Dict[str, str] = {
     "top_assist_provider": "Máximo asistente de la temporada",
     "best_five": "El quinteto de la jornada",
     "custom_five": "Quinteto a medida",
+    "custom_hero": "Carta individual",
     "best_five_ideal": "El quinteto ideal (por posición)",
 }
 

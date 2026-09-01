@@ -535,3 +535,47 @@ class TestPhotoStatus:
         client.app.state.gateway._media_asset_repo.add("player", "has_media", b"x", "image/png", approved=True)
         rows = {r["player_external_id"]: r for r in _q(client).json()["rows"]}
         assert rows["has_media"]["photo_status"] == "approved"
+
+
+class TestHeroCard:
+    """The 'carta individual' template: a single player on the photo-less hero
+    layout, built from the query — figures re-read, never posted."""
+
+    def _seed(self, client):
+        from feb_score.domain.statistics.model import PlayerStats
+        from feb_score.domain.value_objects import SeasonCode, ExternalId, PlayerId, TeamId
+        from feb_score.domain.player.model import Player
+        from feb_score.domain.team.model import Team
+        from feb_score.infrastructure.persistence.repositories import (
+            SqliteMatchStatsRepository, SqlitePlayerRepository, SqliteTeamRepository)
+        import uuid as _uuid
+        db = client.app.state.gateway.db
+        SqliteTeamRepository(db).save(Team(external_id=ExternalId("tA"),
+            team_id=TeamId(str(_uuid.uuid4())), name="Team A"))
+        SqlitePlayerRepository(db).save(Player(external_id=ExternalId("p1"),
+            player_id=PlayerId(str(_uuid.uuid4())), name="STAR, ONE"))
+        stats = SqliteMatchStatsRepository(db)
+        for m in ("M1", "M2"):
+            stats.save_player_stats(m, SeasonCode(SEASON), [
+                PlayerStats(player_external_id="p1", team_external_id="tA",
+                    points=24, rebounds=6, assists=4, steals=1, blocks=0,
+                    turnovers=2, minutes=30.0, field_goals_made=9,
+                    field_goals_attempted=15, free_throws_made=2,
+                    free_throws_attempted=2, three_points_made=1, fouls=2)])
+
+    def test_creates_a_single_player_hero_card(self, client):
+        self._seed(client)
+        r = client.post("/v1/explore/card", headers=auth_header("editor"), json={
+            "season": SEASON, "template": "hero", "title": "El máximo anotador",
+            "player_ids": ["p1"], "metric": "points"})
+        assert r.status_code == 201, r.text
+        item = r.json()
+        assert item["story"]["story_type"] == "custom_hero"
+        assert item["template_id"] == "stat_hero"
+
+    def test_hero_needs_exactly_one_player(self, client):
+        self._seed(client)
+        for ids in ([], ["p1", "p1"]):
+            r = client.post("/v1/explore/card", headers=auth_header("editor"), json={
+                "season": SEASON, "template": "hero", "title": "X", "player_ids": ids})
+            assert r.status_code == 400
