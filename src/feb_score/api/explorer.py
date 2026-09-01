@@ -90,7 +90,10 @@ def register_explorer_routes(app: FastAPI) -> None:
         "of the season and generates a hero card with the DD count as the "
         "protagonist and the triple-double count as extras. Authenticated.",
     )
-    def create_season_dd_leader_card(body: SeasonLeaderRequest, request: Request):
+    def create_season_dd_leader_card(
+        body: SeasonLeaderRequest, request: Request,
+        force: bool = Query(False, description="Re-render if already queued"),
+    ):
         auth: AuthenticationProvider = request.app.state.auth
         if auth.authenticate(request) is None:
             return err.error_response(401, "UNAUTHENTICATED", "API key required")
@@ -98,7 +101,8 @@ def register_explorer_routes(app: FastAPI) -> None:
             return err.error_response(
                 400, "INVALID_PARAMETER", "season must look like 2024-2025")
         try:
-            return request.app.state.gateway.create_season_dd_leader_card(body.season)
+            return request.app.state.gateway.create_season_dd_leader_card(
+                body.season, force=force)
         except ValueError as exc:
             return err.error_response(404, "NO_DATA", str(exc))
 

@@ -1176,7 +1176,9 @@ class _GatewayBase(CommandGateway):
                          f"2afeb_score://season_player_stats/{season_code}/{player_id}"})
         return self._pipeline().generate_one(story).to_dict()
 
-    def create_season_dd_leader_card(self, season_code: str) -> Dict[str, Any]:
+    def create_season_dd_leader_card(
+        self, season_code: str, *, force: bool = False,
+    ) -> Dict[str, Any]:
         """Season retrospective: the player with the most double-doubles this
         year, with their triple-double count riding as the extras line. All
         figures re-read here from the per-game store; nothing invented, nothing
@@ -1248,7 +1250,7 @@ class _GatewayBase(CommandGateway):
                     f"2afeb_score://season_player_stats/{season_code}",
             },
         )
-        return self._pipeline().generate_one(story).to_dict()
+        return self._pipeline().generate_one(story, force=force).to_dict()
 
     def create_custom_five(
         self, season_code: str, *, title: str, subtitle: str = "",

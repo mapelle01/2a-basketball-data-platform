@@ -336,10 +336,14 @@ class CommandGateway(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def create_season_dd_leader_card(self, season_code: str) -> Dict[str, Any]:
+    def create_season_dd_leader_card(
+        self, season_code: str, *, force: bool = False,
+    ) -> Dict[str, Any]:
         """One card for the player with the most double-doubles in the season,
         with their triple-double count as the extras line. Figures re-read
-        server-side; raises ValueError when there are no DDs yet."""
+        server-side; raises ValueError when there are no DDs yet. ``force``
+        re-renders an existing queued card in place (same content_id, fresh
+        SVG) — useful after a template polish deploy."""
         raise NotImplementedError
 
     @abstractmethod

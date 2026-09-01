@@ -12,6 +12,7 @@ pipeline knows only the application-layer interfaces.
 
 from __future__ import annotations
 
+import dataclasses
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -158,7 +159,7 @@ class RoundPipeline:
             self._queue.update(item)
         return item
 
-    def generate_one(self, story: StoryObject) -> ContentItem:
+    def generate_one(self, story: StoryObject, *, force: bool = False) -> ContentItem:
         """Render, validate and queue ONE story the caller built by hand.
 
         The detector path exists because the machine finds the story; this
@@ -171,16 +172,27 @@ class RoundPipeline:
         right there and can fix the title, whereas a detector run has nobody to
         ask and keeps the rejection as a record. The item comes back either way
         so the caller can say what went wrong.
+
+        ``force`` re-renders an existing queued card in place: same content_id,
+        fresh SVG. Used when a template polish deploy went out and the operator
+        wants the queued cards to reflect the new visuals without stacking a
+        second identity in the queue.
         """
         if story.template_id is None:
             raise ValueError(f"story type {story.story_type.value} has no template")
         existing = self._queue.by_story_identity(story.identity_key)
-        if existing is not None:
+        if existing is not None and not force:
             return existing            # same query, same card: not a second one
         item = self._render_and_validate(_as_selected(story))
         if item.status in (ContentStatus.REJECTED, ContentStatus.FAILED):
             return item
-        self._queue.add(item)
+        if existing is not None and force:
+            # Reuse the existing content_id so downstream references (queue
+            # links, IG scheduling) stay valid; update() overwrites the row.
+            item = dataclasses.replace(item, content_id=existing.content_id)
+            self._queue.update(item)
+        else:
+            self._queue.add(item)
         return item
 
     _SCOPE_FAMILY = ((Scope.ROUND, "jornada"), (Scope.BIO, "ficha"), (Scope.SEASON, "temporada"))
