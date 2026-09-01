@@ -124,6 +124,27 @@ td.who .ph{width:40px;height:40px;border-radius:6px;background:var(--field);colo
 .sub{color:var(--grey);font-size:11px;font-weight:600;line-height:1.2}
 .rk{color:var(--grey);font-weight:700;font-size:12px;width:28px;text-align:right}
 
+/* ---- Leaders view ---------------------------------------------------------*/
+#leaders{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
+  gap:var(--s3);padding:var(--s3) 0 0}
+.lcard{border:1px solid var(--rule);border-radius:8px;overflow:hidden}
+.lcard .lh{display:flex;align-items:baseline;justify-content:space-between;
+  padding:var(--s2) var(--s3);border-bottom:1px solid var(--rule)}
+.lcard .lh .t{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.lcard .lh .fl{font-size:10px;font-weight:600;color:var(--grey);letter-spacing:.04em}
+.lrow{display:grid;grid-template-columns:24px 1fr auto;gap:var(--s2);align-items:center;
+  padding:10px var(--s3);border-top:1px solid var(--rule);cursor:pointer}
+.lrow:first-child{border-top:0}
+.lrow:hover{background:var(--ink)}
+.lrow .p{font-size:12px;font-weight:800;color:var(--grey);font-variant-numeric:tabular-nums}
+.lrow:nth-child(1) .p{color:var(--white)}
+.lrow .who3{min-width:0}
+.lrow .who3 .n{font-size:13px;font-weight:700;color:var(--white);letter-spacing:-.01em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lrow .who3 .tm{font-size:10px;font-weight:600;color:var(--grey);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lrow .lv{font-size:18px;font-weight:900;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.lempty{padding:var(--s3);color:var(--grey);font-size:12px}
+
 /* ---- States ---------------------------------------------------------------*/
 .state{padding:var(--s8) var(--s2);text-align:center;color:var(--grey)}
 .state h2{font-size:15px;font-weight:800;color:var(--white);margin:0 0 6px;letter-spacing:-.01em}
@@ -242,6 +263,10 @@ td.who .ph{width:40px;height:40px;border-radius:6px;background:var(--field);colo
       <button id="tTot" aria-pressed="true">TOTAL</button>
       <button id="tAvg" aria-pressed="false">POR PARTIDO</button>
     </div>
+    <div class="seg" role="group" aria-label="Vista">
+      <button id="vTable" aria-pressed="true">TABLA</button>
+      <button id="vLeaders" aria-pressed="false">LÍDERES</button>
+    </div>
     <div class="field"><span class="lbl">Ordenar</span>
       <select id="sort"></select></div>
     <button class="pill" id="fbtn" aria-expanded="false">FILTROS<span class="n" id="fn" hidden>0</span></button>
@@ -258,12 +283,13 @@ td.who .ph{width:40px;height:40px;border-radius:6px;background:var(--field);colo
 </header>
 
 <main>
-  <div class="wrap">
+  <div class="wrap" id="tableWrap">
     <table>
       <thead><tr id="head"></tr></thead>
       <tbody id="rows"></tbody>
     </table>
   </div>
+  <div id="leaders" hidden></div>
   <div class="state" id="state" hidden></div>
 </main>
 
@@ -334,7 +360,7 @@ const TABLE_COLS = ["games_played","points","rebounds","assists","val","feb"];
 
 let ALL = [];               // every player of the season (raw stats), loaded once
 let FACETS = {teams:[],nationalities:[],positions:[]};
-let sortKey = "points", sortDir = -1, perGame = false;
+let sortKey = "points", sortDir = -1, perGame = false, view = "table";
 let sel = new Set();
 let desiredSeason = new URLSearchParams(location.search).get("season") || "";
 
@@ -456,17 +482,18 @@ function rowHTML(row,i){
     </div></td>${tds}</tr>`;
 }
 function render(){
-  el("head").innerHTML=headHTML();
   const rows=visibleRows();
   const q=el("q").value.trim();
   const f=activeFilters();
-  // counts + filter badge
   el("count").innerHTML=`<b>${rows.length}</b> de ${ALL.length} jugadores`;
   el("fn").hidden=f.count===0; el("fn").textContent=f.count;
-  el("fbtn").firstChild.textContent="FILTROS";
   if(!ALL.length){ showState("empty"); return; }
   if(!rows.length){ showState("noresults",q); return; }
   hideState();
+  if(view==="leaders") renderLeaders(rows); else renderTable(rows);
+}
+function renderTable(rows){
+  el("head").innerHTML=headHTML();
   el("rows").innerHTML=rows.map(rowHTML).join("");
   for(const img of el("rows").querySelectorAll("img[data-ini]")){
     const fb=()=>{const d=document.createElement("div");d.className="ph";d.textContent=img.dataset.ini;img.replaceWith(d);};
@@ -475,10 +502,51 @@ function render(){
   }
 }
 
+// ---- leaders view: a ranking per metric, a discovery tool -------------------
+const LEADER_METRICS=["points","rebounds","assists","steals","blocks","val","feb"];
+function maxGames(){ return ALL.reduce((m,r)=>Math.max(m,r.games_played||0),0); }
+function floorFor(k){
+  // rate-based metrics (FEB, and anything in per-game mode) need a sample floor,
+  // so a 4-game cameo does not top the ranking; totals reward volume on their own.
+  const m=METRICS.find(x=>x.k===k);
+  const needsFloor = m.kind==="rating" || perGame;
+  return needsFloor ? Math.max(3, Math.round(maxGames()*0.35)) : 0;
+}
+function leadersFor(k, rows){
+  const fl=floorFor(k);
+  const elig=rows.filter(r=>r[k]!=null && (r.games_played||0)>=fl);
+  elig.sort((a,b)=>sortVal(b,k)-sortVal(a,k) || a.name.localeCompare(b.name));
+  return {top:elig.slice(0,8), floor:fl};
+}
+function renderLeaders(rows){
+  let html="";
+  for(const k of LEADER_METRICS){
+    const m=METRICS.find(x=>x.k===k);
+    const {top,floor}=leadersFor(k,rows);
+    const flnote=floor>1?`<span class="fl">mín ${floor} PJ</span>`:"";
+    let body = top.length
+      ? top.map((r,i)=>`<div class="lrow" data-pid="${esc(r.player_external_id)}">
+          <span class="p">${i+1}</span>
+          <span class="who3"><span class="n">${esc(r.name)}</span><span class="tm">${esc(r.team_name||"—")}</span></span>
+          <span class="lv">${cell(r,k)}</span></div>`).join("")
+      : `<div class="lempty">Sin jugadores que cumplan el mínimo.</div>`;
+    html+=`<div class="lcard"><div class="lh"><span class="t">${esc(m.name)}</span>${flnote}</div>${body}</div>`;
+  }
+  el("leaders").innerHTML=html;
+}
+function setView(v){
+  view=v;
+  el("vTable").setAttribute("aria-pressed",String(v==="table"));
+  el("vLeaders").setAttribute("aria-pressed",String(v==="leaders"));
+  el("tableWrap").hidden = v!=="table";
+  el("leaders").hidden = v!=="leaders";
+  render();
+}
+
 // ---- states -----------------------------------------------------------------
-function hideState(){el("state").hidden=true;}
+function hideState(){el("state").hidden=true; el("tableWrap").hidden=(view!=="table"); el("leaders").hidden=(view!=="leaders");}
 function showState(kind,arg){
-  const S=el("state"); S.hidden=false; el("rows").innerHTML="";
+  const S=el("state"); S.hidden=false; el("rows").innerHTML=""; el("leaders").innerHTML=""; el("tableWrap").hidden=true; el("leaders").hidden=true;
   if(kind==="loading"){S.innerHTML=Array(8).fill('<div class="skel"></div>').join("");S.style.padding="0";return;}
   S.style.padding="";
   if(kind==="empty") S.innerHTML=`<h2>Temporada sin datos</h2><p>No hay jugadores cargados para esta temporada.</p>`;
@@ -629,6 +697,9 @@ el("drawer").addEventListener("click",e=>{
   if(b.dataset.act==="create") openCreate();
   else if(b.dataset.act==="compare"){ if(sel.size>=2) openCompare(); }
 });
+el("vTable").addEventListener("click",()=>setView("table"));
+el("vLeaders").addEventListener("click",()=>setView("leaders"));
+el("leaders").addEventListener("click",e=>{const r=e.target.closest(".lrow[data-pid]"); if(r) openDrawer(r.dataset.pid);});
 el("aCompare").addEventListener("click",openCompare);
 el("cmpClose").addEventListener("click",closeCompare);
 el("cmpCreate").addEventListener("click",()=>{ closeCompare(); openCreate(); });
