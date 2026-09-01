@@ -911,23 +911,27 @@ def render_player_streak(data: Dict[str, Any]) -> str:
                        size=num_size, weight=FontWeight.HERO, fill=Color.WHITE,
                        anchor="middle", tracking=LetterSpacing.HERO))
 
-    # Partial arc wrapping the right side of the number — visual echo of "a
-    # run", drawn with an SVG path so it curves cleanly at any digit width.
-    arc_r = min(num_col_w, 620) * 0.45
-    arc_w = 14
-    # Path from top (angle=-100°) sweeping right and down to bottom (+100°).
+    # Partial arc wrapping the right side of the number — visual echo of a
+    # "run". Only drawn when it fits OUTSIDE the digits' visible bounds; for
+    # 2+ digit numbers ("14", "23") the arc would slice through the last digit,
+    # so it is dropped and the giant number stands alone.
     import math
-    def _polar(cx, cy, r, deg):
-        rad = math.radians(deg)
-        return (cx + r * math.cos(rad), cy + r * math.sin(rad))
-    start = _polar(num_center_x, num_center_y, arc_r, -100)
-    end   = _polar(num_center_x, num_center_y, arc_r,  100)
-    body.append(
-        f'<path d="M {start[0]:.1f} {start[1]:.1f}'
-        f' A {arc_r:.1f} {arc_r:.1f} 0 0 1 {end[0]:.1f} {end[1]:.1f}"'
-        f' fill="none" stroke="{Color.RED}" stroke-width="{arc_w}"'
-        f' stroke-linecap="round"/>'
-    )
+    digit_visual_w = num_size * 0.55 * len(hero)
+    arc_r = digit_visual_w * 0.65
+    arc_fits = (num_center_x + arc_r) < (photo_x - Spacing.LG - 20)
+    if arc_fits:
+        arc_w = 14
+        def _polar(cx, cy, r, deg):
+            rad = math.radians(deg)
+            return (cx + r * math.cos(rad), cy + r * math.sin(rad))
+        start = _polar(num_center_x, num_center_y, arc_r, -100)
+        end   = _polar(num_center_x, num_center_y, arc_r,  100)
+        body.append(
+            f'<path d="M {start[0]:.1f} {start[1]:.1f}'
+            f' A {arc_r:.1f} {arc_r:.1f} 0 0 1 {end[0]:.1f} {end[1]:.1f}"'
+            f' fill="none" stroke="{Color.RED}" stroke-width="{arc_w}"'
+            f' stroke-linecap="round"/>'
+        )
 
     # SMALL LABEL under the number.
     label_baseline = num_center_y + num_size * 0.36 + FontSize.LABEL + Spacing.MD
@@ -935,6 +939,12 @@ def render_player_streak(data: Dict[str, Any]) -> str:
                        hlab.upper(), size=FontSize.LABEL, weight=FontWeight.LABEL,
                        fill=Color.RED, tracking=LetterSpacing.CAPS, upper=True,
                        anchor="middle"))
+    # Fallback red accent when the wrapping arc was suppressed for a wide
+    # number — a short underline keeps the red presence and separates the
+    # label from the extras line below.
+    if not arc_fits:
+        body.append(C.accent_bar(num_center_x - 40, label_baseline + 12, 80,
+                                 Line.THIN))
     # OPTIONAL EXTRAS — one small line under the label (e.g. "+2 TRIPLES-DOBLES"
     # on a season DD leader card). Absent facts collapse the block cleanly.
     extras = str(facts.get("extras_label") or "").strip()
