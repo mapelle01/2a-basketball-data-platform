@@ -145,6 +145,27 @@ td.who .ph{width:40px;height:40px;border-radius:6px;background:var(--field);colo
 .lrow .lv{font-size:18px;font-weight:900;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .lempty{padding:var(--s3);color:var(--grey);font-size:12px}
 
+/* ---- Discover view --------------------------------------------------------*/
+#insights{padding:var(--s3) 0 0}
+.isec{margin-bottom:var(--s6)}
+.isec h4{font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--grey);margin:0 0 var(--s2)}
+.recgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:var(--s2)}
+.rec{border:1px solid var(--rule);border-radius:8px;padding:var(--s3);cursor:pointer}
+.rec:hover{border-color:var(--rule-2);background:var(--ink)}
+.rec .k{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--grey)}
+.rec .v{font-size:40px;font-weight:900;letter-spacing:-.03em;line-height:1;margin:6px 0}
+.rec .who4 .n{font-size:13px;font-weight:700;color:var(--white)}
+.rec .who4 .tm{font-size:11px;font-weight:600;color:var(--grey)}
+.icols{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:var(--s3)}
+.frow{display:grid;grid-template-columns:1fr auto auto;gap:var(--s2);align-items:baseline;
+  padding:10px var(--s3);border-top:1px solid var(--rule);cursor:pointer}
+.frow:first-child{border-top:0}
+.frow:hover{background:var(--ink)}
+.frow .who3{min-width:0}
+.frow .d{font-size:16px;font-weight:900;color:var(--white);font-variant-numeric:tabular-nums}
+.frow .s{font-size:11px;font-weight:600;color:var(--grey);text-align:right;min-width:96px}
+
 /* ---- States ---------------------------------------------------------------*/
 .state{padding:var(--s8) var(--s2);text-align:center;color:var(--grey)}
 .state h2{font-size:15px;font-weight:800;color:var(--white);margin:0 0 6px;letter-spacing:-.01em}
@@ -266,6 +287,7 @@ td.who .ph{width:40px;height:40px;border-radius:6px;background:var(--field);colo
     <div class="seg" role="group" aria-label="Vista">
       <button id="vTable" aria-pressed="true">TABLA</button>
       <button id="vLeaders" aria-pressed="false">LÍDERES</button>
+      <button id="vDiscover" aria-pressed="false">DESCUBRIR</button>
     </div>
     <div class="field"><span class="lbl">Ordenar</span>
       <select id="sort"></select></div>
@@ -290,6 +312,7 @@ td.who .ph{width:40px;height:40px;border-radius:6px;background:var(--field);colo
     </table>
   </div>
   <div id="leaders" hidden></div>
+  <div id="insights" hidden></div>
   <div class="state" id="state" hidden></div>
 </main>
 
@@ -487,6 +510,7 @@ function render(){
   const f=activeFilters();
   el("count").innerHTML=`<b>${rows.length}</b> de ${ALL.length} jugadores`;
   el("fn").hidden=f.count===0; el("fn").textContent=f.count;
+  if(view==="discover"){ return; }   // discover is season-wide, loaded on its own
   if(!ALL.length){ showState("empty"); return; }
   if(!rows.length){ showState("noresults",q); return; }
   hideState();
@@ -534,19 +558,56 @@ function renderLeaders(rows){
   }
   el("leaders").innerHTML=html;
 }
+let INSIGHTS=null, insightsSeason=null;
 function setView(v){
   view=v;
   el("vTable").setAttribute("aria-pressed",String(v==="table"));
   el("vLeaders").setAttribute("aria-pressed",String(v==="leaders"));
+  el("vDiscover").setAttribute("aria-pressed",String(v==="discover"));
   el("tableWrap").hidden = v!=="table";
   el("leaders").hidden = v!=="leaders";
-  render();
+  el("insights").hidden = v!=="discover";
+  if(v==="discover") ensureInsights(); else render();
+}
+async function ensureInsights(){
+  const season=el("season").value;
+  if(INSIGHTS && insightsSeason===season){ hideState(); renderDiscover(INSIGHTS); return; }
+  showState("loading");
+  try{
+    const r=await fetch("/v1/explore/insights?season="+encodeURIComponent(season));
+    INSIGHTS=await r.json(); insightsSeason=season;
+    if(!r.ok){ showState("error", INSIGHTS?.error?.message); return; }
+    hideState(); renderDiscover(INSIGHTS);
+  }catch(e){ showState("error"); }
+}
+function renderDiscover(d){
+  const recCard=r=>`<div class="rec" data-pid="${esc(r.player_external_id)}">
+      <div class="k">${esc(r.label)}</div>
+      <div class="v">${esc(String(r.value).replace('.',','))}</div>
+      <div class="who4"><span class="n">${esc(r.player)}</span> · <span class="tm">${esc(r.team||"—")}</span></div></div>`;
+  const recs=(d.records||[]).map(recCard).join("") || '<div class="lempty">Sin datos suficientes.</div>';
+  const form=(d.form_up||[]).map(f=>`<div class="frow" data-pid="${esc(f.player_external_id)}">
+      <span class="who3"><span class="n">${esc(f.player)}</span><span class="tm">${esc(f.team||"—")}</span></span>
+      <span class="d">+${fmt1(f.delta)}</span>
+      <span class="s">${fmt1(f.last3)} · media ${fmt1(f.season)}</span></div>`).join("")
+      || '<div class="lempty">Se necesitan al menos 6 partidos por jugador.</div>';
+  const dd=(d.double_doubles||[]).map((x,i)=>`<div class="frow" data-pid="${esc(x.player_external_id)}">
+      <span class="who3"><span class="n">${esc(x.player)}</span><span class="tm">${esc(x.team||"—")}</span></span>
+      <span class="d">${x.count}</span><span class="s"></span></div>`).join("")
+      || '<div class="lempty">Sin dobles-dobles.</div>';
+  const tdNote = d.triple_doubles_total ? ` · ${d.triple_doubles_total} triple-doble${d.triple_doubles_total>1?"s":""} en la temporada` : "";
+  el("insights").innerHTML=`
+    <div class="isec"><h4>Récords de la temporada · mejor partido</h4><div class="recgrid">${recs}</div></div>
+    <div class="icols">
+      <div class="isec"><h4>En racha · últimos 3 vs media</h4><div class="lcard">${form}</div></div>
+      <div class="isec"><h4>Más dobles-dobles${tdNote}</h4><div class="lcard">${dd}</div></div>
+    </div>`;
 }
 
 // ---- states -----------------------------------------------------------------
-function hideState(){el("state").hidden=true; el("tableWrap").hidden=(view!=="table"); el("leaders").hidden=(view!=="leaders");}
+function hideState(){el("state").hidden=true; el("tableWrap").hidden=(view!=="table"); el("leaders").hidden=(view!=="leaders"); el("insights").hidden=(view!=="discover");}
 function showState(kind,arg){
-  const S=el("state"); S.hidden=false; el("rows").innerHTML=""; el("leaders").innerHTML=""; el("tableWrap").hidden=true; el("leaders").hidden=true;
+  const S=el("state"); S.hidden=false; el("rows").innerHTML=""; el("leaders").innerHTML=""; el("insights").innerHTML=""; el("tableWrap").hidden=true; el("leaders").hidden=true; el("insights").hidden=true;
   if(kind==="loading"){S.innerHTML=Array(8).fill('<div class="skel"></div>').join("");S.style.padding="0";return;}
   S.style.padding="";
   if(kind==="empty") S.innerHTML=`<h2>Temporada sin datos</h2><p>No hay jugadores cargados para esta temporada.</p>`;
@@ -677,7 +738,7 @@ function setSort(k){
 }
 
 // ---- wiring -----------------------------------------------------------------
-el("season").addEventListener("change",()=>{ desiredSeason=el("season").value; loadSeasonData(); });
+el("season").addEventListener("change",()=>{ desiredSeason=el("season").value; INSIGHTS=null; loadSeasonData(); if(view==="discover") ensureInsights(); });
 el("q").addEventListener("input",render);
 el("sort").addEventListener("change",e=>{ sortKey=e.target.value; sortDir=-1; render(); });
 el("tTot").addEventListener("click",()=>{perGame=false;el("tTot").setAttribute("aria-pressed","true");el("tAvg").setAttribute("aria-pressed","false");render();});
@@ -699,6 +760,8 @@ el("drawer").addEventListener("click",e=>{
 });
 el("vTable").addEventListener("click",()=>setView("table"));
 el("vLeaders").addEventListener("click",()=>setView("leaders"));
+el("vDiscover").addEventListener("click",()=>setView("discover"));
+el("insights").addEventListener("click",e=>{const r=e.target.closest("[data-pid]"); if(r) openDrawer(r.dataset.pid);});
 el("leaders").addEventListener("click",e=>{const r=e.target.closest(".lrow[data-pid]"); if(r) openDrawer(r.dataset.pid);});
 el("aCompare").addEventListener("click",openCompare);
 el("cmpClose").addEventListener("click",closeCompare);

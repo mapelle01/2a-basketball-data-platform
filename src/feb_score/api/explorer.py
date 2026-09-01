@@ -61,6 +61,19 @@ def register_explorer_routes(app: FastAPI) -> None:
         return {"seasons": request.app.state.gateway.list_seasons()}
 
     @app.get(
+        "/v1/explore/insights",
+        tags=["explorer"],
+        summary="Season discovery: records, double-doubles, form",
+        description="Single-game records per stat, the double-double leaders and "
+        "the players trending up (recent FEB vs season FEB) — all derived from "
+        "the real per-game lines. Read-only.",
+    )
+    def season_insights(request: Request, season: str = Query(...)):
+        if not _SEASON_RE.match(season):
+            return err.error_response(400, "INVALID_PARAMETER", "season must look like 2024-2025")
+        return request.app.state.gateway.season_insights(season)
+
+    @app.get(
         "/v1/explore/players",
         tags=["explorer"],
         summary="Filter and rank a season's players",

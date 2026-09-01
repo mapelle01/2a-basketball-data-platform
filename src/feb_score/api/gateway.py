@@ -259,6 +259,12 @@ class CommandGateway(ABC):
 
     # ----------------------------------------------------------- explorer
     @abstractmethod
+    def season_insights(self, season_code: str) -> Dict[str, Any]:
+        """Discovery signals for a season: single-game records, double-double
+        leaders and who is trending up. Read-only."""
+        raise NotImplementedError
+
+    @abstractmethod
     def explore_players(
         self, season_code: str, *,
         team: Optional[str] = None, nationality: Optional[str] = None,

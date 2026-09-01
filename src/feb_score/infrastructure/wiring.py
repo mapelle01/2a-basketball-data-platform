@@ -739,6 +739,108 @@ class _GatewayBase(CommandGateway):
             if code != self.SMOKE_SEASON
         ]
 
+    def season_insights(self, season_code: str) -> Dict[str, Any]:
+        """Discovery signals a season aggregate can't give: the best SINGLE-GAME
+        performances (records), the double-double leaders, and who is trending
+        up (recent FEB vs season FEB). All from the per-game lines; nothing
+        invented — a game with no rateable line simply does not contribute.
+        """
+        from collections import defaultdict
+        from datetime import datetime
+        from ..domain.statistics.metrics import valoracion
+        from ..domain.content.rating import feb_rating
+
+        season = SeasonCode(season_code)
+        lines = list(self._stats_repo.list_season_player_lines(season))
+        ids = {l.player_external_id for l in lines}
+        catalog = self._player_repo.get_many_by_external_ids(ids)
+        player_team = self._stats_repo.list_season_player_teams(season)
+        tnames = {tid: rec.name for tid, rec in
+                  self._team_repo.get_many_by_external_ids(set(player_team.values())).items()
+                  if rec is not None}
+
+        def nm(pid):
+            rec = catalog.get(pid)
+            return (rec.name if rec is not None else None) or pid
+
+        def tm(pid):
+            tid = player_team.get(pid)
+            return tnames.get(tid) if tid else None
+
+        def feb_of(l):
+            return feb_rating(
+                l.points, l.rebounds, l.assists, l.steals, l.blocks, l.turnovers,
+                minutes=l.minutes, field_goals_made=l.field_goals_made,
+                field_goals_attempted=l.field_goals_attempted,
+                free_throws_made=l.free_throws_made or 0,
+                free_throws_attempted=l.free_throws_attempted or 0,
+                three_points_made=l.three_points_made or 0,
+                fouls=l.fouls or 0, fouls_received=l.fouls_received or 0)
+
+        def entry(l, value):
+            return {"player": nm(l.player_external_id),
+                    "player_external_id": l.player_external_id,
+                    "team": tm(l.player_external_id), "value": value,
+                    "line": {"points": l.points, "rebounds": l.rebounds,
+                             "assists": l.assists}}
+
+        records = []
+        if lines:
+            for key, label in (("points", "Puntos"), ("rebounds", "Rebotes"),
+                               ("assists", "Asistencias"), ("steals", "Robos"),
+                               ("blocks", "Tapones")):
+                best = max(lines, key=lambda l: getattr(l, key))
+                records.append({"metric": key, "label": label,
+                                **entry(best, getattr(best, key))})
+            vals = [(l, valoracion(l)) for l in lines]
+            vals = [(l, v) for l, v in vals if v is not None]
+            if vals:
+                bl, bv = max(vals, key=lambda t: t[1])
+                records.append({"metric": "val", "label": "Valoración", **entry(bl, bv)})
+            febs = [(l, feb_of(l)) for l in lines]
+            febs = [(l, v) for l, v in febs if v is not None]
+            if febs:
+                bl, bv = max(febs, key=lambda t: t[1])
+                records.append({"metric": "feb", "label": "FEB Rating",
+                                **entry(bl, round(bv, 1))})
+
+        # double-doubles / triple-doubles
+        def dd(l):
+            return sum(1 for x in (l.points, l.rebounds, l.assists, l.steals, l.blocks) if x >= 10)
+        dd_count = defaultdict(int)
+        td_total = 0
+        for l in lines:
+            c = dd(l)
+            if c >= 2:
+                dd_count[l.player_external_id] += 1
+            if c >= 3:
+                td_total += 1
+        double_doubles = [
+            {"player": nm(p), "player_external_id": p, "team": tm(p), "count": c}
+            for p, c in sorted(dd_count.items(), key=lambda kv: (-kv[1], kv[0]))[:8]
+        ]
+
+        # form: last-3 FEB vs season FEB (min 6 rateable games)
+        by_player = defaultdict(list)
+        for l in lines:
+            by_player[l.player_external_id].append(l)
+        form = []
+        for pid, pls in by_player.items():
+            ordered = sorted(pls, key=lambda l: (l.played_at or datetime.min))
+            fseq = [f for f in (feb_of(l) for l in ordered) if f is not None]
+            if len(fseq) < 6:
+                continue
+            season_avg = sum(fseq) / len(fseq)
+            last3 = sum(fseq[-3:]) / 3
+            form.append({"player": nm(pid), "player_external_id": pid, "team": tm(pid),
+                         "last3": round(last3, 1), "season": round(season_avg, 1),
+                         "delta": round(last3 - season_avg, 1)})
+        form.sort(key=lambda f: (-f["delta"], f["player"]))
+
+        return {"season_code": season_code, "records": records,
+                "double_doubles": double_doubles, "triple_doubles_total": td_total,
+                "form_up": form[:6]}
+
     def explore_players(
         self, season_code: str, *,
         team: Optional[str] = None, nationality: Optional[str] = None,

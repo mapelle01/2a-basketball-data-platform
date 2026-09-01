@@ -439,3 +439,63 @@ class TestFebAndVal:
             minutes=30.0, field_goals_made=9, field_goals_attempted=15,
             free_throws_made=2, free_throws_attempted=2, three_points_made=1, fouls=2))
         assert star["val"] == one * 2
+
+
+class TestSeasonInsights:
+    """Discovery: single-game records, double-double leaders, form — all from
+    the real per-game lines, never invented."""
+
+    def _seed(self, client):
+        from feb_score.domain.statistics.model import PlayerStats
+        from feb_score.domain.value_objects import (SeasonCode, ExternalId, PlayerId, TeamId)
+        from feb_score.domain.player.model import Player
+        from feb_score.domain.team.model import Team
+        from feb_score.infrastructure.persistence.repositories import (
+            SqliteMatchStatsRepository, SqlitePlayerRepository, SqliteTeamRepository)
+        import uuid as _uuid
+        from datetime import datetime
+        db = client.app.state.gateway.db
+        SqliteTeamRepository(db).save(Team(external_id=ExternalId("tA"),
+            team_id=TeamId(str(_uuid.uuid4())), name="Team A"))
+        SqlitePlayerRepository(db).save(Player(external_id=ExternalId("star"),
+            player_id=PlayerId(str(_uuid.uuid4())), name="STAR, ONE"))
+        stats = SqliteMatchStatsRepository(db)
+        # six games; one is a 40-point night, several are double-doubles
+        for i in range(6):
+            pts = 40 if i == 0 else 14 + i
+            reb = 12 if i < 3 else 4       # double-doubles in the first three
+            stats.save_player_stats(f"M{i}", SeasonCode(SEASON), [
+                PlayerStats(player_external_id="star", team_external_id="tA",
+                    points=pts, rebounds=reb, assists=3, steals=1, blocks=0,
+                    turnovers=2, minutes=30.0, field_goals_made=10,
+                    field_goals_attempted=16, free_throws_made=4,
+                    free_throws_attempted=5, three_points_made=1, fouls=2,
+                    played_at=datetime(2025, 1, 1 + i))])
+
+    def _insights(self, client):
+        return client.get(f"/v1/explore/insights?season={SEASON}").json()
+
+    def test_points_record_is_the_best_single_game(self, client):
+        self._seed(client)
+        recs = {r["metric"]: r for r in self._insights(client)["records"]}
+        assert recs["points"]["value"] == 40
+        assert recs["points"]["player"] == "STAR, ONE"
+
+    def test_val_and_feb_records_are_present(self, client):
+        self._seed(client)
+        metrics = {r["metric"] for r in self._insights(client)["records"]}
+        assert "val" in metrics and "feb" in metrics
+
+    def test_double_double_leader_is_counted(self, client):
+        self._seed(client)
+        dd = self._insights(client)["double_doubles"]
+        assert dd and dd[0]["player_external_id"] == "star"
+        assert dd[0]["count"] == 3                     # three 10+/10+ games
+
+    def test_form_needs_six_rateable_games(self, client):
+        self._seed(client)
+        form = self._insights(client)["form_up"]
+        assert any(f["player_external_id"] == "star" for f in form)
+
+    def test_a_malformed_season_is_rejected(self, client):
+        assert client.get("/v1/explore/insights?season=mañana").status_code == 400
