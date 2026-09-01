@@ -108,6 +108,21 @@ def register_content_routes(app: FastAPI) -> None:
         )
 
     @app.get(
+        "/v1/content/ideas",
+        tags=["content"],
+        summary="Curated ideas dashboard — what to publish today",
+        description="A landing page that pulls records, season leaders, live "
+        "rachas and the last round's candidates into one editorial feed. "
+        "Every idea opens the same preview modal as the Explorer's create "
+        "flow — one click generates the card, another downloads the PNG.",
+        response_class=HTMLResponse,
+    )
+    def content_ideas_page():
+        return HTMLResponse(
+            (Path(__file__).with_name("content_ideas.html")).read_text(encoding="utf-8")
+        )
+
+    @app.get(
         "/v1/content/queue",
         tags=["content"],
         summary="List content queue items",

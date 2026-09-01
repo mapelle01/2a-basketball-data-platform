@@ -621,3 +621,22 @@ class TestSeasonDDLeaderFromExplorer:
         r = client.post("/v1/explore/season-dd-leader",
                         json={"season": "no"}, headers=auth_header("system"))
         assert r.status_code == 400
+
+
+class TestIdeasPage:
+    """The Ideas dashboard is served as a plain HTML page, same origin as the
+    API. Contents load client-side from existing endpoints (insights, seasons,
+    dd-leader) — no new server data path to test here beyond the page shell."""
+
+    def test_serves_a_page(self, client):
+        r = client.get("/v1/content/ideas")
+        assert r.status_code == 200
+        assert r.headers["content-type"].startswith("text/html")
+        assert "IDEAS" in r.text
+        assert "Ideas del día" in r.text or "ideas del d" in r.text.lower()
+
+    def test_page_targets_the_existing_endpoints(self, client):
+        html = client.get("/v1/content/ideas").text
+        assert "/v1/explore/insights" in html
+        assert "/v1/explore/season-dd-leader" in html
+        assert "/v1/explore/card" in html

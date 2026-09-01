@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ideas del día · FEB SCORE!</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap">
+<style>
+:root{
+  --bg:#0A0A0A; --black:#0A0A0A; --ink:#14161A; --ink-2:#1B1E24; --grey:#8A8F98;
+  --lgrey:#C9CDD3; --red:#E10600; --white:#FFFFFF;
+  --rule:#23262B; --rule-2:#2E3238; --field:#16181C;
+  --s1:8px; --s2:12px; --s3:16px; --s4:20px; --s5:24px; --s6:32px; --s8:48px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--white);
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;line-height:1.35}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer;background:transparent;border:0;padding:0}
+::placeholder{color:var(--grey)}
+a{color:inherit;text-decoration:none}
+
+header{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--rule)}
+.topbar{display:flex;align-items:center;gap:24px;padding:0 28px;height:56px}
+.brand{font-weight:900;font-size:16px;letter-spacing:-.03em}
+.brand i{font-style:normal;color:var(--red)}
+nav{display:flex;gap:24px;margin-left:8px}
+nav a{font-weight:600;font-size:12px;letter-spacing:.06em;color:var(--grey);padding:18px 0;position:relative}
+nav a:hover{color:var(--white)}
+nav a.on{color:var(--white)}
+nav a.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--red)}
+.spacer{flex:1}
+.counts{color:var(--grey);font-size:12px;font-weight:600}
+
+.subbar{display:flex;align-items:center;gap:14px;padding:14px 28px;border-top:1px solid var(--rule);flex-wrap:wrap}
+.lbl{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--grey)}
+select,input[type=text],input[type=password]{background:var(--field);border:1px solid var(--rule-2);
+  color:var(--white);height:34px;border-radius:4px;padding:0 10px;font-size:13px;font-weight:600}
+select{padding-right:26px;-webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238A8F98' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 9px center}
+select:focus,input:focus,button:focus-visible{outline:2px solid var(--red);outline-offset:1px}
+.pill{background:var(--field);border:1px solid var(--rule-2);color:var(--lgrey);border-radius:4px;
+  padding:7px 12px;font-size:12px;font-weight:600;letter-spacing:.04em}
+.pill:hover:not(:disabled){border-color:var(--grey)}
+
+main{padding:28px}
+h2.sec{margin:0 0 var(--s3);font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--grey)}
+h2.sec .n{color:var(--lgrey);margin-left:8px;font-weight:600}
+.section{margin-bottom:var(--s8)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:var(--s3)}
+
+.idea{background:var(--ink);border:1px solid var(--rule);border-radius:8px;padding:var(--s3);
+  display:flex;flex-direction:column;gap:6px;position:relative;overflow:hidden}
+.idea .k{font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--grey)}
+.idea .v{font-size:44px;font-weight:900;letter-spacing:-.03em;line-height:1;margin:6px 0 4px}
+.idea .who{font-size:13px;font-weight:700;color:var(--white);line-height:1.25;letter-spacing:-.01em}
+.idea .tm{font-size:11px;font-weight:600;color:var(--grey);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.idea .foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;padding-top:var(--s2)}
+.idea .prio{font-size:10px;font-weight:700;color:var(--grey);letter-spacing:.08em;text-transform:uppercase}
+.idea .go{background:var(--red);color:#fff;padding:6px 12px;font-size:12px;font-weight:700;letter-spacing:.04em;
+  border-radius:4px;text-transform:uppercase}
+.idea .go:hover{filter:brightness(1.08)}
+.idea .go:disabled{opacity:.55;cursor:default}
+.idea.done{border-color:var(--rule-2)}
+.idea.done .go{background:var(--field);border:1px solid var(--rule-2);color:var(--lgrey)}
+
+.empty{color:var(--grey);font-size:12px;padding:var(--s3);border:1px dashed var(--rule);border-radius:6px;grid-column:1/-1}
+.loading{color:var(--grey);font-size:12px;padding:var(--s3)}
+.msg{color:var(--lgrey);font-size:12px;min-height:16px;flex-basis:100%}
+
+/* Preview modal — same visual language as explorer's inline preview */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:60;display:none;
+  align-items:center;justify-content:center;padding:24px}
+.scrim.open{display:flex}
+.pmodal{width:520px;max-width:calc(100vw - 32px);max-height:calc(100vh - 48px);background:var(--ink);
+  border:1px solid var(--rule-2);border-radius:10px;padding:var(--s4);overflow:auto}
+.pmodal h3{margin:0 0 8px;font-size:15px;font-weight:800;letter-spacing:-.01em}
+.pmodal .mono{color:var(--grey);font-size:11.5px;margin:0 0 var(--s3);font-family:ui-monospace,monospace}
+.prev-wrap{display:flex;justify-content:center;background:var(--black);border:1px solid var(--rule);
+  border-radius:6px;padding:var(--s2);margin-bottom:var(--s2)}
+.prev-wrap img{width:100%;max-width:360px;height:auto;display:block;border-radius:4px}
+.prev-meta{font-size:11.5px;color:var(--grey);line-height:1.45;margin-bottom:var(--s2)}
+.prev-meta b{color:var(--lgrey);font-weight:700}
+.pmodal .foot{display:flex;gap:var(--s2);justify-content:flex-end;flex-wrap:wrap;margin-top:var(--s2)}
+.pmodal .foot[hidden]{display:none}
+.btn{background:var(--field);border:1px solid var(--rule-2);color:var(--lgrey);border-radius:4px;
+  padding:7px 14px;font-size:12px;font-weight:700;letter-spacing:.04em}
+.btn:hover:not(:disabled){border-color:var(--grey)}
+.btn.primary{background:var(--red);color:#fff;border-color:var(--red)}
+.btn.primary:hover:not(:disabled){filter:brightness(1.08)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--grey)}
+.btn.ghost:hover{color:var(--white)}
+a.btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="topbar">
+    <span class="brand">FEB SCORE<i>!</i></span>
+    <nav>
+      <a href="/v1/explore">EXPLORADOR</a>
+      <a href="/v1/content/ideas" class="on">IDEAS</a>
+      <a href="/v1/images/gallery">IMÁGENES</a>
+      <a href="/v1/content/review">COLA</a>
+    </nav>
+    <span class="spacer"></span>
+    <span class="counts" id="counts"></span>
+  </div>
+  <div class="subbar">
+    <span class="lbl">Temporada</span>
+    <select id="season"></select>
+    <input type="password" id="key" placeholder="Clave de API — para generar cartas"
+           autocomplete="off" spellcheck="false" style="flex:1;min-width:220px;max-width:340px">
+    <button class="pill" id="savekey">Guardar clave</button>
+    <span class="lbl" id="keynote" style="color:var(--grey)"></span>
+    <span class="msg" id="msg"></span>
+  </div>
+</header>
+
+<main>
+  <section class="section">
+    <h2 class="sec">Líder de la temporada <span class="n" id="leaders-n"></span></h2>
+    <div class="grid" id="leaders"></div>
+  </section>
+
+  <section class="section">
+    <h2 class="sec">Récords de la temporada · mejor partido <span class="n" id="records-n"></span></h2>
+    <div class="grid" id="records"></div>
+  </section>
+
+  <section class="section">
+    <h2 class="sec">En racha · dobles-dobles seguidos <span class="n" id="rachas-dd-n"></span></h2>
+    <div class="grid" id="rachas-dd"></div>
+  </section>
+
+  <section class="section">
+    <h2 class="sec">En racha · partidos de 20+ seguidos <span class="n" id="rachas-sc-n"></span></h2>
+    <div class="grid" id="rachas-sc"></div>
+  </section>
+</main>
+
+<!-- Preview modal (opens on generate) -->
+<div class="scrim" id="scrim">
+  <div class="pmodal" role="dialog" aria-modal="true">
+    <h3 id="pmTitle">Vista previa</h3>
+    <p class="mono" id="pmSub"></p>
+    <div class="prev-wrap"><img id="pmImg" alt="Vista previa"></div>
+    <div class="prev-meta" id="pmMeta"></div>
+    <div class="foot">
+      <button class="btn" id="pmRegen">Regenerar</button>
+      <a class="btn primary" id="pmDownload" download>Descargar PNG</a>
+      <button class="btn ghost" id="pmClose">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => { const d = document.createElement("div"); d.textContent = s ?? ""; return d.innerHTML; };
+const apiKey = () => (sessionStorage.getItem("febKey")||"").trim();
+
+$("key").value = apiKey();
+$("keynote").textContent = apiKey() ? "clave guardada" : "sin clave · solo lectura";
+$("savekey").onclick = () => {
+  sessionStorage.setItem("febKey", $("key").value.trim());
+  $("keynote").textContent = apiKey() ? "clave guardada" : "sin clave · solo lectura";
+};
+
+let SEASON = "";
+// Track which idea a click came from so Regenerar knows how to re-issue.
+let LAST_IDEA = null;
+
+async function loadSeasons(){
+  try{
+    const r = await fetch("/v1/seasons");
+    const d = await r.json();
+    const list = d.seasons || [];
+    if(!list.length){ $("season").innerHTML = "<option>sin datos</option>"; return; }
+    $("season").innerHTML = list.map(s => `<option value="${esc(s.season_code)}">${esc(s.season_code)}</option>`).join("");
+    SEASON = list[0].season_code;
+    $("season").value = SEASON;
+  }catch(e){ $("msg").textContent = "No se pudo cargar la lista de temporadas."; }
+}
+
+$("season").addEventListener("change", () => { SEASON = $("season").value; loadAll(); });
+
+async function loadAll(){
+  const total = await Promise.all([loadLeaders(), loadRecordsAndRachas()]);
+  $("counts").textContent = `Ideas cargadas · ${SEASON}`;
+}
+
+// The DD leader is our only pre-baked season-summary card today. When more
+// season leaders (TD, top scorer, top rebounder, top assist) land they slot in
+// here without touching the layout.
+async function loadLeaders(){
+  const el = $("leaders");
+  el.innerHTML = '<div class="loading">Cargando…</div>';
+  // Just render the tile — the actual card is only generated on click.
+  el.innerHTML = `<article class="idea" data-key="dd-leader">
+    <div class="k">Más dobles-dobles</div>
+    <div class="v">DD</div>
+    <div class="who">Líder de la temporada</div>
+    <div class="tm">Se resuelve al generar</div>
+    <div class="foot">
+      <span class="prio">P92</span>
+      <button class="go" data-act="dd-leader">Generar</button>
+    </div></article>`;
+  $("leaders-n").textContent = "1";
+}
+
+async function loadRecordsAndRachas(){
+  try{
+    const r = await fetch(`/v1/explore/insights?season=${encodeURIComponent(SEASON)}`);
+    if(!r.ok){ throw new Error("insights " + r.status); }
+    const d = await r.json();
+    renderRecords(d.records || []);
+    renderRachas($("rachas-dd"), d.streaks_dd || []);
+    renderRachas($("rachas-sc"), d.streaks_scoring || []);
+    $("rachas-dd-n").textContent = (d.streaks_dd || []).length || "0";
+    $("rachas-sc-n").textContent = (d.streaks_scoring || []).length || "0";
+  }catch(e){
+    for(const id of ["records","rachas-dd","rachas-sc"])
+      $(id).innerHTML = `<div class="empty">${esc(String(e))}</div>`;
+  }
+}
+
+function renderRecords(records){
+  const el = $("records");
+  if(!records.length){ el.innerHTML = '<div class="empty">Sin récords.</div>'; $("records-n").textContent = "0"; return; }
+  el.innerHTML = records.map(r => `
+    <article class="idea" data-key="rec-${esc(r.metric)}">
+      <div class="k">${esc(r.label)} · mejor partido</div>
+      <div class="v">${esc(String(r.value).replace('.',','))}</div>
+      <div class="who">${esc(r.player)}</div>
+      <div class="tm">${esc(r.team || "—")}</div>
+      <div class="foot">
+        <span class="prio">Récord</span>
+        <button class="go" data-act="record"
+          data-pid="${esc(r.player_external_id)}"
+          data-metric="${esc(r.metric)}"
+          data-label="${esc(r.label)}">Generar</button>
+      </div></article>`).join("");
+  $("records-n").textContent = records.length;
+}
+
+function renderRachas(el, list){
+  if(!list.length){ el.innerHTML = '<div class="empty">Ninguna.</div>'; return; }
+  el.innerHTML = list.map(s => `
+    <article class="idea" data-key="rc-${esc(s.player_external_id)}-${esc(el.id)}">
+      <div class="k">Racha viva</div>
+      <div class="v">${esc(s.count)}</div>
+      <div class="who">${esc(s.player)}</div>
+      <div class="tm">${esc(s.team || "—")}</div>
+      <div class="foot">
+        <span class="prio">${el.id === 'rachas-dd' ? 'DD SEGUIDOS' : '20+ SEGUIDOS'}</span>
+        <button class="go" disabled title="Próximamente — genera desde el Explorador">Generar</button>
+      </div></article>`).join("");
+}
+
+// ------------------------------------------------------------------ actions
+document.body.addEventListener("click", async e => {
+  const b = e.target.closest("[data-act]");
+  if(!b) return;
+  const act = b.dataset.act;
+  const card = b.closest(".idea");
+  if(act === "dd-leader"){
+    await generate({
+      label: "Líder de dobles-dobles",
+      url: `/v1/explore/season-dd-leader?force=false`,
+      body: { season: SEASON },
+      card, button: b,
+    });
+  } else if(act === "record"){
+    // A record is best framed as a photo-hero with the single-game peak as
+    // the number. The server already knows how to compute the peak — we just
+    // route the click into /v1/explore/card with the right shape.
+    const pid = b.dataset.pid, metric = b.dataset.metric, label = b.dataset.label;
+    await generate({
+      label: `${label} · récord`,
+      url: `/v1/explore/card`,
+      body: {
+        season: SEASON, title: `RÉCORD DE ${label.toUpperCase()}`,
+        template: "hero", hero_style: "crest", hero_kind: "peak",
+        player_ids: [pid],
+        metric: ["val","feb"].includes(metric) ? "points" : metric,
+        per_game: false, show_rank: false, scope_label: `Temporada ${SEASON}`,
+      },
+      card, button: b,
+    });
+  }
+});
+
+async function generate({label, url, body, card, button}){
+  if(!apiKey()){ $("msg").textContent = "Guarda tu clave antes de generar."; return; }
+  $("msg").textContent = "";
+  button.disabled = true; button.textContent = "Generando…";
+  try{
+    const r = await fetch(url, { method: "POST",
+      headers: {"content-type":"application/json","x-api-key":apiKey()},
+      body: JSON.stringify(body) });
+    const d = await r.json();
+    if(!r.ok){
+      $("msg").textContent = (d.error && d.error.message) || ("Error "+r.status);
+      button.disabled = false; button.textContent = "Generar";
+      return;
+    }
+    LAST_IDEA = { label, url, body };
+    button.textContent = "Ver";
+    card.classList.add("done");
+    openPreview(d, label);
+  }catch(e){
+    $("msg").textContent = String(e);
+    button.disabled = false; button.textContent = "Generar";
+  }
+}
+
+function openPreview(item, label){
+  $("pmTitle").textContent = label;
+  $("pmSub").textContent = `id ${item.content_id.slice(0,8)} · ${item.status}`;
+  const url = `/v1/content/items/${encodeURIComponent(item.content_id)}/render.png?t=${Date.now()}`;
+  $("pmImg").src = url;
+  $("pmDownload").href = url;
+  $("pmDownload").download = `febscore-${item.content_id.slice(0,8)}.png`;
+  const cap = (item.copy && item.copy.caption) || "";
+  const val = item.fact_validation && item.fact_validation.ok ? "ok" : "revisar";
+  $("pmMeta").innerHTML =
+    `<b>Estado</b> ${esc(item.status || "?")} · <b>Validación</b> ${esc(val)}<br>` +
+    (cap ? `<b>Caption</b> ${esc(cap)}` : "");
+  $("scrim").classList.add("open");
+}
+
+$("pmClose").onclick = () => $("scrim").classList.remove("open");
+$("scrim").addEventListener("click", e => { if(e.target === $("scrim")) $("scrim").classList.remove("open"); });
+$("pmRegen").onclick = async () => {
+  if(!LAST_IDEA){ return; }
+  const forceBody = Object.assign({}, LAST_IDEA.body);
+  let url = LAST_IDEA.url;
+  // The DD leader endpoint uses ?force=true; every other create endpoint has
+  // force in the JSON body. Handle both without a separate code path.
+  if(url.includes("season-dd-leader")){
+    url = url.replace("force=false", "force=true");
+  } else {
+    forceBody.force = true;
+  }
+  $("pmRegen").disabled = true; $("pmRegen").textContent = "Regenerando…";
+  try{
+    const r = await fetch(url, { method: "POST",
+      headers:{"content-type":"application/json","x-api-key":apiKey()},
+      body: JSON.stringify(forceBody) });
+    const d = await r.json();
+    if(!r.ok){ $("msg").textContent = (d.error&&d.error.message)||("Error "+r.status); return; }
+    openPreview(d, LAST_IDEA.label);
+  }finally{
+    $("pmRegen").disabled = false; $("pmRegen").textContent = "Regenerar";
+  }
+};
+
+document.addEventListener("keydown", e => {
+  if(e.key === "Escape" && $("scrim").classList.contains("open")) $("scrim").classList.remove("open");
+});
+
+loadSeasons().then(loadAll);
+</script>
+</body>
+</html>
