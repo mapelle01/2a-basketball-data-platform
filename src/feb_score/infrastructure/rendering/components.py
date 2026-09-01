@@ -588,11 +588,13 @@ def stat_group(
         color = Color.RED if (highlight_first and i == 0) else fg
         parts.append(text(cx, y + 58, str(val), size=FontSize.H1, weight=FontWeight.HERO,
                           fill=color, anchor="middle"))
-        parts.append(text(cx, y + 92, lab.upper(), size=FontSize.MICRO, weight=FontWeight.LABEL,
+        # Extra clearance below the figure: a decimal comma ("13,7") descends
+        # past the baseline, so a tight label sat right on top of it.
+        parts.append(text(cx, y + 104, lab.upper(), size=FontSize.MICRO, weight=FontWeight.LABEL,
                           fill=Color.GREY, anchor="middle", tracking=LetterSpacing.CAPS, upper=True))
         if i > 0:
             parts.append(vline(x + col_w * i, y + 12, 80, color=Color.INK))
-    return _group(parts), 104
+    return _group(parts), 116
 
 
 # ---------------------------------------------------------------------------
