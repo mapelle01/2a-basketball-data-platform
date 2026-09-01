@@ -52,10 +52,45 @@ main{padding:24px 28px 80px}
 .info{padding:9px 10px 11px;display:flex;flex-direction:column;gap:7px;flex:1}
 .name{font-size:12.5px;font-weight:700;line-height:1.25}
 .eid{font-size:10px;color:var(--grey);font-family:ui-monospace,monospace}
-.rowb{display:flex;gap:6px;margin-top:auto}
-.rowb button,.rowb label.up{flex:1;text-align:center;font-size:11px;padding:5px 6px;
-  border:1px solid var(--rule);background:var(--panel);color:var(--ink-2);cursor:pointer}
+.rowb{display:flex;gap:6px;margin-top:auto;flex-wrap:wrap}
+.rowb button,.rowb label.up{flex:1 1 auto;text-align:center;font-size:11px;padding:5px 6px;
+  border:1px solid var(--rule);background:var(--panel);color:var(--ink-2);cursor:pointer;min-width:0}
 .rowb label.up:hover,.rowb button:hover:not(:disabled){border-color:var(--grey)}
+/* Media manager panel: per-entity photo library — open on Gestionar */
+.mscrim{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:60;display:none;
+  align-items:center;justify-content:center;padding:24px}
+.mscrim.open{display:flex}
+.mpanel{width:min(720px,100%);max-height:calc(100vh - 48px);background:var(--panel);
+  border:1px solid var(--rule-2);border-radius:10px;display:flex;flex-direction:column;overflow:hidden}
+.mph{display:flex;align-items:flex-start;gap:12px;padding:16px 20px;border-bottom:1px solid var(--rule)}
+.mph h3{margin:0;font-size:15px;font-weight:800;letter-spacing:-.01em}
+.mpsub{color:var(--grey);font-size:11.5px;margin-top:2px;font-family:ui-monospace,monospace}
+.mph button{margin-left:auto;background:transparent;border:0;color:var(--grey);font-size:20px;padding:2px 8px}
+.mpgrid{padding:16px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+  gap:14px;overflow:auto;min-height:120px}
+.mpitem{background:var(--panel-2);border:1px solid var(--rule);border-radius:6px;overflow:hidden;display:flex;flex-direction:column}
+.mpitem .p{aspect-ratio:1/1;background:#000;position:relative;display:flex;align-items:center;justify-content:center}
+.mpitem .p img{width:100%;height:100%;object-fit:cover;display:block}
+.mpitem .tags{position:absolute;top:6px;left:6px;display:flex;gap:4px;flex-wrap:wrap}
+.mpitem .tag{background:rgba(0,0,0,.65);color:#fff;font-size:8.5px;font-weight:800;
+  letter-spacing:.1em;padding:2px 6px;border-radius:2px}
+.mpitem .tag.prim{background:var(--red)}
+.mpitem .tag.apr{background:var(--ink);color:var(--bg)}
+.mpitem .meta{padding:6px 8px;font-size:10.5px;color:var(--grey);border-top:1px solid var(--rule);line-height:1.35}
+.mpitem .meta b{color:var(--ink-2)}
+.mpitem .acts{display:flex;gap:4px;padding:6px 6px;border-top:1px solid var(--rule);background:var(--panel)}
+.mpitem .acts button{flex:1;font-size:10.5px;padding:4px 4px;background:var(--panel);
+  color:var(--ink-2);border:1px solid var(--rule);cursor:pointer}
+.mpitem .acts button:hover:not(:disabled){border-color:var(--grey)}
+.mpempty{padding:24px;color:var(--grey);font-size:12px;text-align:center;grid-column:1/-1}
+.mpmsg{padding:0 20px;color:var(--ink-2);font-size:11.5px;min-height:16px}
+.mpup{padding:12px 20px 18px;border-top:1px solid var(--rule);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.mpup label.up{padding:7px 12px;font-size:12px;font-weight:600;letter-spacing:.04em;
+  color:var(--ink-2);background:var(--panel);border:1px solid var(--rule-2);cursor:pointer;border-radius:4px}
+.mpup label.up:hover{border-color:var(--grey)}
+.mpup input[type=text]{flex:1;min-width:140px}
+.mpup .chk{display:flex;align-items:center;gap:6px;color:var(--grey);font-size:11.5px}
+.mpup .chk input{accent-color:var(--red)}
 .cellmsg{font-size:10.5px;color:var(--grey);min-height:13px}
 .filters2{width:100%;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px}
 .filters2 select,.filters2 input[type=search]{font:inherit;font-size:12.5px;padding:7px 9px;border-radius:4px;
@@ -106,6 +141,28 @@ main{padding:24px 28px 80px}
 </header>
 
 <main><div id="out" class="loading">Elige una temporada y pulsa Cargar.</div></main>
+
+<div class="mscrim" id="mscrim" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="mpanel">
+    <header class="mph">
+      <div>
+        <h3 id="mpTitle">Fotos</h3>
+        <div class="mpsub" id="mpSub"></div>
+      </div>
+      <button id="mpClose" aria-label="Cerrar">×</button>
+    </header>
+    <div class="mpgrid" id="mpGrid"></div>
+    <div class="mpmsg" id="mpMsg"></div>
+    <div class="mpup">
+      <label class="up" for="mpFile">Añadir foto</label>
+      <input id="mpFile" type="file" accept="image/png,image/jpeg,image/webp" style="display:none">
+      <input id="mpPhotographer" type="text" placeholder="Fotógrafo/a">
+      <input id="mpLicense" type="text" placeholder="Licencia (ej. CC-BY, promo)">
+      <label class="chk"><input type="checkbox" id="mpApproved"> Aprobada</label>
+      <label class="chk"><input type="checkbox" id="mpCommercial"> Uso comercial</label>
+    </div>
+  </div>
+</div>
 
 <script>
 const OUT = document.getElementById('out');
@@ -273,8 +330,138 @@ function cell(e){
     del.onclick = () => remove(e, el, msg);
     row.appendChild(del);
   }
+  const mgr = document.createElement('button');
+  mgr.textContent = 'Gestionar';
+  mgr.title = 'Ver todas las fotos, subir más y elegir la principal';
+  mgr.onclick = () => openMedia(e);
+  row.appendChild(mgr);
   return el;
 }
+
+/* -------------------------------------------------- media library manager --- */
+// The gallery cell shows the ONE image the renderer will use. Behind it lives a
+// library of photos per entity (with rights metadata + primary/approved flags),
+// so an operator can hold several and pick which one goes on the next card. The
+// panel below is that library's UI: list, upload, promote, approve, delete.
+let MP_ENT = null;
+async function openMedia(e){
+  MP_ENT = e;
+  document.getElementById('mpTitle').textContent = e.name || e.external_id;
+  document.getElementById('mpSub').textContent = `${e.kind} · ${e.external_id}`;
+  document.getElementById('mpMsg').textContent = '';
+  document.getElementById('mpGrid').innerHTML =
+    '<div class="mpempty">Cargando fotos…</div>';
+  document.getElementById('mscrim').classList.add('open');
+  document.getElementById('mscrim').setAttribute('aria-hidden','false');
+  await refreshMedia();
+}
+function closeMedia(){
+  document.getElementById('mscrim').classList.remove('open');
+  document.getElementById('mscrim').setAttribute('aria-hidden','true');
+  MP_ENT = null;
+  // The gallery cell shows the primary approved thumb; a refresh picks up any
+  // promotion/upload the operator just did.
+  load();
+}
+async function refreshMedia(){
+  if (!MP_ENT) return;
+  const g = document.getElementById('mpGrid');
+  try{
+    const r = await fetch(`/v1/media/${MP_ENT.kind}/${encodeURIComponent(MP_ENT.external_id)}`);
+    const d = await r.json();
+    const assets = d.assets || [];
+    if (!assets.length){
+      g.innerHTML = '<div class="mpempty">Aún no hay fotos en la librería.</div>';
+      return;
+    }
+    g.innerHTML = '';
+    for (const a of assets) g.appendChild(mediaTile(a));
+  }catch(err){
+    g.innerHTML = `<div class="mpempty">${esc(String(err))}</div>`;
+  }
+}
+function mediaTile(a){
+  const el = document.createElement('div');
+  el.className = 'mpitem';
+  const tags = [];
+  if (a.role === 'primary') tags.push('<span class="tag prim">PRINCIPAL</span>');
+  if (a.approved) tags.push('<span class="tag apr">APROBADA</span>');
+  const meta = [];
+  if (a.photographer) meta.push(`<b>${esc(a.photographer)}</b>`);
+  if (a.license_type) meta.push(esc(a.license_type));
+  if (a.commercial_use) meta.push('uso comercial');
+  el.innerHTML = `
+    <div class="p">
+      <div class="tags">${tags.join('')}</div>
+      <img loading="lazy" alt="" src="/v1/media/asset/${encodeURIComponent(a.asset_id)}/image">
+    </div>
+    <div class="meta">${meta.join(' · ') || '—'}</div>
+    <div class="acts"></div>`;
+  const acts = el.querySelector('.acts');
+  const btn = (label, fn, disabled) => {
+    const b = document.createElement('button');
+    b.textContent = label; if (disabled) b.disabled = true;
+    b.onclick = fn;
+    acts.appendChild(b);
+    return b;
+  };
+  btn('Principal', () => act(`/v1/media/asset/${encodeURIComponent(a.asset_id)}/promote`, 'POST'),
+      a.role === 'primary');
+  btn(a.approved ? 'Desaprobar' : 'Aprobar',
+      () => act(`/v1/media/asset/${encodeURIComponent(a.asset_id)}/approve?approved=${!a.approved}`, 'POST'));
+  btn('Borrar', () => {
+    if (!confirm('¿Borrar esta foto de la librería?')) return;
+    act(`/v1/media/asset/${encodeURIComponent(a.asset_id)}`, 'DELETE');
+  });
+  return el;
+}
+async function act(url, method){
+  if (!apiKey()){ document.getElementById('mpMsg').textContent = 'falta la clave'; return; }
+  document.getElementById('mpMsg').textContent = 'guardando…';
+  try{
+    const r = await fetch(url, { method, headers:{'Authorization':'Bearer '+apiKey()} });
+    if (!r.ok){
+      const d = await r.json().catch(()=>({}));
+      document.getElementById('mpMsg').textContent =
+        `error ${r.status}: ${d?.error?.message||''}`;
+      return;
+    }
+    document.getElementById('mpMsg').textContent = '';
+    await refreshMedia();
+  }catch(err){ document.getElementById('mpMsg').textContent = String(err); }
+}
+document.getElementById('mpClose').onclick = closeMedia;
+document.getElementById('mscrim').addEventListener('click', ev => {
+  if (ev.target === document.getElementById('mscrim')) closeMedia();
+});
+document.getElementById('mpFile').onchange = async () => {
+  if (!MP_ENT) return;
+  const f = document.getElementById('mpFile').files[0];
+  if (!f) return;
+  if (!apiKey()){ document.getElementById('mpMsg').textContent = 'falta la clave'; return; }
+  if (f.size > 512*1024){ document.getElementById('mpMsg').textContent = 'máx. 512 KB'; return; }
+  const q = new URLSearchParams({
+    photographer: document.getElementById('mpPhotographer').value.trim(),
+    license_type: document.getElementById('mpLicense').value.trim(),
+    approved: String(document.getElementById('mpApproved').checked),
+    commercial_use: String(document.getElementById('mpCommercial').checked),
+  });
+  document.getElementById('mpMsg').textContent = 'subiendo…';
+  try{
+    const r = await fetch(
+      `/v1/media/${MP_ENT.kind}/${encodeURIComponent(MP_ENT.external_id)}?${q}`,
+      { method:'POST',
+        headers:{'Authorization':'Bearer '+apiKey(), 'Content-Type': f.type}, body: f });
+    if (!r.ok){
+      const d = await r.json().catch(()=>({}));
+      document.getElementById('mpMsg').textContent =
+        `error ${r.status}: ${d?.error?.message||''}`;
+      return;
+    }
+    document.getElementById('mpFile').value = '';
+    await refreshMedia();
+  }catch(err){ document.getElementById('mpMsg').textContent = String(err); }
+};
 
 async function upload(e, f, el, msg){
   if (!f) return;

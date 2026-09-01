@@ -93,6 +93,25 @@ class TestRightsSelection:
         _add(repo, approved=True, role="primary", photographer="PRIMARY")
         assert repo.select("player", "p1").photographer == "PRIMARY"
 
+    def test_promote_primary_swaps_the_current_primary(self, repo):
+        """Only one primary per entity. Promoting must demote whoever held it
+        so a UNIQUE-like invariant is enforced at write time — never let the
+        library drift into two primaries."""
+        a = _add(repo, role="primary", approved=True)
+        b = _add(repo, role="alternate", approved=True)
+        assert repo.promote_primary(b) is True
+        by_id = {m.asset_id: m for m in repo.list_meta("player", "p1")}
+        assert by_id[b].role == "primary"
+        assert by_id[a].role == "alternate"
+
+    def test_promote_missing_returns_false(self, repo):
+        assert repo.promote_primary("nope") is False
+
+    def test_get_meta_returns_none_when_absent(self, repo):
+        assert repo.get_meta("nope") is None
+
+
+class TestScoping:
     def test_selection_is_scoped_to_the_entity(self, repo):
         _add(repo, external_id="p1", approved=True)
         assert repo.select("player", "p2") is None

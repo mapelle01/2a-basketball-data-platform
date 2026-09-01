@@ -130,3 +130,124 @@ def register_image_routes(app: FastAPI) -> None:
         if not removed:
             return err.error_response(404, "NOT_FOUND", "no override to remove")
         return {"removed": True, "kind": kind, "external_id": external_id}
+
+    # ------------------------------------------------- media library (multi-photo)
+    #
+    # The media library holds MANY photos per entity with rights metadata; the
+    # renderer picks the primary approved one at generate time. Legacy override
+    # endpoints above stay live so nothing already deployed breaks; new work
+    # goes here.
+
+    @app.get(
+        "/v1/media/{kind}/{external_id}",
+        tags=["media"],
+        summary="List all photos held for one entity",
+        description="Metadata only, newest first — no bytes. Public read.",
+    )
+    def list_media(kind: str, external_id: str, request: Request):
+        if kind not in VALID_KINDS:
+            return err.error_response(400, "INVALID_PARAMETER", "kind must be player or team")
+        return {"kind": kind, "external_id": external_id,
+                "assets": request.app.state.gateway.list_media_assets(kind, external_id)}
+
+    @app.get(
+        "/v1/media/asset/{asset_id}/image",
+        tags=["media"],
+        summary="Serve the bytes of one media asset",
+        response_class=Response,
+    )
+    def get_media_image(asset_id: str, request: Request):
+        img = request.app.state.gateway.get_media_image(asset_id)
+        if img is None:
+            return err.error_response(404, "NOT_FOUND", "no asset with that id")
+        return Response(
+            content=img["image"], media_type=img["content_type"],
+            headers={"Cache-Control": "public, max-age=600"},
+        )
+
+    @app.post(
+        "/v1/media/{kind}/{external_id}",
+        tags=["media"],
+        summary="Upload a new photo into the media library",
+        status_code=201,
+        description="Raw image body (Content-Type image/jpeg, image/png or "
+        "image/webp), up to 512 KiB. Metadata (photographer, source, license, "
+        "notes) travels as query parameters so a plain PUT works. The new asset "
+        "lands as 'alternate' and un-approved unless the entity has no photos "
+        "yet — then it starts as primary so the entity is not left empty.",
+    )
+    async def upload_media(
+        kind: str, external_id: str, request: Request,
+        approved: bool = Query(False),
+        source: str = Query(""),
+        source_url: str = Query(""),
+        photographer: str = Query(""),
+        license_type: str = Query(""),
+        commercial_use: bool = Query(False),
+        notes: str = Query(""),
+    ):
+        if _authed(request) is None:
+            return err.error_response(401, "UNAUTHENTICATED", "API key required")
+        if kind not in VALID_KINDS:
+            return err.error_response(400, "INVALID_PARAMETER", "kind must be player or team")
+        content_type = (request.headers.get("content-type") or "").split(";")[0].strip().lower()
+        if content_type not in ALLOWED_TYPES:
+            return err.error_response(
+                415, "UNSUPPORTED_MEDIA_TYPE",
+                f"content type must be one of {', '.join(ALLOWED_TYPES)}",
+            )
+        raw = await request.body()
+        if not raw:
+            return err.error_response(400, "INVALID_PARAMETER", "empty image body")
+        if len(raw) > MAX_UPLOAD_BYTES:
+            return err.error_response(
+                413, "PAYLOAD_TOO_LARGE",
+                f"image exceeds {MAX_UPLOAD_BYTES // 1024} KiB",
+            )
+        return request.app.state.gateway.add_media_asset(
+            kind, external_id, raw, content_type,
+            approved=approved,
+            source=source or None, source_url=source_url or None,
+            photographer=photographer or None,
+            license_type=license_type or None,
+            commercial_use=commercial_use,
+            notes=notes or None,
+        )
+
+    @app.post(
+        "/v1/media/asset/{asset_id}/promote",
+        tags=["media"],
+        summary="Make this asset the primary photo for its entity",
+        description="Demotes whichever asset was primary. Authenticated.",
+    )
+    def promote_media(asset_id: str, request: Request):
+        if _authed(request) is None:
+            return err.error_response(401, "UNAUTHENTICATED", "API key required")
+        if not request.app.state.gateway.promote_media_primary(asset_id):
+            return err.error_response(404, "NOT_FOUND", "no asset with that id")
+        return {"asset_id": asset_id, "role": "primary"}
+
+    @app.post(
+        "/v1/media/asset/{asset_id}/approve",
+        tags=["media"],
+        summary="Approve (or un-approve) a media asset for use",
+        description="Only approved assets are ever picked by the renderer.",
+    )
+    def approve_media(asset_id: str, request: Request, approved: bool = Query(True)):
+        if _authed(request) is None:
+            return err.error_response(401, "UNAUTHENTICATED", "API key required")
+        if not request.app.state.gateway.set_media_approved(asset_id, approved):
+            return err.error_response(404, "NOT_FOUND", "no asset with that id")
+        return {"asset_id": asset_id, "approved": approved}
+
+    @app.delete(
+        "/v1/media/asset/{asset_id}",
+        tags=["media"],
+        summary="Delete a media asset permanently",
+    )
+    def delete_media(asset_id: str, request: Request):
+        if _authed(request) is None:
+            return err.error_response(401, "UNAUTHENTICATED", "API key required")
+        if not request.app.state.gateway.delete_media_asset(asset_id):
+            return err.error_response(404, "NOT_FOUND", "no asset with that id")
+        return {"removed": True, "asset_id": asset_id}

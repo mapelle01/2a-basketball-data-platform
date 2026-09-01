@@ -436,6 +436,24 @@ class RoundPipeline:
             crest = self._assets.team_logo(team_id)
             assets = {"team_crest": crest.payload} if crest.payload_type == "data_uri" else {}
 
+        if story.template_id == "stat_hero_photo":
+            # Photo hero: the SAME CUSTOM_HERO story rendered on the player-photo
+            # layout. When the photo is missing the renderer falls back to
+            # initials, so the card still ships instead of failing validation.
+            player_id = f.get("player_external_id", "")
+            team_id = f.get("team_external_id", "")
+            display = {
+                "player": f.get("player_name") or player_id,
+                "team": f.get("team_name") or team_id,
+            }
+            photo = self._assets.player_photo(player_id)
+            assets = {"team_color": self._assets.team_color(team_id)}
+            if photo.payload_type == "data_uri":
+                assets["player_photo"] = photo.payload
+                assets["player_initials"] = None
+            else:
+                assets["player_initials"] = photo.payload
+
         if story.template_id in ("best_five", "best_five_court"):
             # Resolve a photo + crest for each of the five, injected into the
             # render data only (the persisted facts stay pure). Missing images

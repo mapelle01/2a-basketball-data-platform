@@ -165,7 +165,8 @@ def register_explorer_routes(app: FastAPI) -> None:
                 item = request.app.state.gateway.create_stat_hero(
                     body.season, player_id=body.player_ids[0], metric=body.metric,
                     per_game=body.per_game, title=body.title,
-                    subtitle=body.subtitle, scope_label=body.scope_label)
+                    subtitle=body.subtitle, scope_label=body.scope_label,
+                    hero_style=body.hero_style)
             else:
                 item = request.app.state.gateway.create_custom_five(
                     body.season, title=body.title, subtitle=body.subtitle,
@@ -208,6 +209,9 @@ class CustomFiveRequest(BaseModel):
 
     season: str
     template: str = "grid"          # "grid" (ranking) or "hero" (single player)
+    # Only used when template == "hero": "crest" is the photo-less silhouette
+    # variant (default) and "photo" is the player-photo centrepiece variant.
+    hero_style: str = "crest"
     title: str = Field(..., min_length=1, max_length=80)
     subtitle: str = Field("", max_length=80)
     scope_label: Optional[str] = Field(None, max_length=40)

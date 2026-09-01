@@ -42,6 +42,23 @@ TEMPLATES: Dict[str, TemplateContract] = {
             "story.facts.hero_value",
         ),
     ),
+    # Photo-hero variant of CUSTOM_HERO: same season-scoped facts, but the card
+    # is rendered on the player-photo layout instead of the crest silhouette one.
+    # Both share hero_value; the photo lives in assets and is optional so the
+    # renderer falls back to initials when a licensed photo is not available.
+    "stat_hero_photo": TemplateContract(
+        template_id="stat_hero_photo",
+        version=TEMPLATE_VERSION,
+        canvas="IG_PORTRAIT",
+        required_slots=(
+            "story.facts.hero_value",
+            "display.player",
+        ),
+        optional_slots=(
+            "assets.player_photo",
+            "assets.player_initials",
+        ),
+    ),
     "best_five": TemplateContract(
         template_id="best_five",
         version=TEMPLATE_VERSION,

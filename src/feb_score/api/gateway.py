@@ -282,14 +282,54 @@ class CommandGateway(ABC):
         candidate). Raises ValueError when the round has no recap."""
         raise NotImplementedError
 
+    # ---------------------------------------------------------- media library
+    @abstractmethod
+    def list_media_assets(self, kind: str, external_id: str) -> List[Dict[str, Any]]:
+        """All photos held for that entity, newest first. Meta only, no bytes."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_media_image(self, asset_id: str) -> Optional[Dict[str, Any]]:
+        """The bytes + content-type for one asset, or None."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def add_media_asset(
+        self, kind: str, external_id: str, image: bytes, content_type: str, *,
+        approved: bool = False, source: Optional[str] = None,
+        source_url: Optional[str] = None, photographer: Optional[str] = None,
+        license_type: Optional[str] = None, commercial_use: bool = False,
+        notes: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Add a photo to the media library. New assets land as 'alternate' and
+        un-approved by default — the operator promotes/approves them explicitly
+        so nothing goes live without a review step."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def promote_media_primary(self, asset_id: str) -> bool:
+        """Make this asset the primary one for its entity, demoting the previous
+        primary. Returns False when the asset does not exist."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def set_media_approved(self, asset_id: str, approved: bool) -> bool:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_media_asset(self, asset_id: str) -> bool:
+        raise NotImplementedError
+
     @abstractmethod
     def create_stat_hero(
         self, season_code: str, *, player_id: str, metric: str = "points",
         per_game: bool = False, title: str, subtitle: Optional[str] = None,
-        scope_label: Optional[str] = None,
+        scope_label: Optional[str] = None, hero_style: str = "crest",
     ) -> Dict[str, Any]:
-        """One player on the photo-less hero layout, from a query. Figures are
-        re-read server-side; raises ValueError on bad input. Returns the item."""
+        """One player rendered as a single hero card, from a query. Two visual
+        variants share the same facts: ``crest`` (photo-less, crest silhouette)
+        and ``photo`` (player photo centrepiece). Figures re-read server-side;
+        raises ValueError on bad input. Returns the item."""
         raise NotImplementedError
 
     @abstractmethod

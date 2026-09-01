@@ -222,6 +222,11 @@ tr.sel .cbx,.cbx.on{background:var(--red);border-color:var(--red)}
 .modal .row{display:flex;align-items:center;gap:var(--s2);margin-bottom:var(--s2)}
 .modal .chk-l{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--lgrey)}
 .modal input[type=checkbox]{accent-color:var(--red);width:16px;height:16px}
+.modal input[type=radio]{accent-color:var(--red);width:14px;height:14px;margin-right:6px}
+.modal .segseg{display:flex;gap:var(--s2);flex-wrap:wrap}
+.modal .segopt{display:flex;align-items:center;font-size:12px;font-weight:600;color:var(--lgrey);
+  padding:6px 10px;border:1px solid var(--rule-2);border-radius:6px;cursor:pointer}
+.modal .segopt:hover{border-color:var(--grey)}
 .modal .foot{display:flex;justify-content:flex-end;gap:var(--s2);margin-top:var(--s2)}
 .msg{font-size:12px;color:var(--grey);min-height:16px;margin-top:6px}
 .msg a{color:var(--red);text-decoration:underline}
@@ -344,6 +349,13 @@ tr.sel .cbx,.cbx.on{background:var(--red);border-color:var(--red)}
     <p class="mono" id="mCtx"></p>
     <label><span class="lbl">Plantilla</span>
       <select id="mTpl"></select></label>
+    <div id="mStyleRow" class="row" hidden>
+      <span class="lbl">Diseño</span>
+      <div class="segseg">
+        <label class="segopt"><input type="radio" name="mStyle" value="crest" checked> Escudo de fondo</label>
+        <label class="segopt"><input type="radio" name="mStyle" value="photo"> Foto central</label>
+      </div>
+    </div>
     <label><span class="lbl">Título</span>
       <input id="mTitle" type="text" maxlength="80" placeholder="Los reyes de la anotación"></label>
     <label><span class="lbl">Etiqueta</span>
@@ -678,7 +690,14 @@ function openCreate(){
     `<option value="grid">Ranking (Top ${Math.min(ids.length||5,5)})</option>`;
   el("mKey").value = sessionStorage.getItem("febKey")||"";
   el("mMsg").textContent="";
+  syncStyleRow();
   el("scrim").classList.add("open"); el("mTitle").focus();
+}
+// The "diseño" picker (Escudo vs Foto) is only meaningful for the single-player
+// hero card, so it shows/hides in step with the plantilla dropdown.
+function syncStyleRow(){
+  const on = el("mTpl").value === "hero";
+  el("mStyleRow").hidden = !on;
 }
 function closeCreate(){ el("scrim").classList.remove("open"); createIntent=null; }
 async function doCreate(){
@@ -694,7 +713,9 @@ async function doCreate(){
   const metricRaw = useIntent ? createIntent.metric : sortKey;
   const pg = useIntent ? !!createIntent.per_game : perGame;
   const ignoreFilters = useIntent && !!createIntent.ignore_filters;
+  const style = (document.querySelector('input[name="mStyle"]:checked')||{}).value || "crest";
   const body={ season:el("season").value, title, template:el("mTpl").value,
+    hero_style:style,
     scope_label:el("mScope").value.trim()||null, show_rank:el("mRank").checked,
     player_ids:[...sel],
     metric:["games_played","val","feb"].includes(metricRaw)?"points":metricRaw,
@@ -872,6 +893,7 @@ el("aCreate").addEventListener("click",openCreate);
 el("aClear").addEventListener("click",()=>{sel.clear();render();syncAction();});
 el("mCancel").addEventListener("click",closeCreate);
 el("mGo").addEventListener("click",doCreate);
+el("mTpl").addEventListener("change",syncStyleRow);
 el("scrim").addEventListener("click",e=>{if(e.target===el("scrim"))closeCreate();});
 
 // keyboard: "/" focus search · Escape closes popover/modal/selection

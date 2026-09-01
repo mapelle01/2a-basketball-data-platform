@@ -274,6 +274,45 @@ class TestQueryToCard:
         assert "REB" not in facts["lineup"][0]["context"]
         assert "PTS" in facts["lineup"][0]["context"]
 
+    def test_hero_picks_the_crest_variant_by_default(self, client):
+        """A single-player card defaults to the photo-less crest silhouette
+        layout — that was the only variant before the picker existed, so
+        omitting hero_style must keep landing on the same template."""
+        _seed(client)
+        r = self._card(client, template="hero", player_ids=["p2"], title="EL REY")
+        assert r.status_code == 201, r.text
+        item = r.json()
+        assert item["template_id"] == "stat_hero"
+        assert item["story"]["facts"]["hero_style"] == "crest"
+
+    def test_hero_style_photo_routes_to_the_photo_layout(self, client):
+        """Passing hero_style="photo" swaps the layout without changing the
+        figures — the same story renders on the player-photo template."""
+        _seed(client)
+        r = self._card(client, template="hero", player_ids=["p2"], title="EL REY",
+                       hero_style="photo")
+        assert r.status_code == 201, r.text
+        item = r.json()
+        assert item["template_id"] == "stat_hero_photo"
+        assert item["story"]["facts"]["hero_style"] == "photo"
+
+    def test_hero_style_must_be_crest_or_photo(self, client):
+        _seed(client)
+        r = self._card(client, template="hero", player_ids=["p2"], title="X",
+                       hero_style="banana")
+        assert r.status_code == 400
+
+    def test_hero_variants_dedup_as_separate_cards(self, client):
+        """The two visual variants of the same player+metric are two DIFFERENT
+        cards in the queue — a shared identity would let the second create
+        return the first card, and the operator would never see the photo."""
+        _seed(client)
+        crest_id = self._card(client, template="hero", player_ids=["p2"],
+                              title="X", hero_style="crest").json()["content_id"]
+        photo_id = self._card(client, template="hero", player_ids=["p2"],
+                              title="X", hero_style="photo").json()["content_id"]
+        assert crest_id != photo_id
+
     def test_the_supporting_line_matches_the_ranked_scale(self, client):
         """A per-game ranking shows per-game supporting stats — otherwise the
         card ranks by an average and cites totals next to the name, which

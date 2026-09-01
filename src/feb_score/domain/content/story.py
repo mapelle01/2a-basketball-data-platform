@@ -254,6 +254,14 @@ class StoryObject:
 
     @property
     def template_id(self) -> Optional[str]:
+        # CUSTOM_HERO is one story ("hand-picked player + season stat") with two
+        # visual variants: the crest silhouette (default) and a photo hero. The
+        # operator picks via a facts.hero_style hint at create time so the queue
+        # dedup key stays stable per (player, metric, style).
+        if self.story_type == StoryType.CUSTOM_HERO:
+            style = (self.facts or {}).get("hero_style")
+            if style == "photo":
+                return "stat_hero_photo"
         return STORY_TO_TEMPLATE.get(self.story_type)
 
     @property

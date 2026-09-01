@@ -182,3 +182,110 @@ class TestGalleryPage:
         # gallery's real job — finding who still needs a photo
         assert 'id="q"' in html and 'id="teamf"' in html
         assert "has_override" in html and "'miss'" in html
+
+
+class TestMediaLibrary:
+    """Multi-photo store per entity: upload, promote, approve, delete. The
+    render must prefer the primary approved photo when one exists — that is
+    what lets the operator hold a library and swap the on-air photo without
+    touching whatever the crest / override / FEB fallback would give."""
+
+    def _upload(self, client, **q):
+        params = "&".join(f"{k}={v}" for k, v in q.items())
+        url = f"/v1/media/player/p1" + (f"?{params}" if params else "")
+        return client.post(url, content=_PNG,
+                           headers={**auth_header("system"), "Content-Type": "image/png"})
+
+    def test_first_upload_lands_as_primary_so_the_entity_is_not_empty(self, client):
+        _seed_catalog(client)
+        r = self._upload(client, approved="true", photographer="Ana")
+        assert r.status_code == 201, r.text
+        asset = r.json()
+        assert asset["role"] == "primary"
+        assert asset["approved"] is True
+        assert asset["photographer"] == "Ana"
+
+    def test_next_uploads_land_as_alternate_so_primary_never_moves_silently(self, client):
+        _seed_catalog(client)
+        self._upload(client)
+        r = self._upload(client)
+        assert r.status_code == 201
+        assert r.json()["role"] == "alternate"
+
+    def test_promote_moves_primary_and_demotes_the_previous_one(self, client):
+        _seed_catalog(client)
+        first = self._upload(client).json()["asset_id"]
+        second = self._upload(client).json()["asset_id"]
+        r = client.post(f"/v1/media/asset/{second}/promote", headers=auth_header("system"))
+        assert r.status_code == 200
+        by_id = {a["asset_id"]: a for a in
+                 client.get("/v1/media/player/p1").json()["assets"]}
+        assert by_id[second]["role"] == "primary"
+        assert by_id[first]["role"] == "alternate"
+
+    def test_uploads_and_writes_need_a_key(self, client):
+        _seed_catalog(client)
+        anon = client.anon()
+        r = anon.post("/v1/media/player/p1", content=_PNG,
+                      headers={"Content-Type": "image/png"})
+        assert r.status_code == 401
+        r = anon.post("/v1/media/asset/nope/promote")
+        assert r.status_code == 401
+        r = anon.delete("/v1/media/asset/nope")
+        assert r.status_code == 401
+
+    def test_reads_are_public_so_the_gallery_needs_no_key(self, client):
+        _seed_catalog(client)
+        aid = self._upload(client).json()["asset_id"]
+        assert client.anon().get("/v1/media/player/p1").status_code == 200
+        assert client.anon().get(f"/v1/media/asset/{aid}/image").status_code == 200
+
+    def test_content_type_and_size_are_validated(self, client):
+        _seed_catalog(client)
+        r = client.post("/v1/media/player/p1", content=b"nope",
+                        headers={**auth_header("system"), "Content-Type": "text/plain"})
+        assert r.status_code == 415
+        r = client.post("/v1/media/player/p1", content=b"x" * (600 * 1024),
+                        headers={**auth_header("system"), "Content-Type": "image/png"})
+        assert r.status_code == 413
+
+    def test_promoted_and_approved_photo_reaches_the_render(self, client):
+        """The whole point of the library: an approved primary MUST reach the
+        card ahead of the legacy override and the FEB fallback."""
+        _seed_catalog(client)
+        self._upload(client, approved="true")
+
+        from feb_score.infrastructure.rendering.override_assets import (
+            MediaAssetProvider, OverrideAssetProvider,
+        )
+        from feb_score.infrastructure.rendering.asset_provider import (
+            StatisticalAssetProvider,
+        )
+        gw = client.app.state.gateway
+        chain = MediaAssetProvider(
+            gw._media_asset_repo,
+            OverrideAssetProvider(gw._image_override_repo, StatisticalAssetProvider()),
+        )
+        asset = chain.player_photo("p1")
+        assert asset.payload_type == "data_uri"
+        assert asset.source == "media-library"
+
+    def test_unapproved_photos_are_never_picked_by_the_render(self, client):
+        """Rights guardrail: an approved-false primary is still no picture."""
+        _seed_catalog(client)
+        self._upload(client, approved="false")
+
+        from feb_score.infrastructure.rendering.override_assets import MediaAssetProvider
+        from feb_score.infrastructure.rendering.asset_provider import (
+            StatisticalAssetProvider,
+        )
+        gw = client.app.state.gateway
+        provider = MediaAssetProvider(gw._media_asset_repo, StatisticalAssetProvider())
+        asset = provider.player_photo("p1")
+        assert asset.payload_type != "data_uri"
+
+    def test_delete_removes_the_asset(self, client):
+        _seed_catalog(client)
+        aid = self._upload(client).json()["asset_id"]
+        assert client.delete(f"/v1/media/asset/{aid}", headers=auth_header("system")).status_code == 200
+        assert client.get("/v1/media/player/p1").json()["assets"] == []

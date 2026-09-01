@@ -1293,6 +1293,11 @@ _RENDERERS: Dict[str, Callable[[Dict[str, Any]], str]] = {
     "round_recap": render_round_recap,
     "stat_leaderboard": render_stat_leaderboard,
     "stat_hero": render_stat_hero,
+    # Same layout as player_of_round (photo-first hero) but reachable from the
+    # season-scoped CUSTOM_HERO story, so the operator can pick between the
+    # crest silhouette (stat_hero) and the photo hero (stat_hero_photo) when
+    # generating a single-player card from the Explorer.
+    "stat_hero_photo": render_player_of_round,
     "best_five": render_best_five_grid,
     "best_five_court": render_best_five_court,
     "team_streak": render_team_streak,

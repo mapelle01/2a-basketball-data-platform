@@ -576,10 +576,17 @@ class _GatewayBase(CommandGateway):
                 FebImageAssetProvider() if official_images
                 else StatisticalAssetProvider()
             )
-            # Operator overrides win over FEB/initials, so an uploaded image
-            # actually reaches the card.
-            from .rendering.override_assets import OverrideAssetProvider
+            # Asset chain, highest precedence first: media library (multi-photo
+            # + rights) beats the legacy single-slot operator override, which
+            # beats FEB / statistical initials. New uploads land in the media
+            # library; the override endpoints stay live so nothing shipped
+            # before this stops working.
+            from .rendering.override_assets import (
+                MediaAssetProvider,
+                OverrideAssetProvider,
+            )
             assets = OverrideAssetProvider(self._image_override_repo, base_assets)
+            assets = MediaAssetProvider(self._media_asset_repo, assets)
 
             self._content_pipeline = RoundPipeline(
                 renderer=ComponentSvgRenderer(),
@@ -1056,14 +1063,23 @@ class _GatewayBase(CommandGateway):
     }
     CUSTOM_FIVE_SIZE = 5
 
+    _HERO_BADGE = {
+        "points": "ANOTADOR", "rebounds": "REBOTEADOR",
+        "assists": "ASISTENTE", "steals": "ROBO",
+        "blocks": "TAPÓN", "turnovers": "PÉRDIDAS",
+        "minutes": "MINUTOS", "games_played": "PARTIDOS",
+    }
+
     def create_stat_hero(
         self, season_code: str, *, player_id: str, metric: str = "points",
         per_game: bool = False, title: str, subtitle: Optional[str] = None,
-        scope_label: Optional[str] = None,
+        scope_label: Optional[str] = None, hero_style: str = "crest",
     ) -> Dict[str, Any]:
-        """One player on the photo-less hero layout, built from a query. The
-        caller sends the player and the words; the figures (and the season FEB
-        Rating) are re-read here, never posted by the client."""
+        """One player as a single hero card, built from a query. Two visual
+        variants share the same facts: ``crest`` (photo-less, crest silhouette
+        identity) and ``photo`` (player photo as the centrepiece). The caller
+        sends the player, the words, and the style; the figures are re-read
+        here, never posted by the client."""
         from ..domain.content.story import StoryObject, StoryEntities, StoryType
 
         title = (title or "").strip()
@@ -1071,6 +1087,8 @@ class _GatewayBase(CommandGateway):
             raise ValueError("title is required")
         if metric not in self.EXPLORE_METRICS:
             raise ValueError(f"metric must be one of {', '.join(self.EXPLORE_METRICS)}")
+        if hero_style not in ("crest", "photo"):
+            raise ValueError("hero_style must be 'crest' or 'photo'")
         row = next((r for r in self.explore_players(season_code, limit=600)["rows"]
                     if r["player_external_id"] == player_id), None)
         if row is None:
@@ -1093,6 +1111,11 @@ class _GatewayBase(CommandGateway):
             "player_name": row["name"], "team_name": row["team_name"],
             "team_external_id": row["team_external_id"], "player_external_id": player_id,
             "points": row["points"], "rebounds": row["rebounds"], "assists": row["assists"],
+            # Visual variant + a short qualifier for the photo layout's chip. The
+            # crest renderer ignores badge_label; the photo one uses it so the
+            # portrait carries context beyond the number.
+            "hero_style": hero_style,
+            "badge_label": self._HERO_BADGE.get(metric, label),
         }
         story = StoryObject(
             story_type=StoryType.CUSTOM_HERO, season_code=season_code, round_number=None,
@@ -1326,6 +1349,62 @@ class _GatewayBase(CommandGateway):
 
     def delete_image_override(self, kind: str, external_id: str) -> bool:
         return self._image_override_repo.delete(kind, external_id)
+
+    # -------------------------------------------------- media library
+    @staticmethod
+    def _meta_to_dict(m: Any) -> Dict[str, Any]:
+        return {
+            "asset_id": m.asset_id, "kind": m.kind, "external_id": m.external_id,
+            "role": m.role, "approved": m.approved, "content_type": m.content_type,
+            "byte_size": m.byte_size, "source": m.source, "source_url": m.source_url,
+            "photographer": m.photographer, "copyright": m.copyright,
+            "license_type": m.license_type, "commercial_use": m.commercial_use,
+            "date_acquired": m.date_acquired, "expiry": m.expiry,
+            "tags": m.tags, "notes": m.notes,
+            "created_at": m.created_at, "updated_at": m.updated_at,
+        }
+
+    def list_media_assets(self, kind: str, external_id: str) -> List[Dict[str, Any]]:
+        return [self._meta_to_dict(m)
+                for m in self._media_asset_repo.list_meta(kind, external_id)]
+
+    def get_media_image(self, asset_id: str) -> Optional[Dict[str, Any]]:
+        img = self._media_asset_repo.get_image(asset_id)
+        if img is None:
+            return None
+        return {"content_type": img.content_type, "image": img.image}
+
+    def add_media_asset(
+        self, kind: str, external_id: str, image: bytes, content_type: str, *,
+        approved: bool = False, source: Optional[str] = None,
+        source_url: Optional[str] = None, photographer: Optional[str] = None,
+        license_type: Optional[str] = None, commercial_use: bool = False,
+        notes: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        # New photos land as 'alternate' — the operator promotes explicitly, so
+        # the entity's primary never changes just because someone uploaded.
+        # Exception: the entity has NO photos yet, in which case the first one
+        # is the primary by default (otherwise the entity would sit with photos
+        # but nothing selected).
+        existing = self._media_asset_repo.list_meta(kind, external_id)
+        role = "primary" if not existing else "alternate"
+        aid = self._media_asset_repo.add(
+            kind, external_id, image, content_type,
+            role=role, approved=approved,
+            source=source, source_url=source_url, photographer=photographer,
+            license_type=license_type, commercial_use=commercial_use, notes=notes,
+        )
+        meta = self._media_asset_repo.get_meta(aid)
+        return self._meta_to_dict(meta) if meta is not None else {"asset_id": aid}
+
+    def promote_media_primary(self, asset_id: str) -> bool:
+        return self._media_asset_repo.promote_primary(asset_id)
+
+    def set_media_approved(self, asset_id: str, approved: bool) -> bool:
+        return self._media_asset_repo.set_approved(asset_id, approved)
+
+    def delete_media_asset(self, asset_id: str) -> bool:
+        return self._media_asset_repo.delete(asset_id)
 
     def edit_content(
         self,

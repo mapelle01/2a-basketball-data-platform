@@ -196,6 +196,44 @@ class _MediaRepoMixin:
         return _pick(self.list_meta(kind, external_id),
                      require_commercial=require_commercial, today=today)
 
+    def get_meta(self, asset_id: str) -> Optional[MediaAssetMeta]:
+        conn, owned = self._conn()
+        try:
+            row = conn.execute(
+                f"{self._meta_select()} WHERE asset_id = {self._ph}", (asset_id,),
+            ).fetchone()
+            return _row_to_meta(row) if row is not None else None
+        finally:
+            if owned:
+                conn.close()
+
+    def promote_primary(self, asset_id: str) -> bool:
+        """Make this asset the primary photo for its (kind, external_id),
+        demoting whichever asset held that role. Enforced at write time so the
+        rule ("at most one primary per entity") holds without a UNIQUE index
+        that would collide with a swap."""
+        meta = self.get_meta(asset_id)
+        if meta is None:
+            return False
+        now = datetime.utcnow().isoformat()
+        conn, owned = self._conn()
+        try:
+            conn.execute(
+                f"UPDATE media_assets SET role = {self._ph}, updated_at = {self._ph}"
+                f" WHERE kind = {self._ph} AND external_id = {self._ph}"
+                f" AND role = {self._ph} AND asset_id <> {self._ph}",
+                ("alternate", now, meta.kind, meta.external_id, "primary", asset_id),
+            )
+            conn.execute(
+                f"UPDATE media_assets SET role = {self._ph}, updated_at = {self._ph}"
+                f" WHERE asset_id = {self._ph}",
+                ("primary", now, asset_id),
+            )
+            return True
+        finally:
+            if owned:
+                conn.close()
+
     def set_approved(self, asset_id: str, approved: bool) -> bool:
         conn, owned = self._conn()
         try:
