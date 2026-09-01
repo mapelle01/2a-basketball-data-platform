@@ -133,10 +133,30 @@ class TestPlayerStreaks:
         assert s.facts["hero_value"] == 4
 
     def test_a_gap_resets_the_scoring_streak(self):
-        # 20+ every other game: no run reaches the floor of 4.
+        # 20+ every other game: no run reaches the floor of 4 anywhere in the
+        # log — the longest run is 1, so no story.
         log = tuple(_line(points=p) for p in [24, 8, 26, 9, 28])
         ctx = SeasonContext(player_game_log={"p1": log})
         assert detect_player_streaks("2025-2026", 12, [_player(points=28)], ctx) == []
+
+    def test_a_peak_run_that_ended_is_still_a_story(self):
+        """A season-long peak matters editorially even if the tail is broken.
+        DESCUBRIR shows the peak; the pipeline agrees, with an is_active flag
+        so future variants can frame it as LIVE or SEASON RECORD."""
+        # Peak of 5 in the middle, then a broken tail.
+        log = tuple(_line(points=p) for p in [22, 25, 21, 26, 30, 8, 12])
+        ctx = SeasonContext(player_game_log={"p1": log})
+        stories = detect_player_streaks("2025-2026", 12, [_player(points=12)], ctx)
+        s = next(s for s in stories if s.story_type == StoryType.PLAYER_STREAK_SCORING)
+        assert s.facts["streak_length"] == 5
+        assert s.facts["is_active"] is False
+
+    def test_a_run_still_active_is_flagged(self):
+        log = tuple(_line(points=p) for p in [22, 25, 21, 26, 30])
+        ctx = SeasonContext(player_game_log={"p1": log})
+        stories = detect_player_streaks("2025-2026", 12, [_player(points=30)], ctx)
+        s = next(s for s in stories if s.story_type == StoryType.PLAYER_STREAK_SCORING)
+        assert s.facts["is_active"] is True
 
     def test_streak_below_the_floor_is_ignored(self):
         log = tuple(_line(points=p) for p in [22, 25, 21])   # 3, floor is 4

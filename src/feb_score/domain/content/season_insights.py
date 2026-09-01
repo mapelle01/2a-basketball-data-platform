@@ -255,6 +255,19 @@ def _tail_run(log: Sequence[GameLine], predicate) -> int:
     return count
 
 
+def _longest_run(log: Sequence[GameLine], predicate) -> int:
+    """Length of the longest streak of games satisfying ``predicate`` anywhere
+    in ``log``. Editorially this is the "season peak" of the run — used by the
+    detector so a real 7-game streak that ended two weeks ago still becomes a
+    story instead of vanishing the moment the player misses one 20+ night."""
+    best = run = 0
+    for line in log:
+        run = run + 1 if predicate(line) else 0
+        if run > best:
+            best = run
+    return best
+
+
 def _is_dd(line: GameLine) -> bool:
     stats = (line.points, line.rebounds, line.assists, line.steals, line.blocks)
     return sum(1 for s in stats if s >= 10) >= 2
@@ -266,11 +279,15 @@ def detect_player_streaks(
     player_lines: Sequence[PlayerLineInput],
     context: SeasonContext,
 ) -> List[StoryObject]:
-    """Emit a story per player whose ACTIVE consecutive-game streak ending in
-    the current round hits the editorial floor. Two flavours: 20+ point games
-    in a row (scoring streak) and consecutive double-doubles. A player can have
-    both, they are separate stories. Nothing is emitted for a player who did
-    NOT play in the current round — the streak has to be live."""
+    """Emit a story per player whose LONGEST consecutive-game streak in the
+    season hits the editorial floor — the "season peak" of the run. A player
+    only qualifies once they have played in the current round (otherwise the
+    round scope has nothing to say about them), but the streak itself may sit
+    anywhere in the season log: a real 7-game run that ended two weeks ago is
+    still a story, and gets a ``is_active`` flag so future variants can frame
+    it differently (LIVE vs season record). Two flavours: 20+ point games in a
+    row and consecutive double-doubles; a player can have both — separate
+    stories."""
     stories: List[StoryObject] = []
     round_players = {p.player_external_id: p for p in player_lines}
     for pid, p in round_players.items():
@@ -279,9 +296,11 @@ def detect_player_streaks(
             continue
 
         # SCORING streak (20+ pts).
-        length = _tail_run(log,
-                           lambda l: l.points >= PLAYER_STREAK_SCORING_MIN_POINTS)
+        length = _longest_run(log,
+                              lambda l: l.points >= PLAYER_STREAK_SCORING_MIN_POINTS)
         if length >= PLAYER_STREAK_SCORING_MIN_LENGTH:
+            active = _tail_run(log,
+                               lambda l: l.points >= PLAYER_STREAK_SCORING_MIN_POINTS) >= length
             stories.append(_streak_story(
                 season_code, round_number, p, length,
                 StoryType.PLAYER_STREAK_SCORING,
@@ -289,11 +308,13 @@ def detect_player_streaks(
                 headline=f"{length} PARTIDOS DE {PLAYER_STREAK_SCORING_MIN_POINTS}+ SEGUIDOS",
                 streak_kind="scoring",
                 threshold=PLAYER_STREAK_SCORING_MIN_POINTS,
+                is_active=active,
             ))
 
         # DOUBLE-DOUBLE streak.
-        length = _tail_run(log, _is_dd)
+        length = _longest_run(log, _is_dd)
         if length >= PLAYER_STREAK_DD_MIN_LENGTH:
+            active = _tail_run(log, _is_dd) >= length
             stories.append(_streak_story(
                 season_code, round_number, p, length,
                 StoryType.PLAYER_STREAK_DD,
@@ -301,6 +322,7 @@ def detect_player_streaks(
                 headline=f"{length} DOBLES-DOBLES SEGUIDOS",
                 streak_kind="double_double",
                 threshold=None,
+                is_active=active,
             ))
 
     return stories
@@ -309,7 +331,7 @@ def detect_player_streaks(
 def _streak_story(
     season_code: str, round_number: int, p: PlayerLineInput, length: int,
     story_type: "StoryType", *, hero_label: str, headline: str,
-    streak_kind: str, threshold,
+    streak_kind: str, threshold, is_active: bool = True,
 ) -> StoryObject:
     return StoryObject(
         story_type=story_type,
@@ -327,6 +349,7 @@ def _streak_story(
             "streak_kind": streak_kind,
             "streak_length": length,
             "streak_threshold": threshold,
+            "is_active": is_active,
             # Framing hints the player_of_round renderer already knows how to use.
             "hero_value": length,
             "hero_label": hero_label,
