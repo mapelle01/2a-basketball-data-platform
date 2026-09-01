@@ -159,7 +159,10 @@ class RoundPipeline:
             self._queue.update(item)
         return item
 
-    def generate_one(self, story: StoryObject, *, force: bool = False) -> ContentItem:
+    def generate_one(
+        self, story: StoryObject, *, force: bool = False,
+        force_review: bool = False,
+    ) -> ContentItem:
         """Render, validate and queue ONE story the caller built by hand.
 
         The detector path exists because the machine finds the story; this
@@ -183,7 +186,7 @@ class RoundPipeline:
         existing = self._queue.by_story_identity(story.identity_key)
         if existing is not None and not force:
             return existing            # same query, same card: not a second one
-        item = self._render_and_validate(_as_selected(story))
+        item = self._render_and_validate(_as_selected(story), force_review=force_review)
         if item.status in (ContentStatus.REJECTED, ContentStatus.FAILED):
             return item
         if existing is not None and force:
@@ -345,7 +348,9 @@ class RoundPipeline:
 
     # ------------------------------------------------------------------
 
-    def _render_and_validate(self, story: StoryObject) -> ContentItem:
+    def _render_and_validate(
+        self, story: StoryObject, *, force_review: bool = False,
+    ) -> ContentItem:
         template_id = story.template_id
         contract = TEMPLATES[template_id]
 
@@ -378,6 +383,12 @@ class RoundPipeline:
 
             if not (fv.ok and vv.ok):
                 content.reject("failed fact/visual validation")
+            elif force_review:
+                # Operator-initiated cards land in PENDING regardless of what
+                # the type-based policy would say: the caller explicitly asked
+                # for a manual sign-off before this reaches the queue as
+                # approved, so the whole feed does not read as "auto-published".
+                content.submit_for_review("operator sent to pending for review")
             else:
                 # Passed validation → the review policy decides whether a human
                 # must sign off before this can be scheduled/published.

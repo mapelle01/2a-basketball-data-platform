@@ -93,6 +93,7 @@ def register_explorer_routes(app: FastAPI) -> None:
     def create_season_dd_leader_card(
         body: SeasonLeaderRequest, request: Request,
         force: bool = Query(False, description="Re-render if already queued"),
+        pending: bool = Query(False, description="Land as pending_review"),
     ):
         auth: AuthenticationProvider = request.app.state.auth
         if auth.authenticate(request) is None:
@@ -102,7 +103,7 @@ def register_explorer_routes(app: FastAPI) -> None:
                 400, "INVALID_PARAMETER", "season must look like 2024-2025")
         try:
             return request.app.state.gateway.create_season_dd_leader_card(
-                body.season, force=force)
+                body.season, force=force, pending=pending)
         except ValueError as exc:
             return err.error_response(404, "NO_DATA", str(exc))
 
@@ -192,12 +193,13 @@ def register_explorer_routes(app: FastAPI) -> None:
                     per_game=body.per_game, title=body.title,
                     subtitle=body.subtitle, scope_label=body.scope_label,
                     hero_style=body.hero_style, hero_kind=body.hero_kind,
-                    force=body.force)
+                    force=body.force, pending=body.pending)
             else:
                 item = request.app.state.gateway.create_custom_five(
                     body.season, title=body.title, subtitle=body.subtitle,
                     scope_label=body.scope_label, player_ids=body.player_ids,
                     show_rank=body.show_rank, force=body.force,
+                    pending=body.pending,
                     team=body.team, nationality=body.nationality,
                     position=body.position, min_age=body.min_age,
                     max_age=body.max_age, min_games=body.min_games,
@@ -267,3 +269,7 @@ class CustomFiveRequest(BaseModel):
     # Re-render an already queued card in place (same content_id, fresh SVG).
     # Used by the modal's "Regenerar" button after a polish deploy.
     force: bool = False
+    # Land as PENDING_REVIEW even when the policy would auto-approve. Ideas
+    # dashboard sends this so the operator reviews every card before it
+    # graduates to APROBADA.
+    pending: bool = False

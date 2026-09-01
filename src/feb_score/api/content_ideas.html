@@ -281,7 +281,9 @@ document.body.addEventListener("click", async e => {
   if(act === "dd-leader"){
     await generate({
       label: "Líder de dobles-dobles",
-      url: `/v1/explore/season-dd-leader?force=false`,
+      // pending=true so the card lands in PENDIENTES, not auto-approved:
+      // Ideas is a proposal feed, the human decides what actually ships.
+      url: `/v1/explore/season-dd-leader?force=false&pending=true`,
       body: { season: SEASON },
       card, button: b,
     });
@@ -299,6 +301,7 @@ document.body.addEventListener("click", async e => {
         player_ids: [pid],
         metric: ["val","feb"].includes(metric) ? "points" : metric,
         per_game: false, show_rank: false, scope_label: `Temporada ${SEASON}`,
+        pending: true,
       },
       card, button: b,
     });
@@ -389,6 +392,7 @@ $("pmRegen").onclick = async () => {
     url = url.replace("force=false", "force=true");
   } else {
     forceBody.force = true;
+    forceBody.pending = true;
   }
   $("pmRegen").disabled = true; $("pmRegen").textContent = "Regenerando…";
   try{

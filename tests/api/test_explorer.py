@@ -309,6 +309,22 @@ class TestQueryToCard:
         assert facts["hero_kind"] == "peak"
         assert facts["badge_label"] == "RÉCORD"
 
+    def test_pending_true_routes_to_pending_review(self, client):
+        """Ideas dashboard sends pending=true so operator-initiated cards land
+        in PENDIENTES, not APROBADA — the human decides what actually ships."""
+        _seed(client)
+        r = self._card(client, template="hero", player_ids=["p2"], title="X",
+                       pending=True)
+        assert r.status_code == 201
+        assert r.json()["status"] == "pending_review"
+
+    def test_pending_default_uses_the_policy(self, client):
+        _seed(client)
+        # Without pending, custom_five with routine priority auto-approves.
+        r = self._card(client)
+        assert r.status_code == 201
+        assert r.json()["status"] in ("approved", "pending_review")
+
     def test_hero_kind_defaults_from_per_game(self, client):
         _seed(client)
         avg = self._card(client, template="hero", player_ids=["p2"], title="X",

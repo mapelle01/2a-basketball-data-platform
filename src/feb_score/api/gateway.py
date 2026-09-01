@@ -326,6 +326,7 @@ class CommandGateway(ABC):
         per_game: bool = False, title: str, subtitle: Optional[str] = None,
         scope_label: Optional[str] = None, hero_style: str = "crest",
         hero_kind: Optional[str] = None, force: bool = False,
+        pending: bool = False,
     ) -> Dict[str, Any]:
         """One player rendered as a single hero card, from a query. Two visual
         variants share the same facts: ``crest`` (photo-less, crest silhouette)
@@ -337,7 +338,7 @@ class CommandGateway(ABC):
 
     @abstractmethod
     def create_season_dd_leader_card(
-        self, season_code: str, *, force: bool = False,
+        self, season_code: str, *, force: bool = False, pending: bool = False,
     ) -> Dict[str, Any]:
         """One card for the player with the most double-doubles in the season,
         with their triple-double count as the extras line. Figures re-read
@@ -350,7 +351,8 @@ class CommandGateway(ABC):
     def create_custom_five(
         self, season_code: str, *, title: str, subtitle: str = "",
         scope_label: Optional[str] = None, player_ids: Optional[List[str]] = None,
-        show_rank: bool = True, force: bool = False, **query: Any
+        show_rank: bool = True, force: bool = False, pending: bool = False,
+        **query: Any
     ) -> Dict[str, Any]:
         """Turn an explorer query into a queued card. The caller supplies the
         query and the wording, never the figures — those are re-read from the
