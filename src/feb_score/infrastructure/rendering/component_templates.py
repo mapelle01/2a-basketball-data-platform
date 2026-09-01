@@ -834,9 +834,15 @@ def render_player_streak(data: Dict[str, Any]) -> str:
     display = data.get("display", {})
     assets = data.get("assets", {})
 
-    section = str(
-        facts.get("section_label") or f"{facts.get('streak_length', 0)} SEGUIDOS"
-    )
+    # The number+label under it already says "5 DOBLES-DOBLES SEGUIDOS" plainly,
+    # so the top-left eyebrow gets an editorial section header instead of a
+    # verbatim echo. Callers can still override via facts.section_label.
+    _KIND_SECTIONS = {
+        "scoring": "EN RACHA · ANOTACIÓN",
+        "double_double": "EN RACHA · DOBLES-DOBLES",
+    }
+    section_default = _KIND_SECTIONS.get(str(facts.get("streak_kind", "")), "EN RACHA")
+    section = str(facts.get("section_label") or section_default)
     kicker = str(facts.get("kicker") or f"JORNADA {data['story'].get('round_number')}")
     hero = str(facts.get("hero_value") or facts.get("streak_length") or "")
     hlab = str(facts.get("hero_label") or "SEGUIDOS")
@@ -845,32 +851,28 @@ def render_player_streak(data: Dict[str, Any]) -> str:
 
     body: List[str] = []
 
-    # Section headline + eyebrow accent (top-left, full width).
-    body.append(C.accent_bar(CONTENT_X, MARGIN, 96, Line.HEAVY))
-    head_size = FontSize.H3
-    head_y = MARGIN + 44 + head_size * 0.74
-    body.append(C.text(CONTENT_X, head_y, section.upper(), size=head_size,
-                       weight=FontWeight.DISPLAY, fill=Color.WHITE,
-                       tracking=LetterSpacing.HEADLINE, upper=True))
-    body.append(_corner_mark())
-
-    # PHOTO — full-bleed on the right ~55%, with a gradient fade on its left
-    # edge so it dissolves into the black background instead of showing a hard
-    # rectangle seam. When the photo is missing, no gradient, no rectangle: the
-    # left column stretches to fill; the initials plaque hides under the name.
+    # PHOTO — full-bleed on the right ~55%, with a hefty gradient fade on its
+    # left edge so it dissolves into the black background instead of showing a
+    # hard rectangle seam. The fade must reach far enough right to swallow the
+    # WHITE background common in FEB studio portraits, not just a dark cutout.
+    # When the photo is missing, no gradient, no rectangle: the left column
+    # stretches to fill.
     photo_uri = assets.get("player_photo")
-    photo_x = 470  # column split — tuned so a portrait cut-out feels centered
+    photo_x = 540  # column split — the number + name column gets the left half
     photo_w = CANVAS.width - photo_x
     photo_h = CANVAS.height
     if photo_uri:
         body.append(
             '<defs>'
+            # A wide fade: opaque black from the left edge, still 60% at 25%,
+            # transparent by 50% — kills the abrupt white edge of studio shots
+            # without eating the face.
             '<linearGradient id="photofade" x1="0" y1="0" x2="1" y2="0">'
             '<stop offset="0" stop-color="#0A0A0A" stop-opacity="1"/>'
-            '<stop offset="0.25" stop-color="#0A0A0A" stop-opacity="0"/>'
+            '<stop offset="0.25" stop-color="#0A0A0A" stop-opacity="0.6"/>'
+            '<stop offset="0.5" stop-color="#0A0A0A" stop-opacity="0"/>'
             '</linearGradient></defs>'
         )
-        # Photo behind the fade rectangle — draw order: photo, then fade.
         body.append(
             f'<image href="{photo_uri}" x="{photo_x}" y="0"'
             f' width="{photo_w}" height="{photo_h}"'
@@ -880,6 +882,22 @@ def render_player_streak(data: Dict[str, Any]) -> str:
             f'<rect x="{photo_x}" y="0" width="{photo_w}" height="{photo_h}"'
             f' fill="url(#photofade)"/>'
         )
+
+    # Section headline + eyebrow accent (top-left) — CONSTRAINED to the left
+    # column so a long "EN RACHA · DOBLES-DOBLES" never slides under the photo.
+    # Drawn AFTER the photo so it always wins the z-order on the fade band.
+    left_col_w = photo_x - MARGIN - Spacing.LG
+    body.append(C.accent_bar(CONTENT_X, MARGIN, 96, Line.HEAVY))
+    head_size = FontSize.H3
+    # If a caller-supplied section still overflows the left column, step it
+    # down until it fits so the truncation-under-photo bug can't come back.
+    while head_size > 20 and len(section) * head_size * 0.62 > left_col_w:
+        head_size -= 2
+    head_y = MARGIN + 44 + head_size * 0.74
+    body.append(C.text(CONTENT_X, head_y, section.upper(), size=head_size,
+                       weight=FontWeight.DISPLAY, fill=Color.WHITE,
+                       tracking=LetterSpacing.HEADLINE, upper=True))
+    body.append(_corner_mark())
 
     # GIANT NUMBER on the left. Sized inversely to digit count so both "5" and
     # "12" fill roughly the same visual space and neither crowds the name.
