@@ -720,6 +720,52 @@ def generate_copy_streak(story: Dict[str, Any]) -> CopyContract:
     )
 
 
+def generate_copy_player_streak_scoring(story: Dict[str, Any]) -> CopyContract:
+    """A player who has strung together N games with 20+ points, live tonight.
+    Everything comes from facts filled by the detector — no invented numbers."""
+    f = story["facts"]
+    player = f.get("player_name") or f.get("player_external_id", "El jugador")
+    team = f.get("team_name") or ""
+    length = f["streak_length"]
+    threshold = f.get("streak_threshold", 20)
+    round_number = story.get("round_number")
+
+    headline = player
+    subtitle = f"{length} partidos seguidos de {threshold}+ puntos"
+    where = f" ({team})" if team else ""
+    caption = (
+        f"{player}{where} suma {length} partidos consecutivos con "
+        f"{threshold}+ puntos tras la jornada {round_number}."
+    )
+    hashtags = BASE_HASHTAGS + ("Racha", "EnRacha")
+    return CopyContract(
+        headline=headline, subtitle=subtitle, caption=caption, hashtags=hashtags,
+        facts_used=("player_name", "team_name", "streak_length",
+                    "streak_threshold", "round_number"),
+    )
+
+
+def generate_copy_player_streak_dd(story: Dict[str, Any]) -> CopyContract:
+    f = story["facts"]
+    player = f.get("player_name") or f.get("player_external_id", "El jugador")
+    team = f.get("team_name") or ""
+    length = f["streak_length"]
+    round_number = story.get("round_number")
+
+    headline = player
+    subtitle = f"{length} dobles-dobles seguidos"
+    where = f" ({team})" if team else ""
+    caption = (
+        f"{player}{where} encadena {length} dobles-dobles consecutivos tras la "
+        f"jornada {round_number}."
+    )
+    hashtags = BASE_HASHTAGS + ("Racha", "DobleDoble")
+    return CopyContract(
+        headline=headline, subtitle=subtitle, caption=caption, hashtags=hashtags,
+        facts_used=("player_name", "team_name", "streak_length", "round_number"),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Dispatcher
 # ---------------------------------------------------------------------------
@@ -752,6 +798,8 @@ _GENERATORS = {
     "top_rebounder": generate_copy_top_rebounder,
     "top_assist_provider": generate_copy_season_assist_leader,
     "best_duo": generate_copy_best_duo,
+    "player_streak_scoring": generate_copy_player_streak_scoring,
+    "player_streak_dd": generate_copy_player_streak_dd,
 }
 
 

@@ -57,6 +57,11 @@ class StoryType(str, Enum):
     CUSTOM_FIVE = "custom_five"        # a five the operator picked from a query
     CUSTOM_HERO = "custom_hero"        # a single-player hero card built from a query
     BEST_DUO = "best_duo"             # two teammates, best combined game (round)
+    # Consecutive-game rachas ending in the current round (season scope). The
+    # streak's length rides as the hero number, so the card frames how much of
+    # a run this is — 4 partidos de 20+ seguidos, 3 dobles-dobles seguidos.
+    PLAYER_STREAK_SCORING = "player_streak_scoring"
+    PLAYER_STREAK_DD = "player_streak_dd"
     # TOP_SCORER / TOP_REBOUNDER / TOP_ASSIST_PROVIDER are the SEASON leaders.
 
     # Team-level
@@ -122,6 +127,9 @@ STORY_TO_TEMPLATE: Dict[StoryType, str] = {
     StoryType.WIN_STREAK: "team_streak",         # a team card: the run visualized
     StoryType.LOSS_STREAK: "team_streak",
     StoryType.BEST_DUO: "best_duo",              # two teammates + combined total
+    # Player rachas: photo-hero card with the streak length as the number.
+    StoryType.PLAYER_STREAK_SCORING: "player_of_round",
+    StoryType.PLAYER_STREAK_DD: "player_of_round",
 }
 
 
@@ -155,6 +163,13 @@ STORY_LABELS: Dict[StoryType, Dict[str, str]] = {
                               "badge": "MÁX. REBOTES"},
     StoryType.TOP_ASSIST_PROVIDER: {"section": "Máximo asistente de la temporada",
                                     "badge": "MÁX. ASISTENCIAS"},
+    # Consecutive-game rachas — one section per streak kind so a carousel of
+    # both never repeats the same headline. The detector still overrides the
+    # section per card with the actual "N PARTIDOS DE 20+ SEGUIDOS" claim.
+    StoryType.PLAYER_STREAK_SCORING: {"section": "En racha anotadora",
+                                      "badge": "RACHA VIVA"},
+    StoryType.PLAYER_STREAK_DD: {"section": "En racha de dobles-dobles",
+                                 "badge": "RACHA VIVA"},
 }
 
 

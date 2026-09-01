@@ -26,6 +26,24 @@ SEASON_HIGH_MIN_POINTS = 20     # below this a "career night" isn't a story
 SEASON_HIGH_MIN_PRIOR_GAMES = 3  # need a real baseline to call it a high
 STREAK_MIN_LENGTH = 3
 UPSET_MIN_RANK_GAP = 6           # winner must be 6+ places below the loser
+# Player consecutive-game rachas — pinned strict enough that a chip picked up
+# on random midweek games doesn't blow past a real run. The scoring floor is
+# what makes a 20+ game "count" as a game the fans would remember.
+PLAYER_STREAK_SCORING_MIN_POINTS = 20
+PLAYER_STREAK_SCORING_MIN_LENGTH = 4
+PLAYER_STREAK_DD_MIN_LENGTH = 3
+
+
+@dataclass(frozen=True)
+class GameLine:
+    """A single-game line from a player's season log — only the fields the
+    detectors need for consecutive-game rachas. Ordered by played_at when the
+    adapter fills it."""
+    points: int = 0
+    rebounds: int = 0
+    assists: int = 0
+    steals: int = 0
+    blocks: int = 0
 
 
 @dataclass(frozen=True)
@@ -37,12 +55,16 @@ class SeasonContext:
       player has this season, INCLUDING the current round's game (PlayerStats
       carries no match id, so the current game is identified as the unique
       season maximum, not excluded by id).
+    * ``player_game_log``: player_external_id -> (GameLine, ...) full per-game
+      lines ordered by played_at asc; only games up to and including the
+      current round. Used by the rachas detector.
     * ``team_results``: team_external_id -> ((round_number, won), ...) ordered by
       round ascending (won is True for a win, False for a loss).
     * ``team_rank``: team_external_id -> classification rank (1 = top).
     """
 
     player_history: Dict[str, Tuple[int, ...]] = field(default_factory=dict)
+    player_game_log: Dict[str, Tuple[GameLine, ...]] = field(default_factory=dict)
     team_results: Dict[str, Tuple[Tuple[int, bool], ...]] = field(default_factory=dict)
     team_rank: Dict[str, int] = field(default_factory=dict)
 
@@ -212,6 +234,114 @@ def detect_upsets(
             },
         ))
     return stories
+
+
+# ---------------------------------------------------------------------------
+# Player consecutive-game rachas (streak ending in the current round)
+# ---------------------------------------------------------------------------
+
+
+def _tail_run(log: Sequence[GameLine], predicate) -> int:
+    """Length of the streak of games satisfying ``predicate`` that ends at the
+    last game in ``log``. A gap resets it — the point of a streak is the last
+    game continues the run, not just that the player had many total qualifying
+    games."""
+    count = 0
+    for line in reversed(log):
+        if predicate(line):
+            count += 1
+        else:
+            break
+    return count
+
+
+def _is_dd(line: GameLine) -> bool:
+    stats = (line.points, line.rebounds, line.assists, line.steals, line.blocks)
+    return sum(1 for s in stats if s >= 10) >= 2
+
+
+def detect_player_streaks(
+    season_code: str,
+    round_number: int,
+    player_lines: Sequence[PlayerLineInput],
+    context: SeasonContext,
+) -> List[StoryObject]:
+    """Emit a story per player whose ACTIVE consecutive-game streak ending in
+    the current round hits the editorial floor. Two flavours: 20+ point games
+    in a row (scoring streak) and consecutive double-doubles. A player can have
+    both, they are separate stories. Nothing is emitted for a player who did
+    NOT play in the current round — the streak has to be live."""
+    stories: List[StoryObject] = []
+    round_players = {p.player_external_id: p for p in player_lines}
+    for pid, p in round_players.items():
+        log = context.player_game_log.get(pid)
+        if not log:
+            continue
+
+        # SCORING streak (20+ pts).
+        length = _tail_run(log,
+                           lambda l: l.points >= PLAYER_STREAK_SCORING_MIN_POINTS)
+        if length >= PLAYER_STREAK_SCORING_MIN_LENGTH:
+            stories.append(_streak_story(
+                season_code, round_number, p, length,
+                StoryType.PLAYER_STREAK_SCORING,
+                hero_label=f"PARTIDOS DE {PLAYER_STREAK_SCORING_MIN_POINTS}+ SEGUIDOS",
+                headline=f"{length} PARTIDOS DE {PLAYER_STREAK_SCORING_MIN_POINTS}+ SEGUIDOS",
+                streak_kind="scoring",
+                threshold=PLAYER_STREAK_SCORING_MIN_POINTS,
+            ))
+
+        # DOUBLE-DOUBLE streak.
+        length = _tail_run(log, _is_dd)
+        if length >= PLAYER_STREAK_DD_MIN_LENGTH:
+            stories.append(_streak_story(
+                season_code, round_number, p, length,
+                StoryType.PLAYER_STREAK_DD,
+                hero_label="DOBLES-DOBLES SEGUIDOS",
+                headline=f"{length} DOBLES-DOBLES SEGUIDOS",
+                streak_kind="double_double",
+                threshold=None,
+            ))
+
+    return stories
+
+
+def _streak_story(
+    season_code: str, round_number: int, p: PlayerLineInput, length: int,
+    story_type: "StoryType", *, hero_label: str, headline: str,
+    streak_kind: str, threshold,
+) -> StoryObject:
+    return StoryObject(
+        story_type=story_type,
+        season_code=season_code,
+        round_number=round_number,
+        entities=StoryEntities(
+            player_external_id=p.player_external_id,
+            team_external_id=p.team_external_id,
+        ),
+        facts={
+            "player_external_id": p.player_external_id,
+            "player_name": p.player_name,
+            "team_external_id": p.team_external_id,
+            "team_name": p.team_name,
+            "streak_kind": streak_kind,
+            "streak_length": length,
+            "streak_threshold": threshold,
+            # Framing hints the player_of_round renderer already knows how to use.
+            "hero_value": length,
+            "hero_label": hero_label,
+            "section_label": headline,
+            # A streak card's supporting stats mean the round game itself — the
+            # game that keeps the streak alive.
+            "secondary": [[p.points, "PTS"], [p.rebounds, "REB"], [p.assists, "AST"]],
+            "points": p.points, "rebounds": p.rebounds, "assists": p.assists,
+            "impact_score": round(p.impact_score, 1),
+        },
+        source_refs={
+            "season_player_stats":
+                f"2afeb_score://season_player_stats/{season_code}/{p.player_external_id}",
+        },
+    )
 
 
 def detect_all_season(

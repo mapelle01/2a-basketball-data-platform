@@ -103,3 +103,77 @@ class TestUpset:
         ctx = SeasonContext(team_rank={})
         m = _match(home="tA", away="tB", hs=70, as_=80)
         assert detect_upsets("2025-2026", 12, [m], ctx) == []
+
+
+from feb_score.domain.content.season_insights import (  # noqa: E402
+    GameLine, detect_player_streaks,
+)
+
+
+def _line(**kw):
+    return GameLine(
+        points=kw.get("points", 10), rebounds=kw.get("rebounds", 3),
+        assists=kw.get("assists", 2), steals=kw.get("steals", 0),
+        blocks=kw.get("blocks", 0),
+    )
+
+
+class TestPlayerStreaks:
+    """Consecutive-game rachas ending in the current round. A gap resets the
+    count — a season total is not a streak."""
+
+    def test_scoring_streak_of_four_is_detected(self):
+        log = tuple(_line(points=p) for p in [22, 25, 21, 30])  # last is current
+        ctx = SeasonContext(player_game_log={"p1": log})
+        stories = detect_player_streaks("2025-2026", 12, [_player(points=30)], ctx)
+        types = {s.story_type for s in stories}
+        assert StoryType.PLAYER_STREAK_SCORING in types
+        s = next(s for s in stories if s.story_type == StoryType.PLAYER_STREAK_SCORING)
+        assert s.facts["streak_length"] == 4
+        assert s.facts["hero_value"] == 4
+
+    def test_a_gap_resets_the_scoring_streak(self):
+        # 20+ every other game: no run reaches the floor of 4.
+        log = tuple(_line(points=p) for p in [24, 8, 26, 9, 28])
+        ctx = SeasonContext(player_game_log={"p1": log})
+        assert detect_player_streaks("2025-2026", 12, [_player(points=28)], ctx) == []
+
+    def test_streak_below_the_floor_is_ignored(self):
+        log = tuple(_line(points=p) for p in [22, 25, 21])   # 3, floor is 4
+        ctx = SeasonContext(player_game_log={"p1": log})
+        assert detect_player_streaks("2025-2026", 12, [_player(points=21)], ctx) == []
+
+    def test_only_the_player_who_played_this_round_gets_a_story(self):
+        """The streak has to be LIVE. A player with a great log who did not
+        play in the current round does not deserve a raced-in card."""
+        log = tuple(_line(points=p) for p in [22, 25, 21, 30])
+        ctx = SeasonContext(player_game_log={"absent": log})
+        # No player in this round: absent's streak does not fire.
+        assert detect_player_streaks("2025-2026", 12, [], ctx) == []
+
+    def test_double_double_streak_of_three(self):
+        log = (_line(points=12, rebounds=11),
+               _line(points=10, rebounds=10, assists=2),
+               _line(points=8, rebounds=4, assists=10))   # 8/4/10 -> only 1 stat >=10
+        ctx = SeasonContext(player_game_log={"p1": log})
+        stories = detect_player_streaks("2025-2026", 12, [_player(points=8)], ctx)
+        assert stories == []                                # 8/4/10 broke the streak
+        # Now three consecutive DDs ending at the current game
+        log = (_line(points=12, rebounds=11),
+               _line(points=10, rebounds=10, assists=2),
+               _line(points=11, rebounds=10, assists=1))
+        ctx = SeasonContext(player_game_log={"p1": log})
+        stories = detect_player_streaks("2025-2026", 12, [_player(points=11)], ctx)
+        types = {s.story_type for s in stories}
+        assert StoryType.PLAYER_STREAK_DD in types
+        s = next(s for s in stories if s.story_type == StoryType.PLAYER_STREAK_DD)
+        assert s.facts["streak_length"] == 3
+
+    def test_facts_carry_the_current_game_line_as_supporting_stats(self):
+        """The supporting line on the card must describe the RECENT game (what
+        keeps the streak alive), not the streak's average."""
+        log = tuple(_line(points=p) for p in [22, 25, 21, 30])
+        ctx = SeasonContext(player_game_log={"p1": log})
+        s = detect_player_streaks("2025-2026", 12, [_player(points=30)], ctx)[0]
+        secondary = {lab: v for v, lab in s.facts["secondary"]}
+        assert secondary["PTS"] == 30

@@ -59,6 +59,10 @@ TYPE_IMPORTANCE = {
     StoryType.BEST_FIVE: 80,
     StoryType.BEST_FIVE_IDEAL: 82,
     StoryType.BEST_DUO: 72,
+    # A live streak beats an isolated 20+ game — it says a whole arc, not just
+    # a night. Priority also scales with length inside the detector's facts.
+    StoryType.PLAYER_STREAK_SCORING: 84,
+    StoryType.PLAYER_STREAK_DD: 86,
 }
 
 

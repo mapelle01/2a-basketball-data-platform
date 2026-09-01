@@ -183,6 +183,11 @@ register("season_rebounding_leader", Scope.SEASON)(
 register("season_assist_leader", Scope.SEASON)(
     lambda ctx: _agg.detect_season_assist_leader(ctx.season_code, ctx.round_number, ctx.season)
 )
+register("player_streaks", Scope.SEASON)(
+    lambda ctx: _sea.detect_player_streaks(
+        ctx.season_code, ctx.round_number, ctx.player_lines, ctx.season_context)
+    if ctx.season_context is not None else []
+)
 
 
 def _one(story: Optional[StoryObject]) -> List[StoryObject]:

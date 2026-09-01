@@ -28,7 +28,11 @@ from ..repositories.interfaces import (
 from ...domain.content.bio import LeagueBio, normalize_position
 from ...domain.content.insights import MatchFactsInput, PlayerLineInput
 from ...domain.content.season_aggregate import PlayerSeasonLine, SeasonAggregate
-from ...domain.content.season_insights import SEASON_HIGH_MIN_POINTS, SeasonContext
+from ...domain.content.season_insights import (
+    SEASON_HIGH_MIN_POINTS,
+    GameLine,
+    SeasonContext,
+)
 from ...domain.match.model import Match
 from ...domain.statistics.model import TeamLeaderboardMetric
 from ...domain.value_objects import MatchStatus, SeasonCode
@@ -100,6 +104,7 @@ class LiveContentAdapter:
             as_of = max(dates)
         return SeasonContext(
             player_history=self._player_history(season, inputs.player_lines, as_of),
+            player_game_log=self._player_game_log(season, inputs.player_lines, as_of),
             team_results=self._team_results(season, inputs.matches),
             team_rank=self._team_rank(season),
         )
@@ -224,6 +229,34 @@ class LiveContentAdapter:
             if seq:
                 results[tid] = seq
         return results
+
+    def _player_game_log(
+        self, season: SeasonCode, player_lines: Sequence[PlayerLineInput],
+        as_of: Optional[datetime] = None,
+    ) -> Dict[str, Tuple[GameLine, ...]]:
+        """Full per-game log for every player who appears in the current round,
+        ordered chronologically and cut at ``as_of``. The rachas detector needs
+        this to reason over consecutive-game runs (double-doubles, 20+ nights)
+        — a points-only history is not enough."""
+        log: Dict[str, Tuple[GameLine, ...]] = {}
+        for p in player_lines:
+            pid = p.player_external_id
+            if pid in log:
+                continue
+            stats = self._stats.list_player_stats_by_season(pid, season)
+            ordered = sorted(
+                (s for s in stats
+                 if as_of is None or (s.played_at is not None and s.played_at <= as_of)),
+                key=lambda s: (s.played_at or datetime.min),
+            )
+            if ordered:
+                log[pid] = tuple(
+                    GameLine(points=s.points, rebounds=s.rebounds, assists=s.assists,
+                             steals=getattr(s, "steals", 0),
+                             blocks=getattr(s, "blocks", 0))
+                    for s in ordered
+                )
+        return log
 
     def _player_history(
         self, season: SeasonCode, player_lines: Sequence[PlayerLineInput],
