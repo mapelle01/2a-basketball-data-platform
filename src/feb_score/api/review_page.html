@@ -4,22 +4,32 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cola · FEB SCORE!</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap">
 <style>
 :root{
-  --bg:#0B0A0A; --panel:#141212; --panel-2:#1C1919; --ink:#F7F5F4; --ink-2:#CFC9C7;
-  --grey:#918B89; --rule:#2A2626; --red:#FF2A22;
+  --bg:#0A0A0A; --panel:#14161A; --panel-2:#16181C; --ink:#F2F3F4; --ink-2:#C9CDD3;
+  --grey:#8A8F98; --rule:#23262B; --rule-2:#2E3238; --red:#E10600;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);
   font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:15px}
-header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--rule);
-  padding:20px 28px;display:flex;align-items:baseline;gap:20px 20px;flex-wrap:wrap}
-h1{margin:0;font-size:20px;font-weight:900;letter-spacing:-.03em}
-h1 span{color:var(--red)}
-.counts{color:var(--grey);font-size:12.5px}
-.filters{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
-button{font:inherit;cursor:pointer;border:1px solid var(--rule);background:var(--panel);
-  color:var(--ink-2);padding:6px 12px;font-size:12px;letter-spacing:.04em}
+header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--rule)}
+.topbar{display:flex;align-items:center;gap:24px;padding:0 28px;height:56px;border-bottom:1px solid var(--rule)}
+.brand{font-weight:900;font-size:16px;letter-spacing:-.03em}
+.brand i{font-style:normal;color:var(--red)}
+nav{display:flex;gap:24px;margin-left:8px}
+nav a{font-weight:600;font-size:12px;letter-spacing:.06em;color:var(--grey);padding:18px 0;position:relative;text-decoration:none}
+nav a:hover{color:var(--ink)}
+nav a.on{color:var(--ink)}
+nav a.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--red)}
+nav a[aria-disabled]{color:var(--rule-2);cursor:default}
+.spacer{flex:1}
+.counts{color:var(--grey);font-size:12px;font-weight:600}
+.filters{display:flex;gap:6px;flex-wrap:wrap;padding:14px 28px 0}
+button{font:inherit;cursor:pointer;border:1px solid var(--rule-2);background:var(--panel);border-radius:4px;
+  color:var(--ink-2);padding:7px 12px;font-size:12px;font-weight:600;letter-spacing:.04em}
 button:hover:not(:disabled){border-color:var(--grey)}
 button:disabled{opacity:.5;cursor:default}
 button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:700}
@@ -31,12 +41,12 @@ main{padding:0 28px 80px}
 .gen{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .gen label{font-size:11.5px;color:var(--grey);letter-spacing:.04em}
 .gen input,.gen select{font:inherit;font-size:13px;padding:7px 9px;background:var(--panel-2);
-  border:1px solid var(--rule);color:var(--ink);width:96px}
+  border:1px solid var(--rule-2);color:var(--ink);width:96px;border-radius:4px}
 .gen select{width:auto;min-width:120px}
 .gen input.round{width:64px}
-.gen .go{border-color:var(--ink);color:var(--ink);font-weight:700}
+.gen .go{background:var(--red);border-color:var(--red);color:#fff;font-weight:700}
 input[type=password]{flex:1;min-width:200px;max-width:340px;font:inherit;font-size:12.5px;
-  padding:7px 10px;background:var(--panel-2);border:1px solid var(--rule);color:var(--ink)}
+  padding:7px 10px;background:var(--panel-2);border:1px solid var(--rule-2);color:var(--ink);border-radius:4px}
 .note{color:var(--grey);font-size:11.5px}
 .genmsg{font-size:12px;color:var(--ink-2);min-height:16px;flex-basis:100%}
 
@@ -44,16 +54,16 @@ input[type=password]{flex:1;min-width:200px;max-width:340px;font:inherit;font-si
 .overview{margin:22px 0 4px;display:flex;flex-direction:column;gap:6px}
 .ov-title{font-size:11px;letter-spacing:.14em;color:var(--grey);text-transform:uppercase}
 .ov-rounds{display:flex;gap:8px;flex-wrap:wrap}
-.ov-round{border:1px solid var(--rule);background:var(--panel);padding:8px 11px;min-width:120px}
+.ov-round{border:1px solid var(--rule);background:var(--panel);padding:8px 11px;min-width:120px;border-radius:6px}
 .ov-round b{font-size:13px;font-weight:800;letter-spacing:-.01em}
 .ov-round .season{color:var(--grey);font-weight:400;font-size:11px}
 .ov-line{margin-top:5px;font-size:11px;color:var(--grey);display:flex;gap:8px;flex-wrap:wrap}
-.ov-line .p{color:#E6C84A}.ov-line .a{color:var(--ink)}.ov-line .pub{color:var(--red)}
+.ov-line .p{color:var(--grey)}.ov-line .a{color:var(--ink)}.ov-line .pub{color:var(--ink-2)}
 
 main>h2{margin:26px 0 14px;font-size:12px;letter-spacing:.14em;color:var(--grey);
   text-transform:uppercase;font-weight:700}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:22px}
-.card{background:var(--panel);border:1px solid var(--rule);display:flex;flex-direction:column}
+.card{background:var(--panel);border:1px solid var(--rule);display:flex;flex-direction:column;border-radius:8px;overflow:hidden}
 .thumb{background:#000;aspect-ratio:1080/1350;overflow:hidden}
 .thumb img{width:100%;height:100%;object-fit:contain;display:block}
 .meta{padding:15px 17px 17px;display:flex;flex-direction:column;gap:8px;flex:1}
@@ -106,12 +116,19 @@ a.btn:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 </head>
 <body>
 <header>
-  <h1>Cola FEB SCORE<span>!</span></h1>
-  <a class="home" href="/v1/images/gallery" style="color:var(--grey);font-size:12.5px;text-decoration:none">galería de imágenes →</a>
-  <a class="home" href="/v1/explore" style="color:var(--grey);font-size:12.5px;text-decoration:none">explorador →</a>
-  <span class="counts" id="counts">cargando…</span>
+  <div class="topbar">
+    <span class="brand">FEB SCORE<i>!</i></span>
+    <nav>
+      <a href="/v1/explore">EXPLORADOR</a>
+      <a aria-disabled="true" title="Próximamente">CONTENIDO</a>
+      <a href="/v1/images/gallery">IMÁGENES</a>
+      <a href="/v1/content/review" class="on">COLA</a>
+    </nav>
+    <span class="spacer"></span>
+    <span class="counts" id="counts">cargando…</span>
+  </div>
   <div class="filters" id="filters"></div>
-  <div class="bar">
+  <div class="bar" style="padding:14px 28px 16px">
     <div class="gen">
       <label>Generar jornada</label>
       <select id="gseason"><option>cargando…</option></select>
