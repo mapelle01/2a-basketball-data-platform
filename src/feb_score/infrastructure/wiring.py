@@ -876,6 +876,22 @@ class _GatewayBase(CommandGateway):
         # over the FEB photo, so the explorer shows the face a card would.
         from .rendering.feb_image_assets import PLAYER_PHOTO_URL
         overrides = self._image_override_repo.list_meta()
+        # Media DB status per player (the render path already respects the
+        # licence via select(); this is the discreet at-a-glance indicator).
+        from collections import defaultdict as _dd
+        media_by = _dd(list)
+        for m in self._media_asset_repo.list_meta("player"):
+            media_by[m.external_id].append(m)
+
+        def photo_status(pid):
+            if ("player", pid) in overrides:
+                return "approved"        # an operator image, already usable
+            ms = media_by.get(pid)
+            if ms and any(m.approved for m in ms):
+                return "approved"
+            if ms:
+                return "pending"         # material exists but nothing approved
+            return "none"
 
         # Season FEB Rating (average of the per-game notes) and VAL (official
         # valuation, summed) — derived from the per-game blobs, which carry the
@@ -927,6 +943,7 @@ class _GatewayBase(CommandGateway):
                 # (average of the game notes); None when unavailable, never 0.
                 "val": val_sum.get(pid) if val_n.get(pid) else None,
                 "feb": round(feb_sum[pid] / feb_n[pid], 1) if feb_n.get(pid) else None,
+                "photo_status": photo_status(pid),
                 "image_url": (f"/v1/images/player/{pid}"
                               if ("player", pid) in overrides
                               else PLAYER_PHOTO_URL.format(player_external_id=pid)),

@@ -116,6 +116,11 @@ tr.sel .cbx,.cbx.on{background:var(--red);border-color:var(--red)}
 .cbx.on::after{content:"";position:absolute;left:5px;top:1px;width:4px;height:9px;
   border:solid var(--white);border-width:0 2px 2px 0;transform:rotate(45deg)}
 td.who{display:flex;align-items:center;gap:var(--s2);cursor:pointer}
+.av{position:relative;flex:none;line-height:0}
+.dot{position:absolute;right:-3px;bottom:-3px;width:9px;height:9px;border-radius:50%;
+  border:2px solid var(--black);box-sizing:content-box}
+.dot.approved{background:var(--lgrey)}
+.dot.pending{background:var(--black);box-shadow:inset 0 0 0 2px var(--grey)}
 td.who .pic{width:40px;height:40px;border-radius:6px;object-fit:cover;object-position:50% 0;
   background:var(--field);flex:none}
 td.who .ph{width:40px;height:40px;border-radius:6px;background:var(--field);color:var(--grey);
@@ -499,7 +504,7 @@ function rowHTML(row,i){
   return `<tr class="${on?"sel":""}" data-pid="${esc(row.player_external_id)}">
     <td class="chk"><span class="cbx ${on?"on":""}" data-toggle></span></td>
     <td class="l"><div class="who" data-open>
-      <span class="rk">${i+1}</span>${img}
+      <span class="rk">${i+1}</span><span class="av">${img}${dot(row.photo_status)}</span>
       <span><span class="nm">${esc(row.name)}</span><br>
       <span class="sub">${row.team_name?esc(row.team_name):"—"}</span></span>
     </div></td>${tds}</tr>`;
@@ -662,6 +667,11 @@ async function doCreate(){
 }
 
 // ---- player drawer ----------------------------------------------------------
+function dot(st){
+  if(st==="approved") return '<span class="dot approved" title="Imagen aprobada"></span>';
+  if(st==="pending")  return '<span class="dot pending" title="Material pendiente de aprobar"></span>';
+  return "";
+}
 function rowById(pid){ return ALL.find(r=>r.player_external_id===pid); }
 const DRAWER_STATS=["games_played","points","rebounds","assists","steals","blocks","turnovers","minutes"];
 function dTotal(row,k){
@@ -681,8 +691,10 @@ function openDrawer(pid){
   const img=row.image_url
     ? `<img class="pic" src="${esc(row.image_url)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ph',textContent:'${esc(initials(row.name))}'}))">`
     : `<div class="ph">${esc(initials(row.name))}</div>`;
+  const MEDIA={approved:"Imagen aprobada",pending:"Material pendiente",none:"Sin material"};
   const chips=[row.position,row.nationality,row.age!=null?row.age+" años":null]
-    .filter(Boolean).map(c=>`<span class="chip">${esc(c)}</span>`).join("");
+    .filter(Boolean).map(c=>`<span class="chip">${esc(c)}</span>`).join("")
+    + `<span class="chip">${esc(MEDIA[row.photo_status]||"—")}</span>`;
   const statRows=DRAWER_STATS.map(k=>{
     const m=METRICS.find(x=>x.k===k);
     return `<div class="r"><span class="k">${esc(m.name)}</span><span class="tot">${dTotal(row,k)}</span><span class="pg">${dPg(row,k)}</span></div>`;

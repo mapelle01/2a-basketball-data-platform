@@ -499,3 +499,39 @@ class TestSeasonInsights:
 
     def test_a_malformed_season_is_rejected(self, client):
         assert client.get("/v1/explore/insights?season=mañana").status_code == 400
+
+
+class TestPhotoStatus:
+    """The Media DB status shown in the rows: approved / pending / none — the
+    render path still enforces the licence via select(); this is the indicator."""
+
+    def _seed_one(self, client):
+        from feb_score.domain.statistics.model import PlayerStats
+        from feb_score.domain.value_objects import SeasonCode
+        from feb_score.infrastructure.persistence.repositories import SqliteMatchStatsRepository
+        db = client.app.state.gateway.db
+        stats = SqliteMatchStatsRepository(db)
+        for pid in ("has_ovr", "has_media", "nothing"):
+            stats.save_player_stats("M1", SeasonCode(SEASON), [
+                PlayerStats(player_external_id=pid, team_external_id="tA",
+                    points=10, rebounds=4, assists=2, minutes=20.0)])
+        return db
+
+    def test_override_reads_as_approved(self, client):
+        self._seed_one(client)
+        client.app.state.gateway._image_override_repo.put("player", "has_ovr", b"x", "image/png")
+        rows = {r["player_external_id"]: r for r in _q(client).json()["rows"]}
+        assert rows["has_ovr"]["photo_status"] == "approved"
+
+    def test_unapproved_media_reads_as_pending_and_none_otherwise(self, client):
+        self._seed_one(client)
+        client.app.state.gateway._media_asset_repo.add("player", "has_media", b"x", "image/png", approved=False)
+        rows = {r["player_external_id"]: r for r in _q(client).json()["rows"]}
+        assert rows["has_media"]["photo_status"] == "pending"
+        assert rows["nothing"]["photo_status"] == "none"
+
+    def test_approved_media_reads_as_approved(self, client):
+        self._seed_one(client)
+        client.app.state.gateway._media_asset_repo.add("player", "has_media", b"x", "image/png", approved=True)
+        rows = {r["player_external_id"]: r for r in _q(client).json()["rows"]}
+        assert rows["has_media"]["photo_status"] == "approved"
