@@ -325,11 +325,14 @@ class CommandGateway(ABC):
         self, season_code: str, *, player_id: str, metric: str = "points",
         per_game: bool = False, title: str, subtitle: Optional[str] = None,
         scope_label: Optional[str] = None, hero_style: str = "crest",
+        hero_kind: Optional[str] = None,
     ) -> Dict[str, Any]:
         """One player rendered as a single hero card, from a query. Two visual
         variants share the same facts: ``crest`` (photo-less, crest silhouette)
-        and ``photo`` (player photo centrepiece). Figures re-read server-side;
-        raises ValueError on bad input. Returns the item."""
+        and ``photo`` (player photo centrepiece). ``hero_kind`` picks the
+        number: ``average`` (season / games), ``total`` (season aggregate),
+        or ``peak`` (single-game max). Figures re-read server-side; raises
+        ValueError on bad input. Returns the item."""
         raise NotImplementedError
 
     @abstractmethod

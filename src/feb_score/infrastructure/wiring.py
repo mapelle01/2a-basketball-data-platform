@@ -1070,16 +1070,28 @@ class _GatewayBase(CommandGateway):
         "minutes": "MINUTOS", "games_played": "PARTIDOS",
     }
 
+    _HERO_KINDS = ("average", "total", "peak")
+
     def create_stat_hero(
         self, season_code: str, *, player_id: str, metric: str = "points",
         per_game: bool = False, title: str, subtitle: Optional[str] = None,
         scope_label: Optional[str] = None, hero_style: str = "crest",
+        hero_kind: Optional[str] = None,
     ) -> Dict[str, Any]:
         """One player as a single hero card, built from a query. Two visual
         variants share the same facts: ``crest`` (photo-less, crest silhouette
         identity) and ``photo`` (player photo as the centrepiece). The caller
         sends the player, the words, and the style; the figures are re-read
-        here, never posted by the client."""
+        here, never posted by the client.
+
+        ``hero_kind`` decides what number is the protagonist:
+          * ``average`` — season total / games (also the default when per_game).
+          * ``total``   — season aggregate.
+          * ``peak``    — the SINGLE-GAME peak for that metric. This is what
+            a "récord de la temporada" is really claiming; without it, a card
+            built from a records row would render the season average, and the
+            claim on the card would not match what the operator picked.
+        """
         from ..domain.content.story import StoryObject, StoryEntities, StoryType
 
         title = (title or "").strip()
@@ -1089,6 +1101,11 @@ class _GatewayBase(CommandGateway):
             raise ValueError(f"metric must be one of {', '.join(self.EXPLORE_METRICS)}")
         if hero_style not in ("crest", "photo"):
             raise ValueError("hero_style must be 'crest' or 'photo'")
+        # Default hero_kind: whatever per_game said (backwards-compatible).
+        if hero_kind is None:
+            hero_kind = "average" if per_game else "total"
+        if hero_kind not in self._HERO_KINDS:
+            raise ValueError(f"hero_kind must be one of {', '.join(self._HERO_KINDS)}")
         row = next((r for r in self.explore_players(season_code, limit=600)["rows"]
                     if r["player_external_id"] == player_id), None)
         if row is None:
@@ -1099,14 +1116,46 @@ class _GatewayBase(CommandGateway):
         games = row["games_played"] or 0
         per = round(total / games, 1) if games else 0.0
         label = self.METRIC_LABELS.get(metric, metric.upper())
-        hero_label = (f"{label} POR PARTIDO" if per_game
-                      else (label if metric in ("games_played",) else f"{label} TOTALES"))
+
+        # ``peak`` means "the best single game", not the season aggregate — the
+        # detector reads the per-game lines and finds the max for the metric so
+        # the card claims a number that actually happened in one game.
+        peak_value = None
+        if hero_kind == "peak":
+            from ..domain.value_objects import SeasonCode
+            lines = list(self._stats_repo.list_player_stats_by_season(
+                player_id, SeasonCode(season_code)))
+            if lines:
+                peak_line = max(lines, key=lambda l: getattr(l, metric, 0))
+                peak_value = getattr(peak_line, metric, 0)
+            if not peak_value:
+                raise ValueError("no per-game data for that metric")
+
+        if hero_kind == "peak":
+            hero_value_raw = peak_value
+            hero_label = f"{label} EN UN PARTIDO"
+        elif hero_kind == "average":
+            hero_value_raw = per
+            hero_label = f"{label} POR PARTIDO"
+        else:  # total
+            hero_value_raw = total
+            hero_label = label if metric in ("games_played",) else f"{label} TOTALES"
+
         kicker = scope_label or f"Temporada {season_code[:4]}-{season_code[-2:]}"
+        # Supporting stats: for total/average cards the games + per-game frame
+        # the aggregate; for a peak card the frame is "here's the peak, and this
+        # is the season it sits inside" (games + season average).
+        secondary = (
+            [[games, "PART"], [self._es_number(per), "MEDIA"]]
+            if hero_kind == "peak"
+            else [[games, "PART"], [self._es_number(per), self.PG_LABELS.get(metric, "/P")]]
+        )
+        badge = "RÉCORD" if hero_kind == "peak" else self._HERO_BADGE.get(metric, label)
         facts = {
             "section_label": title, "subtitle": subtitle or "",
-            "hero_value": self._es_number(per if per_game else total),
+            "hero_value": self._es_number(hero_value_raw),
             "hero_label": hero_label,
-            "secondary": [[games, "PART"], [self._es_number(per), self.PG_LABELS.get(metric, "/P")]],
+            "secondary": secondary,
             "rating": row.get("feb"), "kicker": kicker.upper(),
             "player_name": row["name"], "team_name": row["team_name"],
             "team_external_id": row["team_external_id"], "player_external_id": player_id,
@@ -1115,7 +1164,8 @@ class _GatewayBase(CommandGateway):
             # crest renderer ignores badge_label; the photo one uses it so the
             # portrait carries context beyond the number.
             "hero_style": hero_style,
-            "badge_label": self._HERO_BADGE.get(metric, label),
+            "hero_kind": hero_kind,
+            "badge_label": badge,
         }
         story = StoryObject(
             story_type=StoryType.CUSTOM_HERO, season_code=season_code, round_number=None,

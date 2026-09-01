@@ -166,7 +166,7 @@ def register_explorer_routes(app: FastAPI) -> None:
                     body.season, player_id=body.player_ids[0], metric=body.metric,
                     per_game=body.per_game, title=body.title,
                     subtitle=body.subtitle, scope_label=body.scope_label,
-                    hero_style=body.hero_style)
+                    hero_style=body.hero_style, hero_kind=body.hero_kind)
             else:
                 item = request.app.state.gateway.create_custom_five(
                     body.season, title=body.title, subtitle=body.subtitle,
@@ -212,6 +212,10 @@ class CustomFiveRequest(BaseModel):
     # Only used when template == "hero": "crest" is the photo-less silhouette
     # variant (default) and "photo" is the player-photo centrepiece variant.
     hero_style: str = "crest"
+    # Only used when template == "hero": which NUMBER is the protagonist.
+    # None lets the server default from per_game; "peak" is the single-game max
+    # (what a "récord de la temporada" click actually claims).
+    hero_kind: Optional[str] = None
     title: str = Field(..., min_length=1, max_length=80)
     subtitle: str = Field("", max_length=80)
     scope_label: Optional[str] = Field(None, max_length=40)

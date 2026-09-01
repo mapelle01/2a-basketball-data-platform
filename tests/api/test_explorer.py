@@ -285,6 +285,45 @@ class TestQueryToCard:
         assert item["template_id"] == "stat_hero"
         assert item["story"]["facts"]["hero_style"] == "crest"
 
+    def test_hero_kind_peak_uses_the_single_game_max_not_the_season_average(self, client):
+        """A card built from a "récord de la temporada" click MUST claim the
+        single-game peak, not the season average — otherwise a 40-point record
+        renders as "13,3 PPP" and the card lies about what the operator picked.
+        p1 has 10 games of 20 pts each -> season 200, average 20, peak 20; use
+        p2 with a spike so the peak differs from the average."""
+        # Seed p1..p3 as usual, then plant one huge game for p1 so the peak
+        # (40) differs cleanly from the average (~24).
+        _seed(client)
+        stats = SqliteMatchStatsRepository(client.app.state.gateway.db)
+        stats.save_player_stats("SPIKE-p1", SeasonCode(SEASON), [
+            PlayerStats(player_external_id="p1", team_external_id="tA",
+                        points=40, rebounds=5, assists=1, steals=0, blocks=0,
+                        turnovers=1, minutes=30.0),
+        ])
+        r = self._card(client, template="hero", player_ids=["p1"], title="X",
+                       hero_kind="peak")
+        assert r.status_code == 201, r.text
+        facts = r.json()["story"]["facts"]
+        assert facts["hero_value"] == "40"
+        assert "EN UN PARTIDO" in facts["hero_label"]
+        assert facts["hero_kind"] == "peak"
+        assert facts["badge_label"] == "RÉCORD"
+
+    def test_hero_kind_defaults_from_per_game(self, client):
+        _seed(client)
+        avg = self._card(client, template="hero", player_ids=["p2"], title="X",
+                         per_game=True).json()["story"]["facts"]
+        assert avg["hero_kind"] == "average"
+        tot = self._card(client, template="hero", player_ids=["p2"], title="X",
+                         per_game=False).json()["story"]["facts"]
+        assert tot["hero_kind"] == "total"
+
+    def test_hero_kind_must_be_valid(self, client):
+        _seed(client)
+        r = self._card(client, template="hero", player_ids=["p2"], title="X",
+                       hero_kind="banana")
+        assert r.status_code == 400
+
     def test_hero_style_photo_routes_to_the_photo_layout(self, client):
         """Passing hero_style="photo" swaps the layout without changing the
         figures — the same story renders on the player-photo template."""

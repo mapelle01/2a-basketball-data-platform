@@ -614,7 +614,7 @@ async function ensureInsights(){
   }catch(e){ showState("error"); }
 }
 function renderDiscover(d){
-  const recCard=r=>`<div class="rec" data-pid="${esc(r.player_external_id)}" data-metric="${esc(r.metric||'points')}" data-pg="1" data-ignore-filters="1">
+  const recCard=r=>`<div class="rec" data-pid="${esc(r.player_external_id)}" data-metric="${esc(r.metric||'points')}" data-pg="0" data-kind="peak" data-ignore-filters="1">
       <div class="k">${esc(r.label)}</div>
       <div class="v">${esc(String(r.value).replace('.',','))}</div>
       <div class="who4"><span class="n">${esc(r.player)}</span> · <span class="tm">${esc(r.team||"—")}</span></div></div>`;
@@ -716,8 +716,9 @@ async function doCreate(){
   const pg = useIntent ? !!createIntent.per_game : perGame;
   const ignoreFilters = useIntent && !!createIntent.ignore_filters;
   const style = (document.querySelector('input[name="mStyle"]:checked')||{}).value || "crest";
+  const heroKind = useIntent ? (createIntent.hero_kind || null) : null;
   const body={ season:el("season").value, title, template:el("mTpl").value,
-    hero_style:style,
+    hero_style:style, hero_kind:heroKind,
     scope_label:el("mScope").value.trim()||null, show_rank:el("mRank").checked,
     player_ids:[...sel],
     metric:["games_played","val","feb"].includes(metricRaw)?"points":metricRaw,
@@ -878,6 +879,10 @@ el("insights").addEventListener("click",e=>{
   createIntent = r.dataset.metric ? {
     metric: r.dataset.metric,
     per_game: r.dataset.pg === "1",
+    // "peak" tells the server this is a single-game record (a records-row
+    // click), not the season average — the card would otherwise show 13,3 ppp
+    // for a 40-point single-game record and lie about what the operator picked.
+    hero_kind: r.dataset.kind || null,
     ignore_filters: r.dataset.ignoreFilters === "1",
   } : null;
   openDrawer(r.dataset.pid);
