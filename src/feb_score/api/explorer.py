@@ -81,6 +81,27 @@ def register_explorer_routes(app: FastAPI) -> None:
         except ValueError as exc:
             return err.error_response(404, "NO_RECAP", str(exc))
 
+    @app.post(
+        "/v1/explore/season-dd-leader",
+        tags=["explorer"],
+        summary="Season retrospective: the player with the most double-doubles",
+        status_code=201,
+        description="One-click season summary. Finds the double-double leader "
+        "of the season and generates a hero card with the DD count as the "
+        "protagonist and the triple-double count as extras. Authenticated.",
+    )
+    def create_season_dd_leader_card(body: SeasonLeaderRequest, request: Request):
+        auth: AuthenticationProvider = request.app.state.auth
+        if auth.authenticate(request) is None:
+            return err.error_response(401, "UNAUTHENTICATED", "API key required")
+        if not _SEASON_RE.match(body.season):
+            return err.error_response(
+                400, "INVALID_PARAMETER", "season must look like 2024-2025")
+        try:
+            return request.app.state.gateway.create_season_dd_leader_card(body.season)
+        except ValueError as exc:
+            return err.error_response(404, "NO_DATA", str(exc))
+
     @app.get(
         "/v1/explore/insights",
         tags=["explorer"],
@@ -196,6 +217,13 @@ class RoundRecapRequest(BaseModel):
 
     season: str
     round_number: int = Field(..., ge=1, description="Round to recap")
+
+
+class SeasonLeaderRequest(BaseModel):
+    """A season retrospective card. Carries only the season — every figure is
+    computed and validated server-side."""
+
+    season: str
 
 
 class CustomFiveRequest(BaseModel):

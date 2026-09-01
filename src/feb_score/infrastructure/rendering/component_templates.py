@@ -930,11 +930,21 @@ def render_player_streak(data: Dict[str, Any]) -> str:
     )
 
     # SMALL LABEL under the number.
-    body.append(C.text(num_center_x,
-                       num_center_y + num_size * 0.36 + FontSize.LABEL + Spacing.MD,
+    label_baseline = num_center_y + num_size * 0.36 + FontSize.LABEL + Spacing.MD
+    body.append(C.text(num_center_x, label_baseline,
                        hlab.upper(), size=FontSize.LABEL, weight=FontWeight.LABEL,
                        fill=Color.RED, tracking=LetterSpacing.CAPS, upper=True,
                        anchor="middle"))
+    # OPTIONAL EXTRAS — one small line under the label (e.g. "+2 TRIPLES-DOBLES"
+    # on a season DD leader card). Absent facts collapse the block cleanly.
+    extras = str(facts.get("extras_label") or "").strip()
+    if extras:
+        body.append(C.text(num_center_x,
+                           label_baseline + FontSize.LABEL + Spacing.SM,
+                           extras.upper(), size=FontSize.LABEL - 2,
+                           weight=FontWeight.LABEL, fill=Color.GREY,
+                           tracking=LetterSpacing.CAPS, upper=True,
+                           anchor="middle"))
 
     # PLAYER NAME + TEAM at the bottom-left. Two lines when a long name would
     # otherwise crowd the photo column; kept in one when it comfortably fits.

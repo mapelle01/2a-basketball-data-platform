@@ -745,6 +745,33 @@ def generate_copy_player_streak_scoring(story: Dict[str, Any]) -> CopyContract:
     )
 
 
+def generate_copy_season_dd_leader(story: Dict[str, Any]) -> CopyContract:
+    """Season retrospective: the player with the most double-doubles in the
+    year, with TDs as the auxiliary flex. Nothing invented — all figures
+    already computed and stored in facts by the gateway."""
+    f = story["facts"]
+    player = f.get("player_name") or f.get("player_external_id", "El jugador")
+    team = f.get("team_name") or ""
+    dd = f.get("hero_value") or f.get("dd_count") or 0
+    td = f.get("td_count") or 0
+    season = story.get("season_code", "")
+
+    headline = player
+    subtitle = f"{dd} dobles-dobles en la temporada"
+    where = f" ({team})" if team else ""
+    td_line = f", más {td} triple-doble{'s' if td != 1 else ''}" if td else ""
+    caption = (
+        f"{player}{where} cierra la temporada {season[:4]}-{season[-2:]} con "
+        f"{dd} dobles-dobles{td_line}. El jugador con más dobles-dobles de la "
+        f"Segunda FEB este año."
+    )
+    hashtags = BASE_HASHTAGS + ("DobleDoble", "Temporada",)
+    return CopyContract(
+        headline=headline, subtitle=subtitle, caption=caption, hashtags=hashtags,
+        facts_used=("player_name", "team_name", "dd_count", "td_count"),
+    )
+
+
 def generate_copy_player_streak_dd(story: Dict[str, Any]) -> CopyContract:
     f = story["facts"]
     player = f.get("player_name") or f.get("player_external_id", "El jugador")
@@ -800,6 +827,7 @@ _GENERATORS = {
     "best_duo": generate_copy_best_duo,
     "player_streak_scoring": generate_copy_player_streak_scoring,
     "player_streak_dd": generate_copy_player_streak_dd,
+    "season_dd_leader": generate_copy_season_dd_leader,
 }
 
 

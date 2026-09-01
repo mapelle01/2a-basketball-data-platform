@@ -336,6 +336,13 @@ class CommandGateway(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def create_season_dd_leader_card(self, season_code: str) -> Dict[str, Any]:
+        """One card for the player with the most double-doubles in the season,
+        with their triple-double count as the extras line. Figures re-read
+        server-side; raises ValueError when there are no DDs yet."""
+        raise NotImplementedError
+
+    @abstractmethod
     def create_custom_five(
         self, season_code: str, *, title: str, subtitle: str = "",
         scope_label: Optional[str] = None, player_ids: Optional[List[str]] = None,

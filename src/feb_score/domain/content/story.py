@@ -62,6 +62,10 @@ class StoryType(str, Enum):
     # a run this is — 4 partidos de 20+ seguidos, 3 dobles-dobles seguidos.
     PLAYER_STREAK_SCORING = "player_streak_scoring"
     PLAYER_STREAK_DD = "player_streak_dd"
+    # Season-total leaders: total double-doubles / triple-doubles across the
+    # season, not consecutive. Rendered on the same photo-hero layout as the
+    # streak cards — a season-summary card, not a live streak.
+    SEASON_DD_LEADER = "season_dd_leader"
     # TOP_SCORER / TOP_REBOUNDER / TOP_ASSIST_PROVIDER are the SEASON leaders.
 
     # Team-level
@@ -131,6 +135,11 @@ STORY_TO_TEMPLATE: Dict[StoryType, str] = {
     # giant number on the left and the player photo bleeding down the right.
     StoryType.PLAYER_STREAK_SCORING: "player_streak",
     StoryType.PLAYER_STREAK_DD: "player_streak",
+    # Season-total leaders reuse the same layout: the total DD count is the
+    # giant number and the TD count rides as extras. Different story (not a
+    # streak) but the same visual language works because both frame "one
+    # player + one hero count".
+    StoryType.SEASON_DD_LEADER: "player_streak",
 }
 
 
@@ -171,6 +180,8 @@ STORY_LABELS: Dict[StoryType, Dict[str, str]] = {
                                       "badge": "RACHA VIVA"},
     StoryType.PLAYER_STREAK_DD: {"section": "En racha de dobles-dobles",
                                  "badge": "RACHA VIVA"},
+    StoryType.SEASON_DD_LEADER: {"section": "Más dobles-dobles de la temporada",
+                                 "badge": "MÁX. DD"},
 }
 
 

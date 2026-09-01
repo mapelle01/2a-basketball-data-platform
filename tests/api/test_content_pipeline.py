@@ -557,3 +557,67 @@ class TestRoundRecapFromExplorer:
             json={"season": "nope", "round_number": 7}, headers=auth_header("system"),
         )
         assert r.status_code == 400
+
+
+class TestSeasonDDLeaderFromExplorer:
+    """One-click DD leader card. Server finds the leader, builds the card. All
+    figures re-read here so a caller can never inject numbers onto the card."""
+
+    def _seed_dd_leader(self, client):
+        db = _gateway_db(client)
+        SqliteTeamRepository(db).save(Team(
+            external_id=ExternalId("tA"), team_id=TeamId(str(uuid.uuid4())),
+            name="Team A"))
+        SqlitePlayerRepository(db).save(Player(
+            external_id=ExternalId("dd_leader"), player_id=PlayerId(str(uuid.uuid4())),
+            name="MEANA PEREZ, ALONSO"))
+        SqlitePlayerRepository(db).save(Player(
+            external_id=ExternalId("second"), player_id=PlayerId(str(uuid.uuid4())),
+            name="OTHER, PLAYER"))
+        stats = SqliteMatchStatsRepository(db)
+        # dd_leader: 3 DDs, 1 TD  ·  second: 1 DD  →  leader is dd_leader
+        for i in range(3):
+            stats.save_player_stats(f"M-A-{i}", SeasonCode(SEASON), [
+                PlayerStats(player_external_id="dd_leader", team_external_id="tA",
+                            points=15, rebounds=12, assists=3, steals=0, blocks=0,
+                            turnovers=1, minutes=30.0),
+            ])
+        stats.save_player_stats("M-A-TD", SeasonCode(SEASON), [
+            PlayerStats(player_external_id="dd_leader", team_external_id="tA",
+                        points=22, rebounds=11, assists=10, steals=0, blocks=0,
+                        turnovers=1, minutes=32.0),
+        ])
+        stats.save_player_stats("M-B-1", SeasonCode(SEASON), [
+            PlayerStats(player_external_id="second", team_external_id="tA",
+                        points=11, rebounds=10, assists=1, steals=0, blocks=0,
+                        turnovers=1, minutes=25.0),
+        ])
+
+    def test_generates_a_card_for_the_dd_leader(self, client):
+        self._seed_dd_leader(client)
+        r = client.post("/v1/explore/season-dd-leader",
+                        json={"season": SEASON}, headers=auth_header("system"))
+        assert r.status_code == 201, r.text
+        item = r.json()
+        assert item["template_id"] == "player_streak"
+        facts = item["story"]["facts"]
+        assert facts["hero_value"] == 4              # 3 DDs + 1 TD (TD is a DD too)
+        assert facts["td_count"] == 1
+        assert facts["dd_count"] == 4
+        assert "MÁS DOBLES-DOBLES" in facts["section_label"]
+        assert facts["player_name"] == "MEANA PEREZ, ALONSO"
+
+    def test_needs_a_key(self, client):
+        r = client.anon().post("/v1/explore/season-dd-leader",
+                               json={"season": SEASON})
+        assert r.status_code == 401
+
+    def test_a_season_with_no_dds_is_a_404(self, client):
+        r = client.post("/v1/explore/season-dd-leader",
+                        json={"season": "1999-2000"}, headers=auth_header("system"))
+        assert r.status_code == 404
+
+    def test_a_malformed_season_is_rejected(self, client):
+        r = client.post("/v1/explore/season-dd-leader",
+                        json={"season": "no"}, headers=auth_header("system"))
+        assert r.status_code == 400

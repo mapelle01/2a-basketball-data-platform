@@ -63,6 +63,8 @@ TYPE_IMPORTANCE = {
     # a night. Priority also scales with length inside the detector's facts.
     StoryType.PLAYER_STREAK_SCORING: 84,
     StoryType.PLAYER_STREAK_DD: 86,
+    # Season summary is peak editorial material — one card per season, huge.
+    StoryType.SEASON_DD_LEADER: 92,
 }
 
 

@@ -1176,6 +1176,80 @@ class _GatewayBase(CommandGateway):
                          f"2afeb_score://season_player_stats/{season_code}/{player_id}"})
         return self._pipeline().generate_one(story).to_dict()
 
+    def create_season_dd_leader_card(self, season_code: str) -> Dict[str, Any]:
+        """Season retrospective: the player with the most double-doubles this
+        year, with their triple-double count riding as the extras line. All
+        figures re-read here from the per-game store; nothing invented, nothing
+        posted by the caller. Fails cleanly when the season has no DDs yet.
+        """
+        from collections import defaultdict
+        from ..domain.content.story import StoryObject, StoryEntities, StoryType
+        from ..domain.value_objects import SeasonCode
+
+        season = SeasonCode(season_code)
+        lines = list(self._stats_repo.list_season_player_lines(season))
+        if not lines:
+            raise ValueError("no player lines for that season")
+
+        def _kinds(l):
+            return sum(1 for x in (l.points, l.rebounds, l.assists, l.steals, l.blocks)
+                       if x >= 10)
+        dd: Dict[str, int] = defaultdict(int)
+        td: Dict[str, int] = defaultdict(int)
+        for l in lines:
+            n = _kinds(l)
+            if n >= 2:
+                dd[l.player_external_id] += 1
+            if n >= 3:
+                td[l.player_external_id] += 1
+
+        if not dd:
+            raise ValueError("no double-doubles in this season yet")
+        leader_id = max(dd, key=lambda pid: (dd[pid], td.get(pid, 0)))
+        leader_dd = dd[leader_id]
+        leader_td = td.get(leader_id, 0)
+
+        player = self._player_repo.get_by_external_id(leader_id)
+        player_name = player.name if player is not None else leader_id
+        player_teams = self._stats_repo.list_season_player_teams(season)
+        team_id = player_teams.get(leader_id, "")
+        team = self._team_repo.get_by_external_id(team_id) if team_id else None
+        team_name = team.name if team is not None else team_id
+
+        year1, year2 = season_code[:4], season_code[-2:]
+        extras = ""
+        if leader_td:
+            extras = f"+{leader_td} triple-doble{'s' if leader_td != 1 else ''}"
+
+        facts = {
+            "hero_value": leader_dd,
+            "hero_label": "DOBLES-DOBLES",
+            "section_label": "MÁS DOBLES-DOBLES DE LA TEMPORADA",
+            "extras_label": extras,
+            "kicker": f"TEMPORADA {year1}-{year2}",
+            # Satisfy the player_streak template contract (streak_length +
+            # streak_kind). Kind marks this row as a season TOTAL, not an
+            # active or peak consecutive run.
+            "streak_kind": "double_double_total",
+            "streak_length": leader_dd,
+            "dd_count": leader_dd,
+            "td_count": leader_td,
+            "player_external_id": leader_id, "player_name": player_name,
+            "team_external_id": team_id, "team_name": team_name,
+        }
+        story = StoryObject(
+            story_type=StoryType.SEASON_DD_LEADER,
+            season_code=season_code, round_number=None,
+            entities=StoryEntities(
+                player_external_id=leader_id, team_external_id=team_id),
+            facts=facts,
+            source_refs={
+                "season_player_stats":
+                    f"2afeb_score://season_player_stats/{season_code}",
+            },
+        )
+        return self._pipeline().generate_one(story).to_dict()
+
     def create_custom_five(
         self, season_code: str, *, title: str, subtitle: str = "",
         scope_label: Optional[str] = None, player_ids: Optional[List[str]] = None,
