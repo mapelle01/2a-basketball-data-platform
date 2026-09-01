@@ -1550,6 +1550,15 @@ class _GatewayBase(CommandGateway):
         removed = self._pipeline().queue.purge()
         return {"removed": removed}
 
+    def delete_content_item(self, content_id: str) -> bool:
+        """Discard one item outright — the operator asked for it (from Ideas
+        preview or the Cola row). Unconditional at any status; the queue is
+        the operator's tool, not a sacred ledger."""
+        queue = self._pipeline().queue
+        if not hasattr(queue, "delete"):
+            raise NotImplementedError("queue backend does not support delete")
+        return queue.delete(content_id)
+
     # ----------------------------------------------- content lifecycle actions
     def _lifecycle(self):
         if self._content_lifecycle is None:

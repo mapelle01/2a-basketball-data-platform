@@ -152,6 +152,7 @@ a.btn{display:inline-flex;align-items:center;justify-content:center;text-decorat
     <div class="prev-wrap"><img id="pmImg" alt="Vista previa"></div>
     <div class="prev-meta" id="pmMeta"></div>
     <div class="foot">
+      <button class="btn ghost" id="pmDiscard">Descartar</button>
       <button class="btn" id="pmRegen">Regenerar</button>
       <a class="btn primary" id="pmDownload" download>Descargar PNG</a>
       <button class="btn ghost" id="pmClose">Cerrar</button>
@@ -174,6 +175,9 @@ $("savekey").onclick = () => {
 let SEASON = "";
 // Track which idea a click came from so Regenerar knows how to re-issue.
 let LAST_IDEA = null;
+// Map: idea card key -> last generated item. Lets "Ver" reopen the preview
+// without a second network round-trip, and links a card to its Descartar.
+const GENERATED = new Map();
 
 async function loadSeasons(){
   try{
@@ -268,6 +272,12 @@ document.body.addEventListener("click", async e => {
   if(!b) return;
   const act = b.dataset.act;
   const card = b.closest(".idea");
+  // If this card has already been generated, "Ver" reopens the cached preview
+  // instead of hitting the API again — no duplicate items, no wait.
+  if(card && card.classList.contains("done")){
+    const cached = GENERATED.get(card.dataset.key);
+    if(cached){ openPreview(cached.item, cached.label, card.dataset.key); return; }
+  }
   if(act === "dd-leader"){
     await generate({
       label: "Líder de dobles-dobles",
@@ -309,17 +319,23 @@ async function generate({label, url, body, card, button}){
       button.disabled = false; button.textContent = "Generar";
       return;
     }
-    LAST_IDEA = { label, url, body };
+    LAST_IDEA = { label, url, body, cardKey: card.dataset.key };
+    GENERATED.set(card.dataset.key, { item: d, label, url, body });
     button.textContent = "Ver";
     card.classList.add("done");
-    openPreview(d, label);
+    openPreview(d, label, card.dataset.key);
   }catch(e){
     $("msg").textContent = String(e);
     button.disabled = false; button.textContent = "Generar";
   }
 }
 
-function openPreview(item, label){
+// cardKey is stashed so Descartar and Regenerar know which idea card to
+// clear when the operator drops the generated item.
+let CURRENT_CARD_KEY = null;
+function openPreview(item, label, cardKey){
+  CURRENT_CARD_KEY = cardKey || null;
+  window.__currentContentId = item.content_id;
   $("pmTitle").textContent = label;
   $("pmSub").textContent = `id ${item.content_id.slice(0,8)} · ${item.status}`;
   const url = `/v1/content/items/${encodeURIComponent(item.content_id)}/render.png?t=${Date.now()}`;
@@ -335,6 +351,33 @@ function openPreview(item, label){
 }
 
 $("pmClose").onclick = () => $("scrim").classList.remove("open");
+$("pmDiscard").onclick = async () => {
+  if(!window.__currentContentId){ return; }
+  if(!apiKey()){ $("msg").textContent = "Guarda tu clave antes de descartar."; return; }
+  if(!confirm("¿Descartar esta carta? Se borrará de la cola.")) return;
+  $("pmDiscard").disabled = true;
+  try{
+    const r = await fetch(`/v1/content/items/${encodeURIComponent(window.__currentContentId)}`,
+      { method:"DELETE", headers:{"x-api-key":apiKey()} });
+    if(!r.ok && r.status !== 404){
+      const d = await r.json().catch(()=>({}));
+      $("msg").textContent = (d.error&&d.error.message)||("Error "+r.status);
+      return;
+    }
+    // Roll the idea card back to a fresh Generar state so the operator can
+    // try again with different framing.
+    if(CURRENT_CARD_KEY){
+      GENERATED.delete(CURRENT_CARD_KEY);
+      const card = document.querySelector(`.idea[data-key="${CSS.escape(CURRENT_CARD_KEY)}"]`);
+      if(card){
+        card.classList.remove("done");
+        const go = card.querySelector(".go");
+        if(go){ go.disabled = false; go.textContent = "Generar"; }
+      }
+    }
+    $("scrim").classList.remove("open");
+  }finally{ $("pmDiscard").disabled = false; }
+};
 $("scrim").addEventListener("click", e => { if(e.target === $("scrim")) $("scrim").classList.remove("open"); });
 $("pmRegen").onclick = async () => {
   if(!LAST_IDEA){ return; }

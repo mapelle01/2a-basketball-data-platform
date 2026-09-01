@@ -170,6 +170,20 @@ class SqliteContentQueueRepository(_SqliteRepoMixin):
             if owned:
                 conn.close()
 
+    def delete(self, content_id: str) -> bool:
+        """Discard one item outright, at any status. The operator asked for it
+        from the Ideas dashboard or the Cola row, so this is unconditional —
+        published rows too. Returns False when the id was unknown."""
+        conn, owned = self._conn()
+        try:
+            cur = conn.execute(
+                "DELETE FROM content_queue WHERE content_id = ?", (content_id,)
+            )
+            return (cur.rowcount or 0) > 0
+        finally:
+            if owned:
+                conn.close()
+
     def seen_story_type_in_round(
         self, story_type: str, season_code: str, round_number: Optional[int]
     ) -> bool:
@@ -295,6 +309,19 @@ class PgContentQueueRepository(_PgRepoMixin):
         finally:
             if owned:
                 conn.close()
+
+    def delete(self, content_id: str) -> bool:
+        """Discard one item outright, at any status."""
+        conn, owned = self._conn()
+        try:
+            cur = conn.execute(
+                "DELETE FROM content_queue WHERE content_id = %s", (content_id,)
+            )
+            return (cur.rowcount or 0) > 0
+        finally:
+            if owned:
+                conn.close()
+
     def seen_story_type_in_round(
         self, story_type: str, season_code: str, round_number: Optional[int]
     ) -> bool:

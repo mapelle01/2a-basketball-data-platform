@@ -271,6 +271,22 @@ def register_content_routes(app: FastAPI) -> None:
             return err.error_response(401, "UNAUTHENTICATED", "API key required")
         return request.app.state.gateway.purge_content_queue()
 
+    @app.delete(
+        "/v1/content/items/{content_id}",
+        tags=["content"],
+        summary="Discard a single content item",
+        description="Removes one item from the queue at any status — the "
+        "operator asked for it from the Ideas dashboard or the Cola row. "
+        "Authenticated. 404 when the id is unknown.",
+    )
+    def delete_content_item(content_id: str, request: Request):
+        if _authed(request) is None:
+            return err.error_response(401, "UNAUTHENTICATED", "API key required")
+        removed = request.app.state.gateway.delete_content_item(content_id)
+        if not removed:
+            return err.error_response(404, "NOT_FOUND", "content item not found")
+        return {"removed": True, "content_id": content_id}
+
     # ---------------------------------------------------- lifecycle actions
     def _authed(request: Request):
         auth: AuthenticationProvider = request.app.state.auth

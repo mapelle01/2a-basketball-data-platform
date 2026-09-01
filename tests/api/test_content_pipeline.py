@@ -640,3 +640,35 @@ class TestIdeasPage:
         assert "/v1/explore/insights" in html
         assert "/v1/explore/season-dd-leader" in html
         assert "/v1/explore/card" in html
+
+
+class TestDeleteContentItem:
+    """The operator asked for a way to discard cards outright — the queue only
+    ever grows otherwise. DELETE /v1/content/items/{id} removes at any status."""
+
+    def _one(self, client):
+        _seed_round(client)
+        run = client.post("/v1/content/pipeline/rounds/2025-2026/7",
+                          headers=auth_header("system")).json()
+        assert run["items"], "seed round should generate content"
+        return run["items"][0]["content_id"]
+
+    def test_deletes_at_any_status(self, client):
+        cid = self._one(client)
+        # The item exists.
+        assert client.get(f"/v1/content/items/{cid}", headers=auth_header("system")).status_code == 200
+        r = client.delete(f"/v1/content/items/{cid}", headers=auth_header("system"))
+        assert r.status_code == 200
+        # And it's gone from the queue.
+        after = client.get(f"/v1/content/items/{cid}", headers=auth_header("system"))
+        assert after.status_code == 404
+
+    def test_unknown_id_is_404(self, client):
+        r = client.delete(f"/v1/content/items/{uuid.uuid4()}",
+                          headers=auth_header("system"))
+        assert r.status_code == 404
+
+    def test_delete_needs_a_key(self, client):
+        cid = self._one(client)
+        r = client.anon().delete(f"/v1/content/items/{cid}")
+        assert r.status_code == 401
