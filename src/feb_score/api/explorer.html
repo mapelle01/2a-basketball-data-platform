@@ -168,6 +168,54 @@ td.who .ph{width:40px;height:40px;border-radius:6px;background:var(--field);colo
 .modal .foot{display:flex;justify-content:flex-end;gap:var(--s2);margin-top:var(--s2)}
 .msg{font-size:12px;color:var(--grey);min-height:16px;margin-top:6px}
 .msg a{color:var(--red);text-decoration:underline}
+
+/* ---- Player drawer --------------------------------------------------------*/
+.drawer{position:fixed;top:0;right:0;bottom:0;width:400px;max-width:100vw;z-index:60;
+  background:var(--ink);border-left:1px solid var(--rule-2);transform:translateX(100%);
+  transition:transform .18s ease;display:flex;flex-direction:column;overflow-y:auto}
+@media (prefers-reduced-motion:reduce){.drawer{transition:none}}
+.drawer.open{transform:translateX(0)}
+.drawer .dh{display:flex;gap:var(--s2);align-items:flex-start;padding:var(--s4);
+  border-bottom:1px solid var(--rule)}
+.drawer .dh .pic,.drawer .dh .ph{width:56px;height:56px;border-radius:8px;flex:none;
+  object-fit:cover;object-position:50% 0;background:var(--field)}
+.drawer .dh .ph{display:flex;align-items:center;justify-content:center;color:var(--grey);font-weight:800;font-size:16px}
+.drawer .dh h3{margin:0;font-size:18px;font-weight:800;letter-spacing:-.02em;line-height:1.15}
+.drawer .dh .t{color:var(--grey);font-size:12px;font-weight:600;margin-top:2px}
+.drawer .x{margin-left:auto;color:var(--grey);font-size:20px;line-height:1;padding:2px 6px}
+.drawer .x:hover{color:var(--white)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:var(--s2) var(--s4) 0}
+.chip{font-size:11px;font-weight:700;letter-spacing:.04em;color:var(--lgrey);
+  border:1px solid var(--rule-2);border-radius:4px;padding:3px 8px}
+.hero2{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2);padding:var(--s4)}
+.hero2 .b{border:1px solid var(--rule);border-radius:8px;padding:var(--s2)}
+.hero2 .b .k{font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--grey);text-transform:uppercase}
+.hero2 .b .v{font-size:34px;font-weight:900;letter-spacing:-.02em;margin-top:4px}
+.dstats{padding:0 var(--s4) var(--s4)}
+.dstats .r{display:grid;grid-template-columns:1fr auto auto;gap:var(--s2);align-items:baseline;
+  padding:var(--s2) 0;border-top:1px solid var(--rule)}
+.dstats .r .k{font-size:12px;font-weight:600;color:var(--grey);letter-spacing:.04em}
+.dstats .r .tot{font-size:18px;font-weight:800;color:var(--white);text-align:right;min-width:70px}
+.dstats .r .pg{font-size:12px;font-weight:600;color:var(--grey);text-align:right;min-width:70px}
+.dstats .hh{display:grid;grid-template-columns:1fr auto auto;gap:var(--s2);padding-bottom:6px}
+.dstats .hh span{font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--grey);text-transform:uppercase;text-align:right}
+.dstats .hh span:first-child{text-align:left}
+.dactions{margin-top:auto;display:flex;gap:var(--s1);padding:var(--s3) var(--s4);
+  border-top:1px solid var(--rule);position:sticky;bottom:0;background:var(--ink)}
+.dactions .btn{flex:1;height:38px;padding:0 8px}
+
+/* ---- Compare overlay ------------------------------------------------------*/
+.cmp .modal{width:auto;min-width:520px;max-width:calc(100vw - 32px);max-height:calc(100vh - 64px);overflow:auto}
+.cmp table{border-collapse:separate;border-spacing:0;width:100%}
+.cmp th,.cmp td{padding:var(--s2);text-align:right;white-space:nowrap}
+.cmp thead th{position:static;background:none;border-bottom:1px solid var(--rule-2);
+  font-size:12px;font-weight:800;color:var(--white);letter-spacing:-.01em}
+.cmp thead th.l{text-align:left;color:var(--grey);font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+.cmp tbody td{border-bottom:1px solid var(--rule);font-weight:700;color:var(--white);font-size:16px}
+.cmp tbody td.l{text-align:left;color:var(--grey);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+.cmp .who2{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.cmp .who2 .n{font-size:13px;font-weight:800;letter-spacing:-.01em}
+.cmp .who2 .tm{font-size:10px;font-weight:600;color:var(--grey)}
 </style>
 </head>
 <body>
@@ -222,7 +270,7 @@ td.who .ph{width:40px;height:40px;border-radius:6px;background:var(--field);colo
 <div class="actionbar" id="actionbar">
   <span class="sc"><b id="selN">0</b> SELECCIONADOS</span>
   <button class="btn primary" id="aCreate">Crear contenido</button>
-  <button class="btn" id="aCompare" disabled title="Fase 2">Comparar</button>
+  <button class="btn" id="aCompare" disabled>Comparar</button>
   <button class="btn ghost" id="aClear">Limpiar</button>
 </div>
 
@@ -243,6 +291,20 @@ td.who .ph{width:40px;height:40px;border-radius:6px;background:var(--field);colo
     <div class="foot">
       <button class="btn ghost" id="mCancel">Cancelar</button>
       <button class="btn primary" id="mGo">Crear</button>
+    </div>
+  </div>
+</div>
+
+<aside class="drawer" id="drawer" aria-hidden="true"></aside>
+
+<div class="scrim cmp" id="cmpScrim">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Comparar jugadores">
+    <h3>Comparar</h3>
+    <p class="mono" id="cmpCtx"></p>
+    <div id="cmpBody"></div>
+    <div class="foot">
+      <button class="btn ghost" id="cmpClose">Cerrar</button>
+      <button class="btn primary" id="cmpCreate">Crear contenido</button>
     </div>
   </div>
 </div>
@@ -470,6 +532,71 @@ async function doCreate(){
   finally{ el("mGo").disabled=false; }
 }
 
+// ---- player drawer ----------------------------------------------------------
+function rowById(pid){ return ALL.find(r=>r.player_external_id===pid); }
+const DRAWER_STATS=["games_played","points","rebounds","assists","steals","blocks","turnovers","minutes"];
+function dTotal(row,k){
+  const m=METRICS.find(x=>x.k===k); const raw=row[k]; if(raw==null) return "—";
+  if(m.kind==="rating") return fmt1(raw);
+  if(k==="games_played") return fmtInt(raw);
+  if(k==="minutes") return fmt1(raw);
+  return fmtInt(raw);
+}
+function dPg(row,k){
+  const m=METRICS.find(x=>x.k===k); const raw=row[k];
+  if(raw==null||!row.games_played||m.kind==="rating"||k==="games_played") return "—";
+  return fmt1(raw/row.games_played);
+}
+function openDrawer(pid){
+  const row=rowById(pid); if(!row) return;
+  const img=row.image_url
+    ? `<img class="pic" src="${esc(row.image_url)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'ph',textContent:'${esc(initials(row.name))}'}))">`
+    : `<div class="ph">${esc(initials(row.name))}</div>`;
+  const chips=[row.position,row.nationality,row.age!=null?row.age+" años":null]
+    .filter(Boolean).map(c=>`<span class="chip">${esc(c)}</span>`).join("");
+  const statRows=DRAWER_STATS.map(k=>{
+    const m=METRICS.find(x=>x.k===k);
+    return `<div class="r"><span class="k">${esc(m.name)}</span><span class="tot">${dTotal(row,k)}</span><span class="pg">${dPg(row,k)}</span></div>`;
+  }).join("");
+  el("drawer").innerHTML=`
+    <div class="dh">${img}
+      <div><h3>${esc(row.name)}</h3><div class="t">${esc(row.team_name||"—")} · ${esc(el("season").value)}</div></div>
+      <button class="x" data-close aria-label="Cerrar">×</button></div>
+    <div class="chips">${chips||'<span class="chip">Sin ficha</span>'}</div>
+    <div class="hero2">
+      <div class="b"><div class="k">FEB Rating</div><div class="v">${row.feb!=null?fmt1(row.feb):"—"}</div></div>
+      <div class="b"><div class="k">Valoración</div><div class="v">${row.val!=null?fmtInt(row.val):"—"}</div></div>
+    </div>
+    <div class="dstats"><div class="hh"><span>Estadística</span><span>Total</span><span>/ Partido</span></div>${statRows}</div>
+    <div class="dactions">
+      <button class="btn" data-act="compare">Comparar</button>
+      <button class="btn primary" data-act="create">Crear</button>
+      <button class="btn" data-act="media">Ver media</button>
+    </div>`;
+  el("drawer").dataset.pid=pid;
+  el("drawer").classList.add("open"); el("drawer").setAttribute("aria-hidden","false");
+}
+function closeDrawer(){ el("drawer").classList.remove("open"); el("drawer").setAttribute("aria-hidden","true"); }
+
+// ---- compare ----------------------------------------------------------------
+const CMP_ROWS=["points","rebounds","assists","steals","blocks","turnovers","minutes","val","feb"];
+function openCompare(){
+  const players=[...sel].map(rowById).filter(Boolean).slice(0,5);
+  if(players.length<2) return;
+  el("cmpCtx").textContent=`${players.length} jugadores · ${perGame?"por partido":"total"}`;
+  let h='<div style="overflow-x:auto"><table><thead><tr><th class="l">Estadística</th>'+
+    players.map(p=>`<th><div class="who2"><span class="n">${esc(p.name)}</span><span class="tm">${esc(p.team_name||"")}</span></div></th>`).join("")+
+    '</tr></thead><tbody>';
+  for(const k of CMP_ROWS){
+    const m=METRICS.find(x=>x.k===k);
+    h+=`<tr><td class="l">${m.short}</td>`+players.map(p=>{const v=cell(p,k);return `<td>${v==null?"—":v}</td>`;}).join("")+'</tr>';
+  }
+  h+='</tbody></table></div>';
+  el("cmpBody").innerHTML=h;
+  el("cmpScrim").classList.add("open");
+}
+function closeCompare(){ el("cmpScrim").classList.remove("open"); }
+
 // ---- sort selector ----------------------------------------------------------
 function fillSort(){
   el("sort").innerHTML=METRICS.filter(m=>m.sortable).map(m=>`<option value="${m.k}">${m.name}</option>`).join("");
@@ -491,8 +618,21 @@ el("head").addEventListener("click",e=>{const th=e.target.closest("th[data-k]");
 el("rows").addEventListener("click",e=>{
   const tr=e.target.closest("tr[data-pid]"); if(!tr) return;
   if(e.target.closest("[data-toggle]")) toggle(tr.dataset.pid);
-  // [data-open] (the who cell) is reserved for the Phase-2 player drawer.
+  else if(e.target.closest("[data-open]")) openDrawer(tr.dataset.pid);
 });
+el("drawer").addEventListener("click",e=>{
+  if(e.target.closest("[data-close]")){ closeDrawer(); return; }
+  const b=e.target.closest("[data-act]"); if(!b) return;
+  const pid=el("drawer").dataset.pid;
+  if(b.dataset.act==="media"){ location.href="/v1/images/gallery?season="+encodeURIComponent(el("season").value); return; }
+  sel.add(pid); syncAction(); render(); closeDrawer();
+  if(b.dataset.act==="create") openCreate();
+  else if(b.dataset.act==="compare"){ if(sel.size>=2) openCompare(); }
+});
+el("aCompare").addEventListener("click",openCompare);
+el("cmpClose").addEventListener("click",closeCompare);
+el("cmpCreate").addEventListener("click",()=>{ closeCompare(); openCreate(); });
+el("cmpScrim").addEventListener("click",e=>{ if(e.target===el("cmpScrim")) closeCompare(); });
 for(const id of ["fTeam","fPos","fNat","fMinAge","fMaxAge","fMinG"]) el(id).addEventListener("change",render);
 el("fClear").addEventListener("click",()=>{el("fTeam").value=el("fPos").value=el("fNat").value="";el("fMinAge").value=el("fMaxAge").value=el("fMinG").value="";render();});
 el("fbtn").addEventListener("click",()=>{const o=el("pop").classList.toggle("open");el("fbtn").setAttribute("aria-expanded",o);});
@@ -508,7 +648,9 @@ document.addEventListener("keydown",e=>{
   if(e.key==="/" && document.activeElement.tagName!=="INPUT" && document.activeElement.tagName!=="SELECT"){
     e.preventDefault(); el("q").focus(); el("q").select();
   } else if(e.key==="Escape"){
-    if(el("scrim").classList.contains("open")) closeCreate();
+    if(el("cmpScrim").classList.contains("open")) closeCompare();
+    else if(el("drawer").classList.contains("open")) closeDrawer();
+    else if(el("scrim").classList.contains("open")) closeCreate();
     else if(el("pop").classList.contains("open")){el("pop").classList.remove("open");el("fbtn").setAttribute("aria-expanded","false");}
     else if(sel.size){ sel.clear(); render(); syncAction(); }
   }
