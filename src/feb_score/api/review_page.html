@@ -135,10 +135,9 @@ a.btn:focus-visible{outline:2px solid var(--red);outline-offset:2px}
       <input id="ground" class="round" type="number" min="1" max="40" placeholder="J">
       <button class="go" id="gen">Generar</button>
     </div>
-    <input type="password" id="key" placeholder="Clave de API — para generar, aprobar o rechazar"
+    <input type="password" id="key" placeholder="Clave de API — para generar, aprobar o descartar"
            autocomplete="off" spellcheck="false">
     <button id="savekey">Guardar clave</button>
-    <button class="purge" id="purge">Purgar rechazadas</button>
     <span class="note" id="keynote"></span>
     <span class="genmsg" id="genmsg"></span>
   </div>
@@ -296,33 +295,6 @@ async function createSelected(season, round, box, note, btn){
   }catch(e){ note.textContent = String(e); btn.disabled = false; }
 }
 
-/* ------------------------------------------------------------ housekeeping */
-// The queue only ever grows; this is the one way to shrink it. The API refuses
-// to touch anything live or published, so the worst case is losing rejects.
-document.getElementById('purge').onclick = async () => {
-  if (!apiKey()) { genMsg.textContent = 'Hace falta la clave de API para purgar.'; return; }
-  const c = counts();
-  const removable = (c.rejected || 0) + (c.failed || 0);
-  if (!removable) return;
-  const noun = n => `${n} ${n === 1 ? 'tarjeta' : 'tarjetas'}`;
-  if (!confirm(`Se borrarán ${noun(removable)} rechazadas o fallidas, para siempre.\n`
-             + `Las pendientes, aprobadas y publicadas no se tocan. ¿Seguir?`)) return;
-  const btn = document.getElementById('purge');
-  btn.disabled = true; genMsg.textContent = 'purgando…';
-  try{
-    const r = await fetch('/v1/content/queue/purge', {
-      method: 'POST',
-      headers: {'Authorization': 'Bearer ' + apiKey(), 'Content-Type': 'application/json'},
-      body: '{}',
-    });
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok){ genMsg.textContent = `Error ${r.status}: ${data?.error?.message || ''}`; }
-    else { genMsg.textContent = `Purgadas ${noun(data.removed ?? removable)}.`; }
-    await load();
-  }catch(e){ genMsg.textContent = String(e); }
-  finally{ btn.disabled = false; }
-};
-
 /* --------------------------------------------------------------- load/read */
 async function load(){
   try{
@@ -365,13 +337,6 @@ function renderFilters(){
   });
   document.getElementById('counts').textContent =
     `${ITEMS.length} tarjetas · ` + Object.entries(c).map(([k,v]) => `${(LABELS[k]||k).toLowerCase()} ${v}`).join(' · ');
-
-  // The purge only ever removes rejected/failed cards, so the button says
-  // exactly how many that is — and disables itself when there are none.
-  const removable = (c.rejected || 0) + (c.failed || 0);
-  const pb = document.getElementById('purge');
-  pb.textContent = `Purgar rechazadas (${removable})`;
-  pb.disabled = removable === 0;
 }
 
 /* ----------------------------------------------- overview (what's pending) */
@@ -449,10 +414,11 @@ function card(i){
       </div>
     </div>`;
   const actions = el.querySelector('.actions'), msg = el.querySelector('.msg');
+  // The old flow had Aprobar + Rechazar (state transitions) and a separate
+  // Descartar (DELETE); operator feedback was that the split was noise for a
+  // one-person editorial. Descartar covers "no publish", so Rechazar is gone.
   if (i.status === 'pending_review') {
-    actions.append(action('Aprobar', 'approve', i, msg, true), action('Rechazar', 'reject', i, msg, false));
-  } else if (i.status === 'approved') {
-    actions.append(action('Rechazar', 'reject', i, msg, false));
+    actions.append(action('Aprobar', 'approve', i, msg, true));
   }
   actions.append(download(i), copyCaption(i, msg));
   if (i.status === 'pending_review' || i.status === 'approved') {

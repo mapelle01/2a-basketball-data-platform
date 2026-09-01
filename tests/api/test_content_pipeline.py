@@ -481,7 +481,7 @@ class TestReviewPage:
         html = client.get("/v1/content/review").text
         assert "/v1/content/queue" in html
         assert "/review/${verb}" in html          # the verb is built per action
-        assert "'approve'" in html and "'reject'" in html
+        assert "'approve'" in html
         assert "/render.svg" in html
         assert "/render.png" in html          # the publishable image is reachable
         # the page can generate a round itself, not only via terminal curl
@@ -491,7 +491,8 @@ class TestReviewPage:
         assert "section_label" in html and "caption" in html
         assert "/candidates" in html          # detect-then-choose preview
         assert "story_keys" in html           # generate only the picked ones
-        assert "/v1/content/queue/purge" in html   # housekeeping is reachable
+        # /v1/content/queue/purge dejó de estar en la UI — Descartar por fila
+        # cubre la limpieza; el endpoint sigue existiendo por si acaso.
 
     def test_key_is_never_persisted_beyond_the_tab(self, client):
         html = client.get("/v1/content/review").text
