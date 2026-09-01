@@ -793,10 +793,13 @@ def render_stat_hero(data: Dict[str, Any]) -> str:
                        weight=FontWeight.LABEL, fill=sub,
                        tracking=LetterSpacing.CAPS, upper=True))
 
-    # SECONDARY stats.
-    sg, _ = C.stat_group(CONTENT_X, name_y + 92, 560,
-                         [(v, l) for v, l in secondary])
-    body.append(sg)
+    # SECONDARY stats — hidden by default now: reviewed live and the "26 PART ·
+    # 13,3 MEDIA" line crowded the card without adding editorial value. Kept
+    # behind a facts.show_secondary hint in case a future card wants them back.
+    if facts.get("show_secondary"):
+        sg, _ = C.stat_group(CONTENT_X, name_y + 92, 560,
+                             [(v, l) for v, l in secondary])
+        body.append(sg)
 
     # FEB RATING band above the footer (only if present).
     if rating is not None:
