@@ -820,6 +820,139 @@ def render_stat_hero(data: Dict[str, Any]) -> str:
     return _svg_document("".join(body), IMAGE_BACKGROUND)
 
 
+def render_player_streak(data: Dict[str, Any]) -> str:
+    """Dedicated card for consecutive-game rachas.
+
+    Two-column layout: the streak length is the giant number on the left, the
+    player photo bleeds down the right half, the name/team sit at the bottom.
+    No FEB Rating band — the streak IS the story. A partial red arc wraps the
+    number so the visual weight of the run is felt before the caption is read.
+    Falls back to typographic initials when no licensed photo exists, same as
+    every other player card.
+    """
+    facts = data["story"]["facts"]
+    display = data.get("display", {})
+    assets = data.get("assets", {})
+
+    section = str(
+        facts.get("section_label") or f"{facts.get('streak_length', 0)} SEGUIDOS"
+    )
+    kicker = str(facts.get("kicker") or f"JORNADA {data['story'].get('round_number')}")
+    hero = str(facts.get("hero_value") or facts.get("streak_length") or "")
+    hlab = str(facts.get("hero_label") or "SEGUIDOS")
+    name = str(display.get("player") or facts.get("player_name") or "").upper()
+    team = str(display.get("team") or facts.get("team_name") or "").upper()
+
+    body: List[str] = []
+
+    # Section headline + eyebrow accent (top-left, full width).
+    body.append(C.accent_bar(CONTENT_X, MARGIN, 96, Line.HEAVY))
+    head_size = FontSize.H3
+    head_y = MARGIN + 44 + head_size * 0.74
+    body.append(C.text(CONTENT_X, head_y, section.upper(), size=head_size,
+                       weight=FontWeight.DISPLAY, fill=Color.WHITE,
+                       tracking=LetterSpacing.HEADLINE, upper=True))
+    body.append(_corner_mark())
+
+    # PHOTO — full-bleed on the right ~55%, with a gradient fade on its left
+    # edge so it dissolves into the black background instead of showing a hard
+    # rectangle seam. When the photo is missing, no gradient, no rectangle: the
+    # left column stretches to fill; the initials plaque hides under the name.
+    photo_uri = assets.get("player_photo")
+    photo_x = 470  # column split — tuned so a portrait cut-out feels centered
+    photo_w = CANVAS.width - photo_x
+    photo_h = CANVAS.height
+    if photo_uri:
+        body.append(
+            '<defs>'
+            '<linearGradient id="photofade" x1="0" y1="0" x2="1" y2="0">'
+            '<stop offset="0" stop-color="#0A0A0A" stop-opacity="1"/>'
+            '<stop offset="0.25" stop-color="#0A0A0A" stop-opacity="0"/>'
+            '</linearGradient></defs>'
+        )
+        # Photo behind the fade rectangle — draw order: photo, then fade.
+        body.append(
+            f'<image href="{photo_uri}" x="{photo_x}" y="0"'
+            f' width="{photo_w}" height="{photo_h}"'
+            f' preserveAspectRatio="xMidYMid slice"/>'
+        )
+        body.append(
+            f'<rect x="{photo_x}" y="0" width="{photo_w}" height="{photo_h}"'
+            f' fill="url(#photofade)"/>'
+        )
+
+    # GIANT NUMBER on the left. Sized inversely to digit count so both "5" and
+    # "12" fill roughly the same visual space and neither crowds the name.
+    num_col_w = photo_x - MARGIN - Spacing.LG
+    num_size = 620 if len(hero) <= 1 else 460 if len(hero) == 2 else 340
+    num_center_x = MARGIN + num_col_w / 2
+    num_center_y = 720
+    # SVG text baseline sits at the bottom, so drop the anchor by ~0.36 of the
+    # size to visually center the digit.
+    body.append(C.text(num_center_x, num_center_y + num_size * 0.36, hero,
+                       size=num_size, weight=FontWeight.HERO, fill=Color.WHITE,
+                       anchor="middle", tracking=LetterSpacing.HERO))
+
+    # Partial arc wrapping the right side of the number — visual echo of "a
+    # run", drawn with an SVG path so it curves cleanly at any digit width.
+    arc_r = min(num_col_w, 620) * 0.45
+    arc_w = 14
+    # Path from top (angle=-100°) sweeping right and down to bottom (+100°).
+    import math
+    def _polar(cx, cy, r, deg):
+        rad = math.radians(deg)
+        return (cx + r * math.cos(rad), cy + r * math.sin(rad))
+    start = _polar(num_center_x, num_center_y, arc_r, -100)
+    end   = _polar(num_center_x, num_center_y, arc_r,  100)
+    body.append(
+        f'<path d="M {start[0]:.1f} {start[1]:.1f}'
+        f' A {arc_r:.1f} {arc_r:.1f} 0 0 1 {end[0]:.1f} {end[1]:.1f}"'
+        f' fill="none" stroke="{Color.RED}" stroke-width="{arc_w}"'
+        f' stroke-linecap="round"/>'
+    )
+
+    # SMALL LABEL under the number.
+    body.append(C.text(num_center_x,
+                       num_center_y + num_size * 0.36 + FontSize.LABEL + Spacing.MD,
+                       hlab.upper(), size=FontSize.LABEL, weight=FontWeight.LABEL,
+                       fill=Color.RED, tracking=LetterSpacing.CAPS, upper=True,
+                       anchor="middle"))
+
+    # PLAYER NAME + TEAM at the bottom-left. Two lines when a long name would
+    # otherwise crowd the photo column; kept in one when it comfortably fits.
+    name_size = FontSize.H1 if len(name) <= 14 else FontSize.H2
+    name_max_w = photo_x - MARGIN - 24
+    parts = name.split()
+    line_break = None
+    if len(name) > 18 and len(parts) >= 2:
+        # Break on the largest word split closest to the middle.
+        mid = len(parts) // 2
+        line_break = (" ".join(parts[:mid]), " ".join(parts[mid:]))
+    name_bottom = FOOTER_Y - 96
+    if line_break:
+        body.append(C.text(CONTENT_X, name_bottom - name_size,
+                           line_break[0], size=name_size, weight=FontWeight.DISPLAY,
+                           fill=Color.WHITE, tracking=LetterSpacing.HEADLINE, upper=True))
+        body.append(C.text(CONTENT_X, name_bottom,
+                           line_break[1], size=name_size, weight=FontWeight.DISPLAY,
+                           fill=Color.WHITE, tracking=LetterSpacing.HEADLINE, upper=True))
+    else:
+        body.append(C.text(CONTENT_X, name_bottom, name, size=name_size,
+                           weight=FontWeight.DISPLAY, fill=Color.WHITE,
+                           tracking=LetterSpacing.HEADLINE, upper=True))
+    body.append(C.text(CONTENT_X, name_bottom + FontSize.LABEL + 8, team,
+                       size=FontSize.LABEL, weight=FontWeight.LABEL,
+                       fill=Color.GREY, tracking=LetterSpacing.CAPS, upper=True))
+
+    # FOOTER — same competition/season strip every card carries.
+    ft, _ = C.brand_footer(CONTENT_X, FOOTER_Y, CONTENT_W,
+                           competition="Segunda FEB",
+                           season=data["story"].get("season_code"))
+    body.append(ft)
+
+    return _svg_document("".join(body), IMAGE_BACKGROUND)
+
+
 def render_stat_leaderboard(data: Dict[str, Any]) -> str:
     facts = data["story"]["facts"]
     season = data["story"].get("season_code")
@@ -1298,6 +1431,9 @@ _RENDERERS: Dict[str, Callable[[Dict[str, Any]], str]] = {
     # crest silhouette (stat_hero) and the photo hero (stat_hero_photo) when
     # generating a single-player card from the Explorer.
     "stat_hero_photo": render_player_of_round,
+    # Consecutive-game rachas — bespoke layout: giant streak number on the
+    # left, full-bleed player photo on the right, name/team at the bottom.
+    "player_streak": render_player_streak,
     "best_five": render_best_five_grid,
     "best_five_court": render_best_five_court,
     "team_streak": render_team_streak,

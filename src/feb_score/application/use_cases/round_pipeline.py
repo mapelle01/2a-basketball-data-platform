@@ -436,6 +436,21 @@ class RoundPipeline:
             crest = self._assets.team_logo(team_id)
             assets = {"team_crest": crest.payload} if crest.payload_type == "data_uri" else {}
 
+        if story.template_id == "player_streak":
+            # Photo-first two-column layout. The renderer needs the player photo
+            # (falls back to text-only left column if missing) and reads name /
+            # team from display.
+            player_id = f.get("player_external_id", "")
+            team_id = f.get("team_external_id", "")
+            display = {
+                "player": f.get("player_name") or player_id,
+                "team": f.get("team_name") or team_id,
+            }
+            photo = self._assets.player_photo(player_id)
+            assets = {"team_color": self._assets.team_color(team_id)}
+            if photo.payload_type == "data_uri":
+                assets["player_photo"] = photo.payload
+
         if story.template_id == "stat_hero_photo":
             # Photo hero: the SAME CUSTOM_HERO story rendered on the player-photo
             # layout. When the photo is missing the renderer falls back to

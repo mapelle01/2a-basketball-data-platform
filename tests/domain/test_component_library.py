@@ -352,3 +352,55 @@ class TestStatLabelsFit:
         assert C._caps_width("ROB", 22) >= 51.8
         assert C._caps_width("TAPONES", 22) >= 122.0
         assert C._caps_width("ROBOS", 22) >= 89.0
+
+
+class TestPlayerStreakTemplate:
+    """The bespoke player_streak card: giant streak number on the left, photo
+    on the right, name at the bottom. The renderer never invents figures — it
+    reflects facts.streak_length and the labels handed in."""
+
+    def _svg(self, facts=None, assets=None, display=None):
+        from feb_score.infrastructure.rendering.component_templates import (
+            render_player_streak,
+        )
+        base = {
+            "streak_length": 5, "streak_kind": "scoring",
+            "player_name": "DORDE SIMEUNOVIC",
+            "team_name": "Spanish Basketball Academy",
+            "section_label": "5 PARTIDOS DE 20+ SEGUIDOS",
+            "hero_value": 5, "hero_label": "PARTIDOS DE 20+ SEGUIDOS",
+            "kicker": "JORNADA 5",
+        }
+        if facts:
+            base.update(facts)
+        return render_player_streak({
+            "story": {"story_type": "player_streak_scoring",
+                      "season_code": "2025-2026", "round_number": 5,
+                      "facts": base},
+            "display": display or {"player": "Dorde Simeunovic",
+                                   "team": "Spanish Basketball Academy"},
+            "assets": assets or {},
+        })
+
+    def test_number_is_the_streak_length(self):
+        svg = self._svg({"streak_length": 7, "hero_value": 7})
+        assert ">7<" in svg                # the big number appears
+        # the section headline is what the caller passed, uppercased
+        assert "5 PARTIDOS DE 20+ SEGUIDOS" in svg
+
+    def test_no_photo_still_renders(self):
+        """A player without a licensed photo yet must still get a card. The
+        photo block simply drops out; the left column carries the story."""
+        svg = self._svg(assets={})
+        assert "<svg" in svg
+        # the photo block only exists when photo_uri is present
+        assert "<image href=\"data:image" not in svg
+
+    def test_photo_uri_is_embedded_when_present(self):
+        svg = self._svg(assets={"player_photo": "data:image/png;base64,AAAA"})
+        assert 'href="data:image/png;base64,AAAA"' in svg
+
+    def test_the_footer_carries_the_season(self):
+        svg = self._svg()
+        # The brand footer abbreviates the year: "SEGUNDA FEB · 2025-26".
+        assert "2025-26" in svg

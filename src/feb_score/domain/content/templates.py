@@ -59,6 +59,24 @@ TEMPLATES: Dict[str, TemplateContract] = {
             "assets.player_initials",
         ),
     ),
+    # Bespoke two-column player-streak card. The streak length rides as
+    # hero_value; the streak length + kind are also in facts so validators can
+    # cross-check without parsing the label. Photo optional (the layout
+    # collapses to a text-only left column when missing).
+    "player_streak": TemplateContract(
+        template_id="player_streak",
+        version=TEMPLATE_VERSION,
+        canvas="IG_PORTRAIT",
+        required_slots=(
+            "story.facts.streak_length",
+            "story.facts.streak_kind",
+            "display.player",
+        ),
+        optional_slots=(
+            "assets.player_photo",
+            "assets.team_color",
+        ),
+    ),
     "best_five": TemplateContract(
         template_id="best_five",
         version=TEMPLATE_VERSION,

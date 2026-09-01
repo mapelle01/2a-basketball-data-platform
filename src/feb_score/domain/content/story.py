@@ -127,9 +127,10 @@ STORY_TO_TEMPLATE: Dict[StoryType, str] = {
     StoryType.WIN_STREAK: "team_streak",         # a team card: the run visualized
     StoryType.LOSS_STREAK: "team_streak",
     StoryType.BEST_DUO: "best_duo",              # two teammates + combined total
-    # Player rachas: photo-hero card with the streak length as the number.
-    StoryType.PLAYER_STREAK_SCORING: "player_of_round",
-    StoryType.PLAYER_STREAK_DD: "player_of_round",
+    # Player rachas: bespoke two-column card with the streak length as the
+    # giant number on the left and the player photo bleeding down the right.
+    StoryType.PLAYER_STREAK_SCORING: "player_streak",
+    StoryType.PLAYER_STREAK_DD: "player_streak",
 }
 
 
