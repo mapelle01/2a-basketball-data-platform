@@ -20,7 +20,7 @@
       },
       {
         "rule": "broken-image",
-        "value": "mPrevImg",
+        "value": "*",
         "files": [
           "src/feb_score/api/explorer.html"
         ],

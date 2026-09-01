@@ -230,6 +230,10 @@ tr.sel .cbx,.cbx.on{background:var(--red);border-color:var(--red)}
   padding:6px 10px;border:1px solid var(--rule-2);border-radius:6px;cursor:pointer}
 .modal .segopt:hover{border-color:var(--grey)}
 .modal .foot{display:flex;justify-content:flex-end;gap:var(--s2);margin-top:var(--s2);flex-wrap:wrap}
+/* Explicit display:flex above wins over the browser's [hidden]{display:none},
+   so the second foot row still shows when hidden — this restores the hide. */
+.modal .foot[hidden],.modal #mForm[hidden],.modal #mPreview[hidden],
+.modal #mStyleRow[hidden]{display:none}
 /* Preview state — wider modal so the 4:5 card breathes. */
 .modal-wide{width:520px;max-width:calc(100vw - 32px)}
 .prev-wrap{display:flex;justify-content:center;background:var(--black);border:1px solid var(--rule);
