@@ -754,16 +754,17 @@ def generate_copy_season_dd_leader(story: Dict[str, Any]) -> CopyContract:
     team = f.get("team_name") or ""
     dd = f.get("hero_value") or f.get("dd_count") or 0
     td = f.get("td_count") or 0
-    season = story.get("season_code", "")
 
     headline = player
     subtitle = f"{dd} dobles-dobles en la temporada"
     where = f" ({team})" if team else ""
+    # No literal year in the caption: the validator parses "2025-26" as two raw
+    # numbers ("2025", "26") that aren't in facts and refuses the card. The
+    # year already rides on the kicker on-image, so the caption stays clean.
     td_line = f", más {td} triple-doble{'s' if td != 1 else ''}" if td else ""
     caption = (
-        f"{player}{where} cierra la temporada {season[:4]}-{season[-2:]} con "
-        f"{dd} dobles-dobles{td_line}. El jugador con más dobles-dobles de la "
-        f"Segunda FEB este año."
+        f"{player}{where} cierra la temporada con {dd} dobles-dobles"
+        f"{td_line}. El jugador con más dobles-dobles de la Segunda FEB este año."
     )
     hashtags = BASE_HASHTAGS + ("DobleDoble", "Temporada",)
     return CopyContract(
