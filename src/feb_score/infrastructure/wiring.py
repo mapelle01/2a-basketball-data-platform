@@ -1161,7 +1161,7 @@ class _GatewayBase(CommandGateway):
                 "points": r["points"], "rebounds": r["rebounds"],
                 "assists": r["assists"],
                 "value": self._es_number(r["value"]),
-                "context": self._custom_context(r, metric),
+                "context": self._custom_context(r, metric, per_game=per_game),
             }
             for i, r in enumerate(rows, start=1)
         ]
@@ -1226,13 +1226,23 @@ class _GatewayBase(CommandGateway):
             bits.append(f"mínimo {query['min_games']} partidos")
         return " · ".join(bits).upper()
 
-    def _custom_context(self, row: Dict[str, Any], metric: str) -> str:
+    def _custom_context(
+        self, row: Dict[str, Any], metric: str, per_game: bool = False,
+    ) -> str:
         """The supporting line under the name. It never repeats the ranked
-        figure — that one is already the big number on the right."""
-        parts = [(f"{row['games_played']} PJ", "games_played"),
-                 (f"{row['points']} PTS", "points"),
-                 (f"{row['rebounds']} REB", "rebounds"),
-                 (f"{row['assists']} AST", "assists")]
+        figure — that one is already the big number on the right — and when the
+        ranking is per-game the supporting stats are per-game too, so the line
+        matches the number the card is claiming."""
+        g = row.get("games_played") or 0
+        def _v(key: str) -> str:
+            raw = row.get(key) or 0
+            if per_game and g and key != "games_played":
+                return self._es_number(round(raw / g, 1))
+            return str(raw)
+        parts = [(f"{g} PJ", "games_played"),
+                 (f"{_v('points')} PTS", "points"),
+                 (f"{_v('rebounds')} REB", "rebounds"),
+                 (f"{_v('assists')} AST", "assists")]
         return " · ".join(text for text, key in parts if key != metric)
 
     # ------------------------------------------------------------- imagery

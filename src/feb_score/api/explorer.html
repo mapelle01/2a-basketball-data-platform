@@ -115,16 +115,17 @@ td.chk{width:36px;text-align:center}
 tr.sel .cbx,.cbx.on{background:var(--red);border-color:var(--red)}
 .cbx.on::after{content:"";position:absolute;left:5px;top:1px;width:4px;height:9px;
   border:solid var(--white);border-width:0 2px 2px 0;transform:rotate(45deg)}
-td.who{display:flex;align-items:center;gap:var(--s2);cursor:pointer}
+.who{display:flex;align-items:center;gap:var(--s2);cursor:pointer;min-width:0}
 .av{position:relative;flex:none;line-height:0}
 .dot{position:absolute;right:-3px;bottom:-3px;width:9px;height:9px;border-radius:50%;
   border:2px solid var(--black);box-sizing:content-box}
 .dot.approved{background:var(--lgrey)}
 .dot.pending{background:var(--black);box-shadow:inset 0 0 0 2px var(--grey)}
-td.who .pic{width:40px;height:40px;border-radius:6px;object-fit:cover;object-position:50% 0;
-  background:var(--field);flex:none}
-td.who .ph{width:40px;height:40px;border-radius:6px;background:var(--field);color:var(--grey);
+.who .pic{width:40px;height:40px;border-radius:6px;object-fit:cover;object-position:50% 0;
+  background:var(--field);flex:none;display:block}
+.who .ph{width:40px;height:40px;border-radius:6px;background:var(--field);color:var(--grey);
   display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex:none}
+.who .rk{color:var(--grey);font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;min-width:20px;text-align:right}
 .nm{color:var(--white);font-weight:700;letter-spacing:-.01em;line-height:1.15}
 .sub{color:var(--grey);font-size:11px;font-weight:600;line-height:1.2}
 .rk{color:var(--grey);font-weight:700;font-size:12px;width:28px;text-align:right}
@@ -143,7 +144,7 @@ td.who .ph{width:40px;height:40px;border-radius:6px;background:var(--field);colo
 .lrow:hover{background:var(--ink)}
 .lrow .p{font-size:12px;font-weight:800;color:var(--grey);font-variant-numeric:tabular-nums}
 .lrow:nth-child(1) .p{color:var(--white)}
-.lrow .who3{min-width:0}
+.lrow .who3{min-width:0;display:flex;flex-direction:column;gap:1px;line-height:1.15}
 .lrow .who3 .n{font-size:13px;font-weight:700;color:var(--white);letter-spacing:-.01em;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lrow .who3 .tm{font-size:10px;font-weight:600;color:var(--grey);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -398,6 +399,10 @@ const TABLE_COLS = ["games_played","points","rebounds","assists","val","feb"];
 let ALL = [];               // every player of the season (raw stats), loaded once
 let FACETS = {teams:[],nationalities:[],positions:[]};
 let sortKey = "points", sortDir = -1, perGame = false, view = "table";
+// A one-shot override for openCreate(). DESCUBRIR rows set it so the create
+// modal opens tuned to what the user just clicked (a record, a streak, a
+// double-double), not to whatever the TABLA view was sorted by last.
+let createIntent = null;
 let sel = new Set();
 let desiredSeason = new URLSearchParams(location.search).get("season") || "";
 
@@ -595,22 +600,22 @@ async function ensureInsights(){
   }catch(e){ showState("error"); }
 }
 function renderDiscover(d){
-  const recCard=r=>`<div class="rec" data-pid="${esc(r.player_external_id)}">
+  const recCard=r=>`<div class="rec" data-pid="${esc(r.player_external_id)}" data-metric="${esc(r.metric||'points')}" data-pg="1" data-ignore-filters="1">
       <div class="k">${esc(r.label)}</div>
       <div class="v">${esc(String(r.value).replace('.',','))}</div>
       <div class="who4"><span class="n">${esc(r.player)}</span> · <span class="tm">${esc(r.team||"—")}</span></div></div>`;
   const recs=(d.records||[]).map(recCard).join("") || '<div class="lempty">Sin datos suficientes.</div>';
-  const form=(d.form_up||[]).map(f=>`<div class="frow" data-pid="${esc(f.player_external_id)}">
+  const form=(d.form_up||[]).map(f=>`<div class="frow" data-pid="${esc(f.player_external_id)}" data-metric="feb" data-ignore-filters="1">
       <span class="who3"><span class="n">${esc(f.player)}</span><span class="tm">${esc(f.team||"—")}</span></span>
       <span class="d">+${fmt1(f.delta)}</span>
       <span class="s">${fmt1(f.last3)} · media ${fmt1(f.season)}</span></div>`).join("")
       || '<div class="lempty">Se necesitan al menos 6 partidos por jugador.</div>';
-  const dd=(d.double_doubles||[]).map((x,i)=>`<div class="frow" data-pid="${esc(x.player_external_id)}">
+  const dd=(d.double_doubles||[]).map((x,i)=>`<div class="frow" data-pid="${esc(x.player_external_id)}" data-metric="points" data-pg="1" data-ignore-filters="1">
       <span class="who3"><span class="n">${esc(x.player)}</span><span class="tm">${esc(x.team||"—")}</span></span>
       <span class="d">${x.count}</span><span class="s"></span></div>`).join("")
       || '<div class="lempty">Sin dobles-dobles.</div>';
   const tdNote = d.triple_doubles_total ? ` · ${d.triple_doubles_total} triple-doble${d.triple_doubles_total>1?"s":""} en la temporada` : "";
-  const streak=list=>(list||[]).map(x=>`<div class="frow" data-pid="${esc(x.player_external_id)}">
+  const streak=list=>(list||[]).map(x=>`<div class="frow" data-pid="${esc(x.player_external_id)}" data-metric="points" data-pg="1" data-ignore-filters="1">
       <span class="who3"><span class="n">${esc(x.player)}</span><span class="tm">${esc(x.team||"—")}</span></span>
       <span class="d">${x.count}</span><span class="s">seguidos</span></div>`).join("");
   const sdd=streak(d.streaks_dd) || '<div class="lempty">Ninguna racha de 2+ dobles-dobles.</div>';
@@ -661,8 +666,12 @@ window.clearAll=function(){
 // ---- create content (reuses POST /v1/explore/card) --------------------------
 function openCreate(){
   const ids=[...sel];
-  const metric = (METRICS.find(m=>m.k===sortKey)&&sortKey) || "points";
-  el("mCtx").textContent = `${ids.length} jugador${ids.length===1?"":"es"} · orden por ${METRICS.find(m=>m.k===sortKey).name}${perGame?" (por partido)":""}`;
+  // Effective metric/per-game: DESCUBRIR intent wins over the TABLA state.
+  const eff = createIntent
+    ? { metric: createIntent.metric, per_game: !!createIntent.per_game }
+    : { metric: sortKey, per_game: perGame };
+  const m = METRICS.find(x=>x.k===eff.metric) || METRICS.find(x=>x.k==="points");
+  el("mCtx").textContent = `${ids.length} jugador${ids.length===1?"":"es"} · orden por ${m.name}${eff.per_game?" (por partido)":""}`;
   const one = ids.length===1;
   el("mTpl").innerHTML =
     (one ? `<option value="hero">Carta individual</option>` : "") +
@@ -671,7 +680,7 @@ function openCreate(){
   el("mMsg").textContent="";
   el("scrim").classList.add("open"); el("mTitle").focus();
 }
-function closeCreate(){ el("scrim").classList.remove("open"); }
+function closeCreate(){ el("scrim").classList.remove("open"); createIntent=null; }
 async function doCreate(){
   const key=el("mKey").value.trim();
   const title=el("mTitle").value.trim();
@@ -679,11 +688,23 @@ async function doCreate(){
   if(!key){ el("mMsg").textContent="Hace falta la clave de API."; return; }
   try{ sessionStorage.setItem("febKey",key); }catch(e){}
   const f=activeFilters();
+  // Effective query: DESCUBRIR intent overrides the TABLA state, and a record
+  // is computed season-wide so its intent also clears the ranking filters.
+  const useIntent = !!createIntent;
+  const metricRaw = useIntent ? createIntent.metric : sortKey;
+  const pg = useIntent ? !!createIntent.per_game : perGame;
+  const ignoreFilters = useIntent && !!createIntent.ignore_filters;
   const body={ season:el("season").value, title, template:el("mTpl").value,
     scope_label:el("mScope").value.trim()||null, show_rank:el("mRank").checked,
-    player_ids:[...sel], metric:["games_played","val","feb"].includes(sortKey)?"points":sortKey,
-    per_game:perGame, team:f.team||null, nationality:f.nat||null, position:f.pos||null,
-    min_age:f.minAge?+f.minAge:null, max_age:f.maxAge?+f.maxAge:null, min_games:f.minG?+f.minG:null };
+    player_ids:[...sel],
+    metric:["games_played","val","feb"].includes(metricRaw)?"points":metricRaw,
+    per_game:pg,
+    team:ignoreFilters?null:(f.team||null),
+    nationality:ignoreFilters?null:(f.nat||null),
+    position:ignoreFilters?null:(f.pos||null),
+    min_age:ignoreFilters?null:(f.minAge?+f.minAge:null),
+    max_age:ignoreFilters?null:(f.maxAge?+f.maxAge:null),
+    min_games:ignoreFilters?null:(f.minG?+f.minG:null) };
   el("mGo").disabled=true; el("mMsg").textContent="Creando…";
   try{
     const r=await fetch("/v1/explore/card",{method:"POST",
@@ -826,7 +847,18 @@ el("drawer").addEventListener("click",e=>{
 el("vTable").addEventListener("click",()=>setView("table"));
 el("vLeaders").addEventListener("click",()=>setView("leaders"));
 el("vDiscover").addEventListener("click",()=>setView("discover"));
-el("insights").addEventListener("click",e=>{const r=e.target.closest("[data-pid]"); if(r) openDrawer(r.dataset.pid);});
+el("insights").addEventListener("click",e=>{
+  const r=e.target.closest("[data-pid]"); if(!r) return;
+  // A record / streak / dd / form row carries the metric it is celebrating, so
+  // the drawer's "Crear" opens the create modal wired to THAT stat instead of
+  // whatever the TABLA view happened to be sorted by.
+  createIntent = r.dataset.metric ? {
+    metric: r.dataset.metric,
+    per_game: r.dataset.pg === "1",
+    ignore_filters: r.dataset.ignoreFilters === "1",
+  } : null;
+  openDrawer(r.dataset.pid);
+});
 el("leaders").addEventListener("click",e=>{const r=e.target.closest(".lrow[data-pid]"); if(r) openDrawer(r.dataset.pid);});
 el("aCompare").addEventListener("click",openCompare);
 el("cmpClose").addEventListener("click",closeCompare);

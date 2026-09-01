@@ -274,6 +274,20 @@ class TestQueryToCard:
         assert "REB" not in facts["lineup"][0]["context"]
         assert "PTS" in facts["lineup"][0]["context"]
 
+    def test_the_supporting_line_matches_the_ranked_scale(self, client):
+        """A per-game ranking shows per-game supporting stats — otherwise the
+        card ranks by an average and cites totals next to the name, which
+        contradicts the number the card is actually claiming."""
+        _seed(client)
+        # p2: 20 games, 300 pts, 60 reb, 120 ast -> per game: 15 / 3 / 6.
+        by_id = {row["player_external_id"]: row for row in
+                 self._card(client, metric="points", per_game=True)
+                 .json()["story"]["facts"]["lineup"]}
+        ctx = by_id["p2"]["context"]
+        assert "20 PJ" in ctx                # PJ never divides
+        assert "3,0 REB" in ctx and "6,0 AST" in ctx
+        assert "60 REB" not in ctx           # the season total is the wrong scale
+
     def test_hand_picked_players_stay_in_ranked_order(self, client):
         """Ticked in any order, drawn in the metric's order: the card numbers
         its rows, and a worse line above a better one would be a lie."""
