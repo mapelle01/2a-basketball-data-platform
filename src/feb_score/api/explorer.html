@@ -53,7 +53,9 @@ nav a[aria-disabled]:hover{color:var(--rule-2)}
   border-bottom:1px solid var(--rule);flex-wrap:wrap}
 .lbl{font-size:10px;font-weight:700;letter-spacing:.14em;color:var(--grey);text-transform:uppercase}
 .field{display:flex;align-items:center;gap:var(--s1)}
-select,.pill,.search input{background:var(--field);border:1px solid var(--rule-2);
+select,.pill,.search input,
+input[type=text],input[type=password],input[type=number],input[type=search]{
+  background:var(--field);border:1px solid var(--rule-2);
   color:var(--white);height:34px;border-radius:4px;padding:0 10px;font-size:13px;font-weight:600}
 select{padding-right:26px;-webkit-appearance:none;appearance:none;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238A8F98' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
