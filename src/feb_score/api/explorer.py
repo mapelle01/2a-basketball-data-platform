@@ -191,12 +191,13 @@ def register_explorer_routes(app: FastAPI) -> None:
                     body.season, player_id=body.player_ids[0], metric=body.metric,
                     per_game=body.per_game, title=body.title,
                     subtitle=body.subtitle, scope_label=body.scope_label,
-                    hero_style=body.hero_style, hero_kind=body.hero_kind)
+                    hero_style=body.hero_style, hero_kind=body.hero_kind,
+                    force=body.force)
             else:
                 item = request.app.state.gateway.create_custom_five(
                     body.season, title=body.title, subtitle=body.subtitle,
                     scope_label=body.scope_label, player_ids=body.player_ids,
-                    show_rank=body.show_rank,
+                    show_rank=body.show_rank, force=body.force,
                     team=body.team, nationality=body.nationality,
                     position=body.position, min_age=body.min_age,
                     max_age=body.max_age, min_games=body.min_games,
@@ -263,3 +264,6 @@ class CustomFiveRequest(BaseModel):
     min_games: Optional[int] = None
     metric: str = "points"
     per_game: bool = False
+    # Re-render an already queued card in place (same content_id, fresh SVG).
+    # Used by the modal's "Regenerar" button after a polish deploy.
+    force: bool = False

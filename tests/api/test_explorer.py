@@ -341,6 +341,19 @@ class TestQueryToCard:
                        hero_style="banana")
         assert r.status_code == 400
 
+    def test_force_regenerates_in_place_same_content_id(self, client):
+        """After a template polish deploy the operator wants a fresh SVG for
+        an already-queued card without stacking a duplicate identity. force
+        must keep the same content_id and update the stored SVG in place."""
+        _seed(client)
+        first = self._card(client, template="hero", player_ids=["p2"],
+                           title="X").json()
+        again = self._card(client, template="hero", player_ids=["p2"],
+                           title="X", force=True).json()
+        assert again["content_id"] == first["content_id"]
+        # updated_at should reflect the re-render
+        assert again["updated_at"] >= first["updated_at"]
+
     def test_hero_variants_dedup_as_separate_cards(self, client):
         """The two visual variants of the same player+metric are two DIFFERENT
         cards in the queue — a shared identity would let the second create

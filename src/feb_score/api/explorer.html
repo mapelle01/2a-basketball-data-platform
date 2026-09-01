@@ -229,7 +229,16 @@ tr.sel .cbx,.cbx.on{background:var(--red);border-color:var(--red)}
 .modal .segopt{display:flex;align-items:center;font-size:12px;font-weight:600;color:var(--lgrey);
   padding:6px 10px;border:1px solid var(--rule-2);border-radius:6px;cursor:pointer}
 .modal .segopt:hover{border-color:var(--grey)}
-.modal .foot{display:flex;justify-content:flex-end;gap:var(--s2);margin-top:var(--s2)}
+.modal .foot{display:flex;justify-content:flex-end;gap:var(--s2);margin-top:var(--s2);flex-wrap:wrap}
+/* Preview state — wider modal so the 4:5 card breathes. */
+.modal-wide{width:520px;max-width:calc(100vw - 32px)}
+.prev-wrap{display:flex;justify-content:center;background:var(--black);border:1px solid var(--rule);
+  border-radius:6px;padding:var(--s2);margin-bottom:var(--s2)}
+.prev-wrap img{width:100%;max-width:360px;height:auto;display:block;border-radius:4px}
+.prev-meta{font-size:11.5px;color:var(--grey);line-height:1.45;padding:0 var(--s1);margin-bottom:var(--s2)}
+.prev-meta b{color:var(--lgrey);font-weight:700}
+.prev-meta code{font-family:ui-monospace,monospace;font-size:10.5px;color:var(--grey)}
+.modal .foot a.btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
 .msg{font-size:12px;color:var(--grey);min-height:16px;margin-top:6px}
 .msg a{color:var(--red);text-decoration:underline}
 
@@ -346,29 +355,48 @@ tr.sel .cbx,.cbx.on{background:var(--red);border-color:var(--red)}
 </div>
 
 <div class="scrim" id="scrim">
-  <div class="modal" role="dialog" aria-modal="true" aria-label="Crear contenido">
-    <h3>Crear contenido</h3>
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-label="Crear contenido">
+    <h3 id="mHead">Crear contenido</h3>
     <p class="mono" id="mCtx"></p>
-    <label><span class="lbl">Plantilla</span>
-      <select id="mTpl"></select></label>
-    <div id="mStyleRow" class="row" hidden>
-      <span class="lbl">Diseño</span>
-      <div class="segseg">
-        <label class="segopt"><input type="radio" name="mStyle" value="crest" checked> Escudo de fondo</label>
-        <label class="segopt"><input type="radio" name="mStyle" value="photo"> Foto central</label>
+
+    <!-- FORM state -->
+    <div id="mForm">
+      <label><span class="lbl">Plantilla</span>
+        <select id="mTpl"></select></label>
+      <div id="mStyleRow" class="row" hidden>
+        <span class="lbl">Diseño</span>
+        <div class="segseg">
+          <label class="segopt"><input type="radio" name="mStyle" value="crest" checked> Escudo de fondo</label>
+          <label class="segopt"><input type="radio" name="mStyle" value="photo"> Foto central</label>
+        </div>
       </div>
+      <label><span class="lbl">Título</span>
+        <input id="mTitle" type="text" maxlength="80" placeholder="Los reyes de la anotación"></label>
+      <label><span class="lbl">Etiqueta</span>
+        <input id="mScope" type="text" maxlength="40" placeholder="Temporada 2025-26"></label>
+      <div class="row"><label class="chk-l"><input type="checkbox" id="mRank" checked> Numeración</label></div>
+      <label><span class="lbl">Clave de API</span>
+        <input id="mKey" type="password" autocomplete="off" placeholder="para crear la carta"></label>
     </div>
-    <label><span class="lbl">Título</span>
-      <input id="mTitle" type="text" maxlength="80" placeholder="Los reyes de la anotación"></label>
-    <label><span class="lbl">Etiqueta</span>
-      <input id="mScope" type="text" maxlength="40" placeholder="Temporada 2025-26"></label>
-    <div class="row"><label class="chk-l"><input type="checkbox" id="mRank" checked> Numeración</label></div>
-    <label><span class="lbl">Clave de API</span>
-      <input id="mKey" type="password" autocomplete="off" placeholder="para crear la carta"></label>
+
+    <!-- PREVIEW state (hidden until first successful create) -->
+    <div id="mPreview" hidden>
+      <div class="prev-wrap">
+        <img id="mPrevImg" alt="Vista previa de la carta">
+      </div>
+      <div class="prev-meta" id="mPrevMeta"></div>
+    </div>
+
     <div class="msg" id="mMsg"></div>
-    <div class="foot">
+    <div class="foot" id="mFormFoot">
       <button class="btn ghost" id="mCancel">Cancelar</button>
       <button class="btn primary" id="mGo">Crear</button>
+    </div>
+    <div class="foot" id="mPrevFoot" hidden>
+      <button class="btn ghost" id="mEdit">Editar</button>
+      <button class="btn" id="mRegen">Regenerar</button>
+      <a class="btn primary" id="mDownload" download>Descargar PNG</a>
+      <button class="btn ghost" id="mDone">Cerrar</button>
     </div>
   </div>
 </div>
@@ -693,7 +721,40 @@ function openCreate(){
   el("mKey").value = sessionStorage.getItem("febKey")||"";
   el("mMsg").textContent="";
   syncStyleRow();
+  showFormState();
   el("scrim").classList.add("open"); el("mTitle").focus();
+}
+// Modal has two states — the form the operator fills and the preview shown
+// right after a successful create. Toggling them in place avoids the trip to
+// the review page just to see if the card came out right.
+function showFormState(){
+  el("mForm").hidden = false;
+  el("mPreview").hidden = true;
+  el("mFormFoot").hidden = false;
+  el("mPrevFoot").hidden = true;
+  el("mHead").textContent = "Crear contenido";
+}
+function showPreviewState(item){
+  el("mForm").hidden = true;
+  el("mPreview").hidden = false;
+  el("mFormFoot").hidden = true;
+  el("mPrevFoot").hidden = false;
+  el("mHead").textContent = "Vista previa";
+  // Cache-buster in the URL: after Regenerar the same content_id serves a
+  // fresh SVG, but the browser holds the previous PNG in memory. `?t=` forces
+  // a re-fetch every time.
+  const url = `/v1/content/items/${encodeURIComponent(item.content_id)}/render.png?t=${Date.now()}`;
+  el("mPrevImg").src = url;
+  el("mDownload").href = url;
+  el("mDownload").download = `febscore-${item.content_id.slice(0,8)}.png`;
+  const st = item.status || "?";
+  const val = item.fact_validation && item.fact_validation.ok ? "ok" : "revisar";
+  const cap = (item.copy && item.copy.caption) || "";
+  el("mPrevMeta").innerHTML =
+    `<b>Estado</b> ${esc(st)} · <b>Validación</b> ${esc(val)} · <b>ID</b> <code>${esc(item.content_id.slice(0,8))}</code><br>` +
+    (cap ? `<b>Caption</b> ${esc(cap)}` : "");
+  el("mCurrentId") && (el("mCurrentId").value = item.content_id);
+  window.__currentContentId = item.content_id;
 }
 // The "diseño" picker (Escudo vs Foto) is only meaningful for the single-player
 // hero card, so it shows/hides in step with the plantilla dropdown.
@@ -701,8 +762,13 @@ function syncStyleRow(){
   const on = el("mTpl").value === "hero";
   el("mStyleRow").hidden = !on;
 }
-function closeCreate(){ el("scrim").classList.remove("open"); createIntent=null; }
-async function doCreate(){
+function closeCreate(){
+  el("scrim").classList.remove("open");
+  createIntent = null;
+  window.__currentContentId = null;
+  showFormState();
+}
+async function doCreate(force){
   const key=el("mKey").value.trim();
   const title=el("mTitle").value.trim();
   if(!title){ el("mMsg").textContent="Ponle un título."; return; }
@@ -718,7 +784,7 @@ async function doCreate(){
   const style = (document.querySelector('input[name="mStyle"]:checked')||{}).value || "crest";
   const heroKind = useIntent ? (createIntent.hero_kind || null) : null;
   const body={ season:el("season").value, title, template:el("mTpl").value,
-    hero_style:style, hero_kind:heroKind,
+    hero_style:style, hero_kind:heroKind, force:!!force,
     scope_label:el("mScope").value.trim()||null, show_rank:el("mRank").checked,
     player_ids:[...sel],
     metric:["games_played","val","feb"].includes(metricRaw)?"points":metricRaw,
@@ -729,15 +795,17 @@ async function doCreate(){
     min_age:ignoreFilters?null:(f.minAge?+f.minAge:null),
     max_age:ignoreFilters?null:(f.maxAge?+f.maxAge:null),
     min_games:ignoreFilters?null:(f.minG?+f.minG:null) };
-  el("mGo").disabled=true; el("mMsg").textContent="Creando…";
+  el("mGo").disabled=true; el("mRegen") && (el("mRegen").disabled=true);
+  el("mMsg").textContent = force ? "Regenerando…" : "Creando…";
   try{
     const r=await fetch("/v1/explore/card",{method:"POST",
       headers:{"content-type":"application/json","x-api-key":key},body:JSON.stringify(body)});
     const d=await r.json();
     if(!r.ok){ el("mMsg").textContent=(d.error&&d.error.message)||("Error "+r.status); return; }
-    el("mMsg").innerHTML=`Carta creada (${esc(d.status)}) · <a href="/v1/content/review" target="_blank">ver en la cola</a>`;
+    el("mMsg").textContent = "";
+    showPreviewState(d);
   }catch(e){ el("mMsg").textContent="No se pudo crear."; }
-  finally{ el("mGo").disabled=false; }
+  finally{ el("mGo").disabled=false; el("mRegen") && (el("mRegen").disabled=false); }
 }
 
 // ---- round recap from the explorer (POST /v1/explore/round-recap) ------------
@@ -899,7 +967,10 @@ document.addEventListener("click",e=>{ if(!el("pop").contains(e.target)&&!el("fb
 el("aCreate").addEventListener("click",openCreate);
 el("aClear").addEventListener("click",()=>{sel.clear();render();syncAction();});
 el("mCancel").addEventListener("click",closeCreate);
-el("mGo").addEventListener("click",doCreate);
+el("mDone").addEventListener("click",closeCreate);
+el("mGo").addEventListener("click",()=>doCreate(false));
+el("mRegen").addEventListener("click",()=>doCreate(true));
+el("mEdit").addEventListener("click",showFormState);
 el("mTpl").addEventListener("change",syncStyleRow);
 el("scrim").addEventListener("click",e=>{if(e.target===el("scrim"))closeCreate();});
 

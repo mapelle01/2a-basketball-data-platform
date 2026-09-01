@@ -1076,7 +1076,7 @@ class _GatewayBase(CommandGateway):
         self, season_code: str, *, player_id: str, metric: str = "points",
         per_game: bool = False, title: str, subtitle: Optional[str] = None,
         scope_label: Optional[str] = None, hero_style: str = "crest",
-        hero_kind: Optional[str] = None,
+        hero_kind: Optional[str] = None, force: bool = False,
     ) -> Dict[str, Any]:
         """One player as a single hero card, built from a query. Two visual
         variants share the same facts: ``crest`` (photo-less, crest silhouette
@@ -1174,7 +1174,7 @@ class _GatewayBase(CommandGateway):
             facts=facts,
             source_refs={"season_player_stats":
                          f"2afeb_score://season_player_stats/{season_code}/{player_id}"})
-        return self._pipeline().generate_one(story).to_dict()
+        return self._pipeline().generate_one(story, force=force).to_dict()
 
     def create_season_dd_leader_card(
         self, season_code: str, *, force: bool = False,
@@ -1255,7 +1255,7 @@ class _GatewayBase(CommandGateway):
     def create_custom_five(
         self, season_code: str, *, title: str, subtitle: str = "",
         scope_label: Optional[str] = None, player_ids: Optional[List[str]] = None,
-        show_rank: bool = True, **query: Any
+        show_rank: bool = True, force: bool = False, **query: Any
     ) -> Dict[str, Any]:
         """Turn an explorer query into a card.
 
@@ -1338,7 +1338,7 @@ class _GatewayBase(CommandGateway):
                     f"2afeb_score://season_player_aggregates/{season_code}",
             },
         )
-        item = self._pipeline().generate_one(story)
+        item = self._pipeline().generate_one(story, force=force)
         return item.to_dict()
 
     @staticmethod
