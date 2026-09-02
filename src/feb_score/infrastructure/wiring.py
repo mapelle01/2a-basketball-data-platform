@@ -1114,8 +1114,8 @@ class _GatewayBase(CommandGateway):
             raise ValueError("title is required")
         if metric not in self.EXPLORE_METRICS:
             raise ValueError(f"metric must be one of {', '.join(self.EXPLORE_METRICS)}")
-        if hero_style not in ("crest", "photo"):
-            raise ValueError("hero_style must be 'crest' or 'photo'")
+        if hero_style not in ("crest", "photo", "split"):
+            raise ValueError("hero_style must be 'crest', 'photo' or 'split'")
         # Default hero_kind: whatever per_game said (backwards-compatible).
         if hero_kind is None:
             hero_kind = "average" if per_game else "total"
@@ -1206,6 +1206,15 @@ class _GatewayBase(CommandGateway):
             "hero_kind": hero_kind,
             "badge_label": badge,
         }
+        # Split variant renders on the player_streak template, which asks for
+        # streak_length + streak_kind in its slot contract. This card isn't a
+        # streak, but it uses the same visual, so mirror the SEASON_DD_LEADER
+        # trick: satisfy the contract with a "custom" kind and the hero value
+        # as the length. The renderer reads facts.hero_value first, so nothing
+        # on screen changes.
+        if hero_style == "split":
+            facts["streak_length"] = hero_value_raw
+            facts["streak_kind"] = "custom"
         story = StoryObject(
             story_type=StoryType.CUSTOM_HERO, season_code=season_code, round_number=None,
             entities=StoryEntities(player_external_id=player_id,

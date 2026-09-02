@@ -351,7 +351,20 @@ class TestQueryToCard:
         assert item["template_id"] == "stat_hero_photo"
         assert item["story"]["facts"]["hero_style"] == "photo"
 
-    def test_hero_style_must_be_crest_or_photo(self, client):
+    def test_hero_style_split_routes_to_the_streak_layout(self, client):
+        """hero_style="split" is the third visual variant: giant number left,
+        photo bleeding down the right. It shares the player_streak template
+        with the season DD leader and the streak cards, so the whole editorial
+        page has one coherent "portrait split" look wherever it appears."""
+        _seed(client)
+        r = self._card(client, template="hero", player_ids=["p2"], title="EL REY",
+                       hero_style="split")
+        assert r.status_code == 201, r.text
+        item = r.json()
+        assert item["template_id"] == "player_streak"
+        assert item["story"]["facts"]["hero_style"] == "split"
+
+    def test_hero_style_must_be_a_known_variant(self, client):
         _seed(client)
         r = self._card(client, template="hero", player_ids=["p2"], title="X",
                        hero_style="banana")

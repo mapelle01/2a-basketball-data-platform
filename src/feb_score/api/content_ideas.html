@@ -87,6 +87,16 @@ h2.sec .n{color:var(--lgrey);margin-left:8px;font-weight:600}
 .prev-meta b{color:var(--lgrey);font-weight:700}
 .pmodal .foot{display:flex;gap:var(--s2);justify-content:flex-end;flex-wrap:wrap;margin-top:var(--s2)}
 .pmodal .foot[hidden]{display:none}
+/* Segmented style picker — three variants for a hero card. Hidden on
+   templates that don't support the switch (e.g. season DD leader). */
+.styles{display:flex;gap:6px;justify-content:center;margin-bottom:var(--s2)}
+.styles[hidden]{display:none}
+.styles button{background:var(--field);border:1px solid var(--rule-2);color:var(--lgrey);
+  padding:6px 12px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  border-radius:4px}
+.styles button:hover:not(:disabled){border-color:var(--grey)}
+.styles button.on{background:var(--white);color:var(--black);border-color:var(--white)}
+.styles button:disabled{opacity:.5;cursor:progress}
 .btn{background:var(--field);border:1px solid var(--rule-2);color:var(--lgrey);border-radius:4px;
   padding:7px 14px;font-size:12px;font-weight:700;letter-spacing:.04em}
 .btn:hover:not(:disabled){border-color:var(--grey)}
@@ -156,6 +166,11 @@ a.btn{display:inline-flex;align-items:center;justify-content:center;text-decorat
     <h3 id="pmTitle">Vista previa</h3>
     <p class="mono" id="pmSub"></p>
     <div class="prev-wrap"><img id="pmImg" alt="Vista previa"></div>
+    <div class="styles" id="pmStyles" hidden>
+      <button data-style="crest">Escudo</button>
+      <button data-style="photo">Foto central</button>
+      <button data-style="split">Mitad degradada</button>
+    </div>
     <div class="prev-meta" id="pmMeta"></div>
     <div class="foot">
       <button class="btn ghost" id="pmDiscard">Descartar</button>
@@ -433,8 +448,7 @@ async function generate({label, url, body, card, button}){
 // cardKey is stashed so Descartar and Regenerar know which idea card to
 // clear when the operator drops the generated item.
 let CURRENT_CARD_KEY = null;
-function openPreview(item, label, cardKey){
-  CURRENT_CARD_KEY = cardKey || null;
+function renderPreview(item, label){
   window.__currentContentId = item.content_id;
   $("pmTitle").textContent = label;
   $("pmSub").textContent = `id ${item.content_id.slice(0,8)} · ${item.status}`;
@@ -447,8 +461,64 @@ function openPreview(item, label, cardKey){
   $("pmMeta").innerHTML =
     `<b>Estado</b> ${esc(item.status || "?")} · <b>Validación</b> ${esc(val)}<br>` +
     (cap ? `<b>Caption</b> ${esc(cap)}` : "");
+  // Segmented picker: visible only when the source idea carries a hero_style
+  // (CUSTOM_HERO tiles). Highlights whichever chip matches the item now on
+  // screen so the operator can see at a glance which variant they're looking at.
+  const styles = $("pmStyles");
+  const currentStyle = LAST_IDEA && LAST_IDEA.body ? LAST_IDEA.body.hero_style : null;
+  if(currentStyle){
+    styles.hidden = false;
+    for(const b of styles.querySelectorAll("button")){
+      b.classList.toggle("on", b.dataset.style === currentStyle);
+    }
+  } else {
+    styles.hidden = true;
+  }
+}
+function openPreview(item, label, cardKey){
+  CURRENT_CARD_KEY = cardKey || null;
+  renderPreview(item, label);
   $("scrim").classList.add("open");
 }
+
+// Style picker inside the preview modal. Only CUSTOM_HERO-based tiles
+// (metric-leader, record) carry a hero_style in the request body; for those,
+// clicking a chip re-issues the same POST with the new style and swaps the
+// modal contents in place. The previous preview stays in the server-side
+// PreviewStore until its short TTL expires — harmless, and it means the
+// operator can flip back to the crest variant without a second network trip
+// if we cached it, though we keep it simple and always re-POST.
+$("pmStyles").addEventListener("click", async e => {
+  const btn = e.target.closest("button[data-style]"); if(!btn) return;
+  if(!LAST_IDEA || !LAST_IDEA.body || !("hero_style" in LAST_IDEA.body)) return;
+  if(!apiKey()){ $("msg").textContent = "Guarda tu clave antes de cambiar el diseño."; return; }
+  const style = btn.dataset.style;
+  if(style === LAST_IDEA.body.hero_style) return; // already showing this variant
+  for(const b of $("pmStyles").querySelectorAll("button")) b.disabled = true;
+  try{
+    const nextBody = Object.assign({}, LAST_IDEA.body, {
+      hero_style: style, pending: true, preview: true,
+    });
+    const r = await fetch(LAST_IDEA.url, { method:"POST",
+      headers:{"content-type":"application/json","x-api-key":apiKey()},
+      body: JSON.stringify(nextBody) });
+    const d = await r.json();
+    if(!r.ok){
+      $("msg").textContent = (d.error&&d.error.message)||("Error "+r.status);
+      return;
+    }
+    LAST_IDEA.body = nextBody;
+    // Refresh the cache entry for the source tile so "Ver" reopens the last
+    // variant the operator was looking at, not the original one.
+    if(CURRENT_CARD_KEY){
+      GENERATED.set(CURRENT_CARD_KEY, { item:d, label:LAST_IDEA.label,
+        url:LAST_IDEA.url, body:nextBody });
+    }
+    renderPreview(d, LAST_IDEA.label);
+  }finally{
+    for(const b of $("pmStyles").querySelectorAll("button")) b.disabled = false;
+  }
+});
 
 $("pmClose").onclick = () => $("scrim").classList.remove("open");
 // Fase B: the preview lives in the server's in-memory PreviewStore until the
@@ -533,7 +603,13 @@ $("pmRegen").onclick = async () => {
       body: JSON.stringify(forceBody) });
     const d = await r.json();
     if(!r.ok){ $("msg").textContent = (d.error&&d.error.message)||("Error "+r.status); return; }
-    openPreview(d, LAST_IDEA.label);
+    // Modal is already open — swap contents in place. openPreview would drop
+    // CURRENT_CARD_KEY back to null and break Descartar / Commit's tile reset.
+    if(CURRENT_CARD_KEY){
+      GENERATED.set(CURRENT_CARD_KEY, { item:d, label:LAST_IDEA.label,
+        url:LAST_IDEA.url, body:LAST_IDEA.body });
+    }
+    renderPreview(d, LAST_IDEA.label);
   }finally{
     $("pmRegen").disabled = false; $("pmRegen").textContent = "Regenerar";
   }
