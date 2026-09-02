@@ -673,3 +673,61 @@ class TestDeleteContentItem:
         cid = self._one(client)
         r = client.anon().delete(f"/v1/content/items/{cid}")
         assert r.status_code == 401
+
+
+class TestEphemeralPreview:
+    """Fase B: preview=true renders + validates but does NOT touch the queue.
+    The card lives in an in-memory PreviewStore until the operator commits
+    (moves to PENDIENTE) or discards (drops the preview)."""
+
+    def _create_preview(self, client):
+        _seed_round(client)
+        # Any create endpoint with preview=true; use season-dd-leader (simpler
+        # body). We seed a round; DDs will exist because _seed_round posts DD
+        # lines. Point is the flag routes it into the preview store.
+        # Use custom_five via /v1/explore/card which we know supports preview.
+        # Fallback: use the pipeline's own path via post to round pipeline is
+        # not preview-aware; stick with /v1/explore/card.
+        return client.post("/v1/explore/card",
+            json={"season": "2025-2026", "title": "PREVIEW", "template": "grid",
+                  "preview": True, "pending": True},
+            headers=auth_header("system"))
+
+    def test_preview_returns_content_but_not_in_queue(self, client):
+        r = self._create_preview(client)
+        assert r.status_code == 201, r.text
+        cid = r.json()["content_id"]
+        # The queue does NOT know about it.
+        assert client.get("/v1/content/queue").json()["items"] == [] or \
+               cid not in {i["content_id"] for i in client.get("/v1/content/queue").json()["items"]}
+        # But render.png works via the preview-store fallback.
+        assert client.get(f"/v1/content/items/{cid}/render.svg").status_code == 200
+
+    def test_commit_moves_preview_into_the_queue(self, client):
+        cid = self._create_preview(client).json()["content_id"]
+        r = client.post(f"/v1/content/preview/{cid}/commit",
+                        headers=auth_header("system"))
+        assert r.status_code == 201, r.text
+        # Now visible in the queue.
+        assert cid in {i["content_id"]
+                       for i in client.get("/v1/content/queue").json()["items"]}
+        # And the preview id is spent — a second commit is 404.
+        assert client.post(f"/v1/content/preview/{cid}/commit",
+                           headers=auth_header("system")).status_code == 404
+
+    def test_delete_drops_a_preview(self, client):
+        cid = self._create_preview(client).json()["content_id"]
+        r = client.delete(f"/v1/content/items/{cid}", headers=auth_header("system"))
+        assert r.status_code == 200
+        # After discard the preview is gone from both stores.
+        assert client.get(f"/v1/content/items/{cid}/render.svg").status_code == 404
+
+    def test_commit_needs_a_key(self, client):
+        cid = self._create_preview(client).json()["content_id"]
+        r = client.anon().post(f"/v1/content/preview/{cid}/commit")
+        assert r.status_code == 401
+
+    def test_commit_of_unknown_id_is_404(self, client):
+        r = client.post(f"/v1/content/preview/{uuid.uuid4()}/commit",
+                        headers=auth_header("system"))
+        assert r.status_code == 404

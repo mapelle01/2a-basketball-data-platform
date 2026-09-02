@@ -326,7 +326,7 @@ class CommandGateway(ABC):
         per_game: bool = False, title: str, subtitle: Optional[str] = None,
         scope_label: Optional[str] = None, hero_style: str = "crest",
         hero_kind: Optional[str] = None, force: bool = False,
-        pending: bool = False,
+        pending: bool = False, preview: bool = False,
     ) -> Dict[str, Any]:
         """One player rendered as a single hero card, from a query. Two visual
         variants share the same facts: ``crest`` (photo-less, crest silhouette)
@@ -352,7 +352,7 @@ class CommandGateway(ABC):
         self, season_code: str, *, title: str, subtitle: str = "",
         scope_label: Optional[str] = None, player_ids: Optional[List[str]] = None,
         show_rank: bool = True, force: bool = False, pending: bool = False,
-        **query: Any
+        preview: bool = False, **query: Any
     ) -> Dict[str, Any]:
         """Turn an explorer query into a queued card. The caller supplies the
         query and the wording, never the figures — those are re-read from the

@@ -94,6 +94,7 @@ def register_explorer_routes(app: FastAPI) -> None:
         body: SeasonLeaderRequest, request: Request,
         force: bool = Query(False, description="Re-render if already queued"),
         pending: bool = Query(False, description="Land as pending_review"),
+        preview: bool = Query(False, description="Ephemeral, does not touch the queue"),
     ):
         auth: AuthenticationProvider = request.app.state.auth
         if auth.authenticate(request) is None:
@@ -103,7 +104,7 @@ def register_explorer_routes(app: FastAPI) -> None:
                 400, "INVALID_PARAMETER", "season must look like 2024-2025")
         try:
             return request.app.state.gateway.create_season_dd_leader_card(
-                body.season, force=force, pending=pending)
+                body.season, force=force, pending=pending, preview=preview)
         except ValueError as exc:
             return err.error_response(404, "NO_DATA", str(exc))
 
@@ -193,13 +194,13 @@ def register_explorer_routes(app: FastAPI) -> None:
                     per_game=body.per_game, title=body.title,
                     subtitle=body.subtitle, scope_label=body.scope_label,
                     hero_style=body.hero_style, hero_kind=body.hero_kind,
-                    force=body.force, pending=body.pending)
+                    force=body.force, pending=body.pending, preview=body.preview)
             else:
                 item = request.app.state.gateway.create_custom_five(
                     body.season, title=body.title, subtitle=body.subtitle,
                     scope_label=body.scope_label, player_ids=body.player_ids,
                     show_rank=body.show_rank, force=body.force,
-                    pending=body.pending,
+                    pending=body.pending, preview=body.preview,
                     team=body.team, nationality=body.nationality,
                     position=body.position, min_age=body.min_age,
                     max_age=body.max_age, min_games=body.min_games,
@@ -273,3 +274,7 @@ class CustomFiveRequest(BaseModel):
     # dashboard sends this so the operator reviews every card before it
     # graduates to APROBADA.
     pending: bool = False
+    # Ephemeral preview: render + validate but keep the item OUT of the queue
+    # (lives in the in-memory PreviewStore for ~30 min). The modal then either
+    # commits it (moves to PENDIENTE) or drops it — no residue on Descartar.
+    preview: bool = False

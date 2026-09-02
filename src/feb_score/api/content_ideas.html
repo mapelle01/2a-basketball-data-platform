@@ -160,7 +160,8 @@ a.btn{display:inline-flex;align-items:center;justify-content:center;text-decorat
     <div class="foot">
       <button class="btn ghost" id="pmDiscard">Descartar</button>
       <button class="btn" id="pmRegen">Regenerar</button>
-      <a class="btn primary" id="pmDownload" download>Descargar PNG</a>
+      <a class="btn" id="pmDownload" download>Descargar PNG</a>
+      <button class="btn primary" id="pmCommit">Enviar a la cola</button>
       <button class="btn ghost" id="pmClose">Cerrar</button>
     </div>
   </div>
@@ -352,7 +353,7 @@ document.body.addEventListener("click", async e => {
       label: "Líder de dobles-dobles",
       // pending=true so the card lands in PENDIENTES, not auto-approved:
       // Ideas is a proposal feed, the human decides what actually ships.
-      url: `/v1/explore/season-dd-leader?force=false&pending=true`,
+      url: `/v1/explore/season-dd-leader?force=false&pending=true&preview=true`,
       body: { season: SEASON },
       card, button: b,
     });
@@ -376,7 +377,7 @@ document.body.addEventListener("click", async e => {
         player_ids: [pid],
         metric: backendMetric, per_game: perGame,
         show_rank: false, scope_label: `Temporada ${SEASON}`,
-        pending: true,
+        pending: true, preview: true,
       },
       card, button: b,
     });
@@ -394,7 +395,7 @@ document.body.addEventListener("click", async e => {
         player_ids: [pid],
         metric: ["val","feb"].includes(metric) ? "points" : metric,
         per_game: false, show_rank: false, scope_label: `Temporada ${SEASON}`,
-        pending: true,
+        pending: true, preview: true,
       },
       card, button: b,
     });
@@ -450,6 +451,41 @@ function openPreview(item, label, cardKey){
 }
 
 $("pmClose").onclick = () => $("scrim").classList.remove("open");
+// Fase B: the preview lives in the server's in-memory PreviewStore until the
+// operator commits it. Enviar a la cola calls the commit endpoint; when it
+// returns the card is now a PENDIENTE in the real queue, no residue if the
+// operator instead closes the modal or hits Descartar.
+$("pmCommit").onclick = async () => {
+  if(!window.__currentContentId){ return; }
+  if(!apiKey()){ $("msg").textContent = "Guarda tu clave antes de enviar."; return; }
+  $("pmCommit").disabled = true; $("pmCommit").textContent = "Enviando…";
+  try{
+    const r = await fetch(
+      `/v1/content/preview/${encodeURIComponent(window.__currentContentId)}/commit`,
+      { method:"POST", headers:{"x-api-key":apiKey()} });
+    if(!r.ok){
+      const d = await r.json().catch(()=>({}));
+      $("msg").textContent = (d.error&&d.error.message)||("Error "+r.status);
+      return;
+    }
+    // Same behaviour as Descartar in the source idea card: the operator has
+    // moved on from this proposal, roll the tile back so a new pick shows
+    // Generar instead of Ver.
+    if(CURRENT_CARD_KEY){
+      GENERATED.delete(CURRENT_CARD_KEY);
+      const card = document.querySelector(`.idea[data-key="${CSS.escape(CURRENT_CARD_KEY)}"]`);
+      if(card){
+        card.classList.remove("done");
+        const go = card.querySelector(".go");
+        if(go){ go.disabled = false; go.textContent = "Generar"; }
+      }
+    }
+    $("msg").textContent = "Enviada a la cola.";
+    $("scrim").classList.remove("open");
+  }finally{
+    $("pmCommit").disabled = false; $("pmCommit").textContent = "Enviar a la cola";
+  }
+};
 $("pmDiscard").onclick = async () => {
   if(!window.__currentContentId){ return; }
   if(!apiKey()){ $("msg").textContent = "Guarda tu clave antes de descartar."; return; }

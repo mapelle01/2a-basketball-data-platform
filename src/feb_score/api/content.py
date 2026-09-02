@@ -271,6 +271,24 @@ def register_content_routes(app: FastAPI) -> None:
             return err.error_response(401, "UNAUTHENTICATED", "API key required")
         return request.app.state.gateway.purge_content_queue()
 
+    @app.post(
+        "/v1/content/preview/{content_id}/commit",
+        tags=["content"],
+        summary="Promote an ephemeral preview into the real queue",
+        description="A card generated with preview=true lives in an in-memory "
+        "store; this endpoint moves it into the queue as PENDING_REVIEW so it "
+        "shows up in Cola and can be approved/downloaded. Returns 404 when the "
+        "preview id is unknown or has already expired (30 min TTL).",
+        status_code=201,
+    )
+    def commit_content_preview(content_id: str, request: Request):
+        if _authed(request) is None:
+            return err.error_response(401, "UNAUTHENTICATED", "API key required")
+        item = request.app.state.gateway.commit_preview(content_id)
+        if item is None:
+            return err.error_response(404, "NOT_FOUND", "preview not found or expired")
+        return item
+
     @app.delete(
         "/v1/content/items/{content_id}",
         tags=["content"],

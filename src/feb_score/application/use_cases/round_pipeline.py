@@ -161,7 +161,7 @@ class RoundPipeline:
 
     def generate_one(
         self, story: StoryObject, *, force: bool = False,
-        force_review: bool = False,
+        force_review: bool = False, persist: bool = True,
     ) -> ContentItem:
         """Render, validate and queue ONE story the caller built by hand.
 
@@ -184,10 +184,15 @@ class RoundPipeline:
         if story.template_id is None:
             raise ValueError(f"story type {story.story_type.value} has no template")
         existing = self._queue.by_story_identity(story.identity_key)
-        if existing is not None and not force:
+        # In persist mode the dedup + reuse dance kicks in; in preview mode
+        # (persist=False) the caller wants a rendered card in memory, so we
+        # always render fresh and never touch the queue.
+        if persist and existing is not None and not force:
             return existing            # same query, same card: not a second one
         item = self._render_and_validate(_as_selected(story), force_review=force_review)
         if item.status in (ContentStatus.REJECTED, ContentStatus.FAILED):
+            return item
+        if not persist:
             return item
         if existing is not None and force:
             # Reuse the existing content_id so downstream references (queue

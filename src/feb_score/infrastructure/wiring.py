@@ -238,6 +238,10 @@ class _GatewayBase(CommandGateway):
         self._media_asset_repo = repos["media_asset"]
         self._content_pipeline: Optional[RoundPipeline] = None
         self._content_lifecycle = None  # lazily built alongside the pipeline
+        # Ephemeral preview cache: cards the operator has seen from Ideas but
+        # not yet sent to the real queue. Lives one process; TTL 30 min.
+        from ..application.use_cases.preview_store import PreviewStore
+        self._preview_store = PreviewStore()
 
         self._handlers: Dict[str, Any] = {
             "create_or_update_match": lambda: CreateOrUpdateMatchHandler(repos["match"], repos["idempotency"]),
@@ -669,12 +673,22 @@ class _GatewayBase(CommandGateway):
             )
         return [i.to_dict() for i in items]
 
-    def get_content_item(self, content_id: str) -> Optional[Dict[str, Any]]:
+    def _lookup_item(self, content_id: str):
+        """Queue first, ephemeral PreviewStore as fallback. Lets the same
+        render.png URL serve a card whether the operator has committed it or
+        is still deciding."""
         item = self._pipeline().queue.get(content_id)
+        if item is not None:
+            return item
+        return self._preview_store.get(content_id)
+
+    def get_content_item(self, content_id: str) -> Optional[Dict[str, Any]]:
+        item = self._lookup_item(content_id)
         return item.to_dict() if item is not None else None
 
     def render_content_item(self, content_id: str) -> Optional[str]:
-        """The item's SVG, made self-contained.
+        """The item's SVG, made self-contained. Reads from the queue or the
+        ephemeral preview store so a not-yet-committed card still renders.
 
         Cards are STORED with references to the shared assets (the background
         alone was 96% of a 1.85 MB card, identical in every row); they are
@@ -682,7 +696,7 @@ class _GatewayBase(CommandGateway):
         """
         from .rendering.component_templates import inline_shared_assets
 
-        item = self._pipeline().queue.get(content_id)
+        item = self._lookup_item(content_id)
         if item is None or item.rendered_svg is None:
             return None
         return inline_shared_assets(item.rendered_svg)
@@ -1077,7 +1091,7 @@ class _GatewayBase(CommandGateway):
         per_game: bool = False, title: str, subtitle: Optional[str] = None,
         scope_label: Optional[str] = None, hero_style: str = "crest",
         hero_kind: Optional[str] = None, force: bool = False,
-        pending: bool = False,
+        pending: bool = False, preview: bool = False,
     ) -> Dict[str, Any]:
         """One player as a single hero card, built from a query. Two visual
         variants share the same facts: ``crest`` (photo-less, crest silhouette
@@ -1199,11 +1213,15 @@ class _GatewayBase(CommandGateway):
             facts=facts,
             source_refs={"season_player_stats":
                          f"2afeb_score://season_player_stats/{season_code}/{player_id}"})
-        return self._pipeline().generate_one(
-            story, force=force, force_review=pending).to_dict()
+        item = self._pipeline().generate_one(
+            story, force=force, force_review=pending, persist=not preview)
+        if preview and item.status not in ("rejected", "failed"):
+            self._preview_store.put(item)
+        return item.to_dict()
 
     def create_season_dd_leader_card(
         self, season_code: str, *, force: bool = False, pending: bool = False,
+        preview: bool = False,
     ) -> Dict[str, Any]:
         """Season retrospective: the player with the most double-doubles this
         year, with their triple-double count riding as the extras line. All
@@ -1276,13 +1294,17 @@ class _GatewayBase(CommandGateway):
                     f"2afeb_score://season_player_stats/{season_code}",
             },
         )
-        return self._pipeline().generate_one(
-            story, force=force, force_review=pending).to_dict()
+        item = self._pipeline().generate_one(
+            story, force=force, force_review=pending, persist=not preview)
+        if preview and item.status not in ("rejected", "failed"):
+            self._preview_store.put(item)
+        return item.to_dict()
 
     def create_custom_five(
         self, season_code: str, *, title: str, subtitle: str = "",
         scope_label: Optional[str] = None, player_ids: Optional[List[str]] = None,
         show_rank: bool = True, force: bool = False, pending: bool = False,
+        preview: bool = False,
         **query: Any
     ) -> Dict[str, Any]:
         """Turn an explorer query into a card.
@@ -1366,7 +1388,10 @@ class _GatewayBase(CommandGateway):
                     f"2afeb_score://season_player_aggregates/{season_code}",
             },
         )
-        item = self._pipeline().generate_one(story, force=force, force_review=pending)
+        item = self._pipeline().generate_one(
+            story, force=force, force_review=pending, persist=not preview)
+        if preview and item.status not in ("rejected", "failed"):
+            self._preview_store.put(item)
         return item.to_dict()
 
     @staticmethod
@@ -1581,11 +1606,24 @@ class _GatewayBase(CommandGateway):
     def delete_content_item(self, content_id: str) -> bool:
         """Discard one item outright — the operator asked for it (from Ideas
         preview or the Cola row). Unconditional at any status; the queue is
-        the operator's tool, not a sacred ledger."""
+        the operator's tool, not a sacred ledger. Also drops the item from
+        the ephemeral preview store so Descartar covers both worlds."""
+        preview_dropped = self._preview_store.pop(content_id) is not None
         queue = self._pipeline().queue
-        if not hasattr(queue, "delete"):
-            raise NotImplementedError("queue backend does not support delete")
-        return queue.delete(content_id)
+        queue_dropped = False
+        if hasattr(queue, "delete"):
+            queue_dropped = queue.delete(content_id)
+        return preview_dropped or queue_dropped
+
+    def commit_preview(self, content_id: str) -> Optional[Dict[str, Any]]:
+        """Promote a previewed card from the ephemeral store into the real
+        queue as PENDING_REVIEW. Returns the queued item, or None when the
+        preview id is unknown / already expired."""
+        item = self._preview_store.pop(content_id)
+        if item is None:
+            return None
+        self._pipeline().queue.add(item)
+        return item.to_dict()
 
     # ----------------------------------------------- content lifecycle actions
     def _lifecycle(self):
