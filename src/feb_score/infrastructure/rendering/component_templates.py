@@ -557,6 +557,23 @@ def _fit_caps(text: str, width: float, max_size: int, min_size: int = 12) -> int
     return size
 
 
+# Spanish decimal separator is ",". A comma glyph carries a descender that
+# extends below the baseline, so a hero number like "13,3" or "20,7" will
+# visually kiss whatever text sits directly under it (the red label, or the
+# name/team line). The rule for every hero-number template is: whenever the
+# hero string carries a decimal separator ("," or "."), push the next line
+# down by this clearance so the descender never collides with a subtitle.
+# One helper, one number, so this cannot drift between templates as new hero
+# layouts are added.
+_HERO_COMMA_CLEARANCE = 44
+
+
+def _hero_descender_pad(hero: str) -> int:
+    """Vertical padding to add BELOW a hero number when it carries a decimal
+    separator. Returns 0 for integer-only heroes."""
+    return _HERO_COMMA_CLEARANCE if ("," in hero or "." in hero) else 0
+
+
 def _wrap_words(text: str, max_chars: int) -> List[str]:
     """Greedy word-wrap into short lines — for the hero note's narrow column."""
     lines, cur = [], ""
@@ -781,10 +798,9 @@ def render_stat_hero(data: Dict[str, Any]) -> str:
                        fill=ink, tracking=LetterSpacing.HERO))
     # A comma in the hero (20,7) has a descender that dips below the baseline;
     # without extra padding it kisses the red label just below and the label
-    # kisses the name. Push the label + name down by a stable comma clearance
-    # when the number carries one — visually consistent across all peaks.
-    comma_pad = 44 if ("," in hero or "." in hero) else 0
-    label_y = ny + FontSize.H2 + comma_pad
+    # kisses the name. The clearance rule lives in _hero_descender_pad so every
+    # hero-number template uses the same number.
+    label_y = ny + FontSize.H2 + _hero_descender_pad(hero)
     body.append(C.text(CONTENT_X, label_y, hlab.upper(), size=FontSize.H2,
                        weight=FontWeight.DISPLAY, fill=Color.RED,
                        tracking=LetterSpacing.CAPS, upper=True))
@@ -924,8 +940,12 @@ def render_player_streak(data: Dict[str, Any]) -> str:
     # broken ring cutting through the digit, not as a run accent. The red
     # presence lives on the small underline below the label instead.
 
-    # SMALL LABEL under the number.
-    label_baseline = num_center_y + num_size * 0.36 + FontSize.LABEL + Spacing.MD
+    # SMALL LABEL under the number. When the hero carries a decimal separator
+    # ("13,3"), push the label down by the standard descender clearance so the
+    # comma's tail doesn't kiss the red label. Same rule that stat_hero uses;
+    # applied via _hero_descender_pad so both templates cannot drift.
+    label_baseline = (num_center_y + num_size * 0.36 + FontSize.LABEL
+                      + Spacing.MD + _hero_descender_pad(hero))
     body.append(C.text(num_center_x, label_baseline,
                        hlab.upper(), size=FontSize.LABEL, weight=FontWeight.LABEL,
                        fill=Color.RED, tracking=LetterSpacing.CAPS, upper=True,

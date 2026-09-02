@@ -404,3 +404,33 @@ class TestPlayerStreakTemplate:
         svg = self._svg()
         # The brand footer abbreviates the year: "SEGUNDA FEB · 2025-26".
         assert "2025-26" in svg
+
+    def test_decimal_hero_pushes_label_down_by_the_standard_clearance(self):
+        """A hero like "13,3" (average points) has a comma whose descender
+        drops below the baseline; the label directly under the number must
+        move down by the shared clearance so the tail never kisses the label.
+        The rule lives in one helper, so every hero-number template picks up
+        the same number — this test locks in that behaviour for the split
+        variant, since CUSTOM_HERO with hero_style="split" reuses this card."""
+        from feb_score.infrastructure.rendering.component_templates import (
+            _hero_descender_pad, _HERO_COMMA_CLEARANCE,
+        )
+        assert _hero_descender_pad("14") == 0
+        assert _hero_descender_pad("13,3") == _HERO_COMMA_CLEARANCE
+        assert _hero_descender_pad("13.3") == _HERO_COMMA_CLEARANCE
+        # And the template actually uses it: same hero_value in two variants
+        # (integer vs decimal) yields two different label baselines, and the
+        # decimal one sits exactly _HERO_COMMA_CLEARANCE farther down.
+        import re
+        def label_y(svg):
+            # The red label baseline is the y-coord on the <text> node whose
+            # fill is the design system's red. Find the first red-filled text.
+            m = re.search(r'<text[^>]*y="([\d.]+)"[^>]*fill="#E10600"', svg)
+            assert m, "expected a red-filled label in the streak template"
+            return float(m.group(1))
+        # Compare same-length hero strings so num_size (and thus the base
+        # label y) is identical — the only thing shifting the label is the
+        # descender clearance. "1234" and "1,34" both give num_size=340.
+        y_int = label_y(self._svg({"hero_value": "1234"}))
+        y_dec = label_y(self._svg({"hero_value": "1,34"}))
+        assert round(y_dec - y_int) == _HERO_COMMA_CLEARANCE
