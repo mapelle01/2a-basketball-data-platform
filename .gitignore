@@ -37,3 +37,20 @@ examples/content/live/
 .github/agents/
 .github/hooks/
 .github/skills/
+
+# Trabajo interno / bitácora de desarrollo — en local, fuera del repo público.
+.impeccable/
+architect_cto/
+feb_segunda_prototype/
+PROJECT_CONTEXT.md
+docs/FASE_*_REPORT.md
+docs/FASE_16_FINAL_CLOSURE.md
+docs/FINAL_CLOSURE.md
+docs/FINAL_PROJECT_AUDIT.md
+docs/SEASON_2025_2026_CLOSURE.md
+docs/STAGING.md
+docs/media/
+*.png
+*.sqlite3-shm
+*.sqlite3-wal
+*.sqlite3-*
