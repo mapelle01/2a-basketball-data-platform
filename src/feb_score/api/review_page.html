@@ -81,6 +81,35 @@ h3{margin:0;font-size:15.5px;font-weight:800;letter-spacing:-.01em}
 .idline{margin:0;font-size:11px;color:var(--grey);font-family:ui-monospace,monospace}
 .actions{display:flex;gap:8px;margin-top:auto;padding-top:6px;flex-wrap:wrap}
 .actions button,.actions a{flex:1 1 45%}
+
+/* Multi-select: a checkbox sits over the thumb's top-left corner, and a
+   floating action bar sticks to the bottom of the viewport when > 0 rows
+   are picked. Same design system as the Explorer's selection bar. */
+.card{position:relative}
+.card.sel{outline:2px solid var(--red);outline-offset:-2px}
+.selcb{position:absolute;top:8px;left:8px;z-index:2;width:22px;height:22px;
+  background:rgba(0,0,0,.6);border:1px solid var(--rule-2);border-radius:4px;
+  display:flex;align-items:center;justify-content:center;cursor:pointer}
+.selcb input{position:absolute;opacity:0;inset:0;cursor:pointer;margin:0}
+.selcb::after{content:"";width:12px;height:12px;border-radius:2px;background:transparent}
+.card.sel .selcb{background:var(--red);border-color:var(--red)}
+.card.sel .selcb::after{background:#fff;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 6l3 3 5-5' stroke='%23000' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center/contain;
+          mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 6l3 3 5-5' stroke='%23000' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center/contain}
+
+.selbar{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:40;
+  background:var(--panel);border:1px solid var(--rule-2);border-radius:8px;
+  padding:10px 14px;display:none;align-items:center;gap:12px;
+  box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.selbar.show{display:flex}
+.selbar .n{font-weight:700;color:var(--ink)}
+.selbar .n b{color:var(--red);font-weight:900;margin-right:4px}
+.selbar button{background:var(--panel);border:1px solid var(--rule-2);color:var(--ink-2);
+  padding:7px 12px;border-radius:4px;font-size:12px;font-weight:700;letter-spacing:.04em;cursor:pointer}
+.selbar button:hover:not(:disabled){border-color:var(--grey)}
+.selbar button.ok{background:var(--red);color:#fff;border-color:var(--red)}
+.selbar button.ghost{background:transparent;border-color:transparent;color:var(--grey)}
+.selbar button.ghost:hover{color:var(--ink)}
 a.btn{display:block;text-align:center;text-decoration:none;font-size:12px;letter-spacing:.04em;
   padding:6px 12px;border:1px solid var(--rule);background:var(--panel);color:var(--ink-2)}
 a.btn:hover{border-color:var(--grey)}
@@ -148,12 +177,25 @@ a.btn:focus-visible{outline:2px solid var(--red);outline-offset:2px}
   <div id="out" class="loading">Cargando la cola…</div>
 </main>
 
+<!-- Floating bulk-action bar, shown when at least one row is picked. -->
+<div class="selbar" id="selbar" role="toolbar" aria-label="Acciones múltiples">
+  <span class="n"><b id="selN">0</b> seleccionadas</span>
+  <button id="selApprove" title="Aprobar todas las pendientes de la selección">Aprobar</button>
+  <button id="selDownload">Descargar PNG</button>
+  <button class="ok" id="selDiscard">Descartar</button>
+  <button class="ghost" id="selClear">Limpiar</button>
+</div>
+
 <script>
 const OUT = document.getElementById('out');
 const LABELS = {pending_review:'PENDIENTE', approved:'APROBADA', rejected:'RECHAZADA',
                 published:'PUBLICADA', scheduled:'PROGRAMADA', failed:'FALLIDA',
                 generated:'GENERADA', detected:'DETECTADA'};
 let ITEMS = [], FILTER = 'pending_review';
+// Multi-select: bulk approve / download / discard for the picked rows.
+// The Set survives filter changes so an operator can gather picks across
+// PENDIENTE and APROBADA tabs and act on all of them at once.
+const SEL = new Set();
 
 /* ---------------------------------------------------------------- API key */
 const keyInput = document.getElementById('key');
@@ -302,8 +344,12 @@ async function load(){
     const data = await r.json();
     ITEMS = Array.isArray(data) ? data : (data.items || []);
     ITEMS.sort((a,b) => (b.story.round_number||0) - (a.story.round_number||0));
+    // Prune SEL of ids that no longer exist (e.g. after a bulk Descartar).
+    const live = new Set(ITEMS.map(i => i.content_id));
+    for (const cid of [...SEL]) if (!live.has(cid)) SEL.delete(cid);
     preferSeason(newestSeason());
     render();
+    if (typeof syncSelbar === 'function') syncSelbar();
   }catch(e){
     OUT.className = 'empty';
     OUT.textContent = 'No se pudo leer la cola: ' + e;
@@ -384,7 +430,11 @@ function card(i){
     `<span class="nota">${String(f.rating).replace('.', ',')}</span>`;
   const el = document.createElement('article');
   el.className = 'card';
+  el.dataset.cid = i.content_id;
+  el.dataset.status = i.status;
+  if (SEL.has(i.content_id)) el.classList.add('sel');
   el.innerHTML = `
+    <label class="selcb" title="Seleccionar"><input type="checkbox" data-selcb ${SEL.has(i.content_id)?'checked':''}></label>
     <div class="thumb"><img loading="lazy" src="/v1/content/items/${i.content_id}/render.svg" alt=""></div>
     <div class="meta">
       <div class="top">
@@ -572,6 +622,81 @@ function render(){
 }
 
 function esc(s){ const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
+
+/* ============================================================= multi-select */
+// The checkbox on each card toggles SEL; the floating bar shows the count and
+// batches actions across the picked rows. Actions loop the endpoints the
+// per-row buttons already call, so nothing new server-side.
+function syncSelbar(){
+  const bar = document.getElementById('selbar');
+  document.getElementById('selN').textContent = String(SEL.size);
+  bar.classList.toggle('show', SEL.size > 0);
+  const anyPending = [...SEL].some(cid =>
+    ITEMS.find(i => i.content_id === cid)?.status === 'pending_review');
+  document.getElementById('selApprove').disabled = !anyPending;
+}
+function toggleSel(cid, on){
+  if (on) SEL.add(cid); else SEL.delete(cid);
+  const el = document.querySelector(`.card[data-cid="${CSS.escape(cid)}"]`);
+  if (el) el.classList.toggle('sel', on);
+  syncSelbar();
+}
+OUT.addEventListener('change', e => {
+  const cb = e.target.closest('[data-selcb]'); if (!cb) return;
+  const cid = cb.closest('.card').dataset.cid;
+  toggleSel(cid, cb.checked);
+});
+document.getElementById('selClear').onclick = () => {
+  SEL.clear();
+  document.querySelectorAll('.card.sel').forEach(el => el.classList.remove('sel'));
+  document.querySelectorAll('[data-selcb]').forEach(cb => cb.checked = false);
+  syncSelbar();
+};
+
+async function runBulk(cids, url, method){
+  if (!apiKey()) { alert('Guarda tu clave antes de usar acciones múltiples.'); return {ok:0,fail:0}; }
+  let ok = 0, fail = 0;
+  for (const cid of cids){
+    try {
+      const r = await fetch(url(cid), { method,
+        headers: {'Authorization':'Bearer '+apiKey(), 'Content-Type':'application/json'},
+        body: method === 'POST' ? '{}' : undefined });
+      if (r.ok) ok++; else fail++;
+    } catch(e) { fail++; }
+  }
+  return {ok, fail};
+}
+document.getElementById('selApprove').onclick = async () => {
+  const targets = [...SEL].filter(cid =>
+    ITEMS.find(i => i.content_id === cid)?.status === 'pending_review');
+  if (!targets.length || !confirm(`¿Aprobar ${targets.length} carta(s)?`)) return;
+  const {ok, fail} = await runBulk(targets,
+    cid => `/v1/content/items/${cid}/review/approve`, 'POST');
+  alert(`${ok} aprobadas · ${fail} error(es).`);
+  SEL.clear(); await load();
+};
+document.getElementById('selDiscard').onclick = async () => {
+  const targets = [...SEL];
+  if (!targets.length || !confirm(`¿Descartar ${targets.length} carta(s)? Se borran definitivamente.`)) return;
+  const {ok, fail} = await runBulk(targets,
+    cid => `/v1/content/items/${cid}`, 'DELETE');
+  alert(`${ok} descartadas · ${fail} error(es).`);
+  SEL.clear(); await load();
+};
+// Bulk download: trigger one <a download> per pick, stagger to give the
+// browser a chance to accept "allow multiple downloads" without dropping any.
+document.getElementById('selDownload').onclick = async () => {
+  const targets = [...SEL];
+  if (!targets.length) return;
+  for (let i = 0; i < targets.length; i++){
+    const cid = targets[i];
+    const a = document.createElement('a');
+    a.href = `/v1/content/items/${cid}/render.png`;
+    a.download = `febscore-${cid.slice(0,8)}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    await new Promise(r => setTimeout(r, 180));
+  }
+};
 
 loadSeasons().then(load);
 </script>
