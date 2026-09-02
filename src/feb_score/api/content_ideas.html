@@ -129,6 +129,12 @@ a.btn{display:inline-flex;align-items:center;justify-content:center;text-decorat
   </section>
 
   <section class="section">
+    <h2 class="sec">Líderes de temporada · totales y por partido
+      <span class="n" id="metric-leaders-n"></span></h2>
+    <div class="grid" id="metric-leaders"></div>
+  </section>
+
+  <section class="section">
     <h2 class="sec">Récords de la temporada · mejor partido <span class="n" id="records-n"></span></h2>
     <div class="grid" id="records"></div>
   </section>
@@ -194,8 +200,71 @@ async function loadSeasons(){
 $("season").addEventListener("change", () => { SEASON = $("season").value; loadAll(); });
 
 async function loadAll(){
-  const total = await Promise.all([loadLeaders(), loadRecordsAndRachas()]);
+  await Promise.all([loadLeaders(), loadRecordsAndRachas(), loadMetricLeaders()]);
   $("counts").textContent = `Ideas cargadas · ${SEASON}`;
+}
+
+// Season leaders come as 4 pairs: one card for the total leader and one for
+// the per-game leader of each metric. Same person often wins both — that's OK,
+// they read as two different stories (volume vs efficiency).
+const METRIC_LEADERS = [
+  { key: "points",   label: "ANOTADOR",   unit: "pts", short: "PTS" },
+  { key: "rebounds", label: "REBOTEADOR", unit: "reb", short: "REB" },
+  { key: "assists",  label: "ASISTENTE",  unit: "ast", short: "AST" },
+  { key: "val",      label: "VALORACIÓN", unit: "val", short: "VAL" },
+];
+async function loadMetricLeaders(){
+  const el = $("metric-leaders");
+  el.innerHTML = '<div class="loading">Cargando…</div>';
+  const tiles = [];
+  for (const m of METRIC_LEADERS){
+    // The explorer already ranks players by any metric + per_game combo, and
+    // val/feb are not real explorer metrics (fall back to points on the API),
+    // so we ask for the underlying metric and switch to per_game for the
+    // second variant of each pair.
+    for (const perGame of [false, true]){
+      const scope = perGame ? "POR PARTIDO" : "TOTALES";
+      const metric = ["val","feb"].includes(m.key) ? "points" : m.key;
+      let leader = null;
+      try{
+        const r = await fetch(
+          `/v1/explore/players?season=${encodeURIComponent(SEASON)}` +
+          `&metric=${encodeURIComponent(metric)}&per_game=${perGame}&limit=1`);
+        const d = await r.json();
+        leader = (d.rows || [])[0] || null;
+      }catch(e){ leader = null; }
+      if (!leader){
+        tiles.push(`<article class="idea"><div class="k">${m.label} · ${scope}</div>
+          <div class="v">—</div><div class="who">Sin datos</div><div class="tm">&nbsp;</div>
+          <div class="foot"><span class="prio">${m.short}</span>
+          <button class="go" disabled>Generar</button></div></article>`);
+        continue;
+      }
+      const raw = m.key === "val" ? leader.val : leader[m.key];
+      // The tile shows the leader's ranking number itself so the operator picks
+      // an editorially strong lead (not "12 asistencias" but "12 asistencias por
+      // partido" or "384 totales") without opening the modal.
+      const games = leader.games_played || 0;
+      const shown = perGame && games && raw != null
+        ? (Math.round((raw / games) * 10) / 10).toString().replace('.', ',')
+        : (raw != null ? String(raw) : "—");
+      const key = `metric-${m.key}-${perGame ? "pg" : "tot"}`;
+      tiles.push(`<article class="idea" data-key="${key}"
+          data-pid="${esc(leader.player_external_id)}"
+          data-metric="${m.key}" data-per-game="${perGame ? "1" : "0"}"
+          data-label="${esc(m.label)}" data-scope="${esc(scope)}">
+        <div class="k">${esc(m.label)} · ${scope}</div>
+        <div class="v">${esc(shown)}</div>
+        <div class="who">${esc(leader.name)}</div>
+        <div class="tm">${esc(leader.team_name || "—")}</div>
+        <div class="foot">
+          <span class="prio">${m.short}</span>
+          <button class="go" data-act="metric-leader">Generar</button>
+        </div></article>`);
+    }
+  }
+  el.innerHTML = tiles.join("");
+  $("metric-leaders-n").textContent = tiles.length;
 }
 
 // The DD leader is our only pre-baked season-summary card today. When more
@@ -287,6 +356,30 @@ document.body.addEventListener("click", async e => {
       body: { season: SEASON },
       card, button: b,
     });
+  } else if(act === "metric-leader"){
+    // A season-leader card: hero total or per-game for that metric. Titles
+    // are canonical so the audience can tell "más puntos en total" from
+    // "mejor promedio anotador" at a glance.
+    const idea = b.closest(".idea");
+    const pid = idea.dataset.pid, metric = idea.dataset.metric;
+    const perGame = idea.dataset.perGame === "1";
+    const label = idea.dataset.label, scope = idea.dataset.scope;
+    const backendMetric = ["val","feb"].includes(metric) ? "points" : metric;
+    const title = perGame ? `MEJOR PROMEDIO ${label}` : `MÁXIMO ${label}`;
+    await generate({
+      label: `${label} · ${scope}`,
+      url: `/v1/explore/card`,
+      body: {
+        season: SEASON, title,
+        template: "hero", hero_style: "crest",
+        hero_kind: perGame ? "average" : "total",
+        player_ids: [pid],
+        metric: backendMetric, per_game: perGame,
+        show_rank: false, scope_label: `Temporada ${SEASON}`,
+        pending: true,
+      },
+      card, button: b,
+    });
   } else if(act === "record"){
     // A record is best framed as a photo-hero with the single-game peak as
     // the number. The server already knows how to compute the peak — we just
@@ -325,6 +418,9 @@ async function generate({label, url, body, card, button}){
     LAST_IDEA = { label, url, body, cardKey: card.dataset.key };
     GENERATED.set(card.dataset.key, { item: d, label, url, body });
     button.textContent = "Ver";
+    // Re-enable so future clicks re-open the cached preview via the
+    // .done branch — the previous code left disabled=true and Ver was inert.
+    button.disabled = false;
     card.classList.add("done");
     openPreview(d, label, card.dataset.key);
   }catch(e){

@@ -1120,15 +1120,34 @@ class _GatewayBase(CommandGateway):
 
         # ``peak`` means "the best single game", not the season aggregate — the
         # detector reads the per-game lines and finds the max for the metric so
-        # the card claims a number that actually happened in one game.
+        # the card claims a number that actually happened in one game. When we
+        # can, we also compute THAT game's FEB Rating so the on-card note
+        # matches the single-game moment, not a diluted season average.
         peak_value = None
+        peak_feb: Optional[float] = None
         if hero_kind == "peak":
             from ..domain.value_objects import SeasonCode
+            from ..domain.content.rating import feb_rating as _peak_feb_rating
             lines = list(self._stats_repo.list_player_stats_by_season(
                 player_id, SeasonCode(season_code)))
             if lines:
                 peak_line = max(lines, key=lambda l: getattr(l, metric, 0))
                 peak_value = getattr(peak_line, metric, 0)
+                try:
+                    peak_feb = _peak_feb_rating(
+                        peak_line.points, peak_line.rebounds, peak_line.assists,
+                        peak_line.steals, peak_line.blocks, peak_line.turnovers,
+                        minutes=peak_line.minutes,
+                        field_goals_made=peak_line.field_goals_made,
+                        field_goals_attempted=peak_line.field_goals_attempted,
+                        free_throws_made=peak_line.free_throws_made or 0,
+                        free_throws_attempted=peak_line.free_throws_attempted or 0,
+                        three_points_made=peak_line.three_points_made or 0,
+                        fouls=peak_line.fouls or 0,
+                        fouls_received=peak_line.fouls_received or 0,
+                    )
+                except Exception:  # noqa: BLE001 — rating is decorative here
+                    peak_feb = None
             if not peak_value:
                 raise ValueError("no per-game data for that metric")
 
@@ -1157,7 +1176,12 @@ class _GatewayBase(CommandGateway):
             "hero_value": self._es_number(hero_value_raw),
             "hero_label": hero_label,
             "secondary": secondary,
-            "rating": row.get("feb"), "kicker": kicker.upper(),
+            # For a peak card use THAT game's FEB Rating when we can compute
+            # it; a season average glued onto a single-game record would tell
+            # a different story than the number above it.
+            "rating": (peak_feb if hero_kind == "peak" and peak_feb is not None
+                       else row.get("feb")),
+            "kicker": kicker.upper(),
             "player_name": row["name"], "team_name": row["team_name"],
             "team_external_id": row["team_external_id"], "player_external_id": player_id,
             "points": row["points"], "rebounds": row["rebounds"], "assists": row["assists"],
