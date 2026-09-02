@@ -143,6 +143,16 @@ def create_app(
     register_content_routes(app)
     register_image_routes(app)
     register_explorer_routes(app)
+
+    # Root -> the Ideas dashboard. There is no bespoke homepage; Ideas is the
+    # editorial landing (system proposes, human picks), so bouncing / straight
+    # there is more honest than a splash page nobody would read twice.
+    from fastapi.responses import RedirectResponse
+
+    @app.get("/", include_in_schema=False)
+    def _home_redirect():
+        return RedirectResponse(url="/v1/content/ideas", status_code=307)
+
     return app
 
 

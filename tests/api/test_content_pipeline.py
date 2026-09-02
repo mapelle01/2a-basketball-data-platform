@@ -624,6 +624,16 @@ class TestSeasonDDLeaderFromExplorer:
         assert r.status_code == 400
 
 
+class TestHomeRedirect:
+    """/ redirects to the Ideas dashboard — the editorial landing. Uses 307
+    (temporary) so clients cache nothing that a later homepage would replace."""
+
+    def test_root_redirects_to_ideas(self, client):
+        r = client.get("/", follow_redirects=False)
+        assert r.status_code == 307
+        assert r.headers["location"] == "/v1/content/ideas"
+
+
 class TestIdeasPage:
     """The Ideas dashboard is served as a plain HTML page, same origin as the
     API. Contents load client-side from existing endpoints (insights, seasons,
