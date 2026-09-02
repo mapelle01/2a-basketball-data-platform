@@ -779,12 +779,18 @@ def render_stat_hero(data: Dict[str, Any]) -> str:
     ny = 700
     body.append(C.text(CONTENT_X - 6, ny, hero, size=num_size, weight=FontWeight.HERO,
                        fill=ink, tracking=LetterSpacing.HERO))
-    body.append(C.text(CONTENT_X, ny + FontSize.H2, hlab.upper(), size=FontSize.H2,
+    # A comma in the hero (20,7) has a descender that dips below the baseline;
+    # without extra padding it kisses the red label just below and the label
+    # kisses the name. Push the label + name down by a stable comma clearance
+    # when the number carries one — visually consistent across all peaks.
+    comma_pad = 44 if ("," in hero or "." in hero) else 0
+    label_y = ny + FontSize.H2 + comma_pad
+    body.append(C.text(CONTENT_X, label_y, hlab.upper(), size=FontSize.H2,
                        weight=FontWeight.DISPLAY, fill=Color.RED,
                        tracking=LetterSpacing.CAPS, upper=True))
 
     # IDENTITY (text) — name + team.
-    name_y = ny + FontSize.H2 + 96
+    name_y = label_y + 96
     name_size = int(_fit_to_width(name, CONTENT_W, FontSize.H1, 44))
     body.append(C.text(CONTENT_X, name_y, name, size=name_size,
                        weight=FontWeight.DISPLAY, fill=ink,
