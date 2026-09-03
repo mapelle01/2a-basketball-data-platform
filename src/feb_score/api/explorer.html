@@ -818,10 +818,10 @@ async function doCreate(force){
     hero_style:style, hero_kind:heroKind, force:!!force,
     scope_label:el("mScope").value.trim()||null, show_rank:el("mRank").checked,
     player_ids:[...sel],
-    // Rates and derived metrics rank client-side only; the backend has no
-    // "sort players by T3%" mode, so pass points as the neutral rank when the
-    // operator is creating a card while sorted by one of those columns.
-    metric:["games_played","val","feb","t2_pct","t3_pct","tl_pct"].includes(metricRaw)?"points":metricRaw,
+    // Rates the backend does NOT know how to rank (VAL, T2/T3/TL%) fall back
+    // to "points" so the card at least ships; FEB Rating IS a rankable
+    // backend metric, so it goes through verbatim and the card renders it.
+    metric:["games_played","val","t2_pct","t3_pct","tl_pct"].includes(metricRaw)?"points":metricRaw,
     per_game:pg,
     team:ignoreFilters?null:(f.team||null),
     nationality:ignoreFilters?null:(f.nat||null),

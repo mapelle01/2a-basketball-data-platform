@@ -247,6 +247,24 @@ class TestQueryToCard:
         assert svg.status_code == 200
         assert "Los que más anotan" in svg.text
 
+    def test_ranking_by_feb_puts_the_rating_on_the_lineup_and_labels_the_card(self, client):
+        """Ranking by FEB Rating shows the note (not points) as the big number,
+        the header reads FEB RATING, and each row carries `rating` so the
+        template renders the signature 0..10 chip instead of a plain figure."""
+        TestFebAndVal()._seed_with_shooting(client)
+        r = self._card(client, metric="feb", title="MAYOR FEB RATING")
+        assert r.status_code == 201, r.text
+        item = r.json()
+        facts = item["story"]["facts"]
+        assert facts["metric"] == "feb"
+        assert facts["metric_label"] == "FEB RATING"  # never "POR PARTIDO"
+        star = next(r for r in facts["lineup"] if r["player_external_id"] == "p1")
+        # value is the rating, comma-formatted for Spanish
+        assert "," in star["value"] and star["value"].replace(",", ".").replace("—","") not in ("0", "0.0")
+        # And `rating` on the row triggers the FEB signature chip in the template.
+        assert star["rating"] is not None
+        assert 0.0 <= float(star["rating"]) <= 10.0
+
     def test_the_figures_come_from_the_database_not_the_request(self, client):
         """A caller sending its own numbers must not be able to place them on a
         card. There is no field for one, and anything extra is ignored."""

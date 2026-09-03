@@ -726,7 +726,11 @@ class _GatewayBase(CommandGateway):
 
     # ------------------------------------------------------------ explorer
     EXPLORE_METRICS = ("points", "rebounds", "assists", "steals", "blocks",
-                       "turnovers", "minutes", "games_played")
+                       "turnovers", "minutes", "games_played", "feb")
+    # Metrics that are already per-game rates: never divide by games_played, and
+    # sort using their raw value. FEB Rating is the average of the per-game
+    # notes; dividing that by games would produce a nonsense fraction.
+    _RATE_METRICS = frozenset({"feb"})
 
     @staticmethod
     def _season_reference_date(season_code: str):
@@ -1089,8 +1093,13 @@ class _GatewayBase(CommandGateway):
             raw = r.get(metric) or 0
             # Per-game needs games; a player with none is not ranked on an
             # average that would be a division by zero dressed as a number.
-            r["value"] = round(raw / r["games_played"], 1) if (
-                per_game and r["games_played"]) else raw
+            # Rate metrics (FEB) are already per-game and never divide.
+            if metric in self._RATE_METRICS:
+                r["value"] = raw
+            elif per_game and r["games_played"]:
+                r["value"] = round(raw / r["games_played"], 1)
+            else:
+                r["value"] = raw
         rows.sort(key=lambda r: (-(r["value"] or 0), r["name"].lower()))
 
         return {
@@ -1111,11 +1120,12 @@ class _GatewayBase(CommandGateway):
     METRIC_LABELS = {
         "points": "PUNTOS", "rebounds": "REBOTES", "assists": "ASISTENCIAS",
         "steals": "ROBOS", "blocks": "TAPONES", "turnovers": "PÉRDIDAS",
-        "minutes": "MINUTOS", "games_played": "PARTIDOS",
+        "minutes": "MINUTOS", "games_played": "PARTIDOS", "feb": "FEB RATING",
     }
     PG_LABELS = {
         "points": "PPP", "rebounds": "RPP", "assists": "APP", "steals": "ROB/P",
-        "blocks": "TAP/P", "turnovers": "PER/P", "minutes": "MIN/P", "games_played": "PJ",
+        "blocks": "TAP/P", "turnovers": "PER/P", "minutes": "MIN/P",
+        "games_played": "PJ", "feb": "FEB RATING",
     }
     CUSTOM_FIVE_SIZE = 5
 
@@ -1124,6 +1134,7 @@ class _GatewayBase(CommandGateway):
         "assists": "ASISTENTE", "steals": "ROBO",
         "blocks": "TAPÓN", "turnovers": "PÉRDIDAS",
         "minutes": "MINUTOS", "games_played": "PARTIDOS",
+        "feb": "FEB RATING",
     }
 
     _HERO_KINDS = ("average", "total", "peak")
@@ -1399,7 +1410,12 @@ class _GatewayBase(CommandGateway):
         metric = result["metric"]
         per_game = result["per_game"]
         label = self.METRIC_LABELS.get(metric, metric.upper())
-        metric_label = f"{label} POR PARTIDO" if per_game else label
+        # FEB Rating is already a per-game rate — "POR PARTIDO" is redundant
+        # (and misleading). Rate metrics keep their label as-is.
+        metric_label = (
+            label if metric in self._RATE_METRICS
+            else (f"{label} POR PARTIDO" if per_game else label)
+        )
 
         lineup = [
             {
@@ -1411,6 +1427,12 @@ class _GatewayBase(CommandGateway):
                 "points": r["points"], "rebounds": r["rebounds"],
                 "assists": r["assists"],
                 "value": self._es_number(r["value"]),
+                # When the ranking IS the FEB Rating, the row also carries it as
+                # `rating` so the template swaps the plain value for the
+                # signature 0..10 chip (red proportional meter) — same mark that
+                # rides on individual player cards, so the ranking reads as the
+                # same object at a different scale.
+                **({"rating": r["feb"]} if metric == "feb" and r.get("feb") is not None else {}),
                 "context": self._custom_context(r, metric, per_game=per_game),
             }
             for i, r in enumerate(rows, start=1)
