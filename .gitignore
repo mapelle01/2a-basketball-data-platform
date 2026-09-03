@@ -51,6 +51,11 @@ docs/SEASON_2025_2026_CLOSURE.md
 docs/STAGING.md
 docs/media/
 *.png
+# Rendering assets ARE tracked and must ship in the Railway build context —
+# `railway up` respects .gitignore, so a global *.png strip drops the court/
+# editorial/mark PNGs from the image and every card render then 500s with
+# FileNotFoundError. Whitelist that directory explicitly.
+!src/feb_score/infrastructure/rendering/assets/*.png
 *.sqlite3-shm
 *.sqlite3-wal
 *.sqlite3-*
