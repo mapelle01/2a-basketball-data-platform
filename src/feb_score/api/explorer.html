@@ -432,15 +432,22 @@ const METRICS = [
   {k:"points",       short:"PTS", name:"Puntos",      kind:"stat",   sortable:true},
   {k:"rebounds",     short:"REB", name:"Rebotes",     kind:"stat",   sortable:true},
   {k:"assists",      short:"AST", name:"Asistencias", kind:"stat",   sortable:true},
-  {k:"steals",       short:"ROB", name:"Robos",       kind:"stat",   sortable:true, extra:true},
+  {k:"steals",       short:"ROB", name:"Robos",       kind:"stat",   sortable:true},
   {k:"blocks",       short:"TAP", name:"Tapones",     kind:"stat",   sortable:true, extra:true},
   {k:"turnovers",    short:"PÉR", name:"Pérdidas",    kind:"stat",   sortable:true, extra:true},
-  {k:"minutes",      short:"MIN", name:"Minutos",     kind:"stat",   sortable:true, extra:true},
+  {k:"minutes",      short:"MIN", name:"Minutos",     kind:"stat",   sortable:true},
+  // Season shooting percentages come pre-computed from the API (0..100).
+  // They are rates, so per-game mode does not divide them, and ranking needs
+  // a sample floor (a 100% on 1-of-1 is not a league lead).
+  {k:"t2_pct",       short:"T2%", name:"Tiros de 2",  kind:"pct",    sortable:true},
+  {k:"t3_pct",       short:"T3%", name:"Triples",     kind:"pct",    sortable:true},
+  {k:"tl_pct",       short:"TL%", name:"Tiros libres",kind:"pct",    sortable:true},
   {k:"val",          short:"VAL", name:"Valoración",  kind:"stat",   sortable:true},
   {k:"feb",          short:"FEB", name:"FEB Rating",  kind:"rating", sortable:true},
 ];
 // Columns shown in the compact table (the rest live behind sort / future drawer).
-const TABLE_COLS = ["games_played","points","rebounds","assists","val","feb"];
+const TABLE_COLS = ["games_played","points","rebounds","assists","steals","minutes",
+                    "t2_pct","t3_pct","tl_pct","val","feb"];
 
 let ALL = [];               // every player of the season (raw stats), loaded once
 let FACETS = {teams:[],nationalities:[],positions:[]};
@@ -457,11 +464,13 @@ function esc(v){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",
 function initials(n){return (n||"?").split(/\s+/).slice(0,2).map(w=>w[0]||"").join("").toUpperCase();}
 function fmtInt(v){return v==null?"—":Math.round(v).toLocaleString("es-ES");}
 function fmt1(v){return v==null?"—":(Math.round(v*10)/10).toLocaleString("es-ES",{minimumFractionDigits:1,maximumFractionDigits:1});}
+function fmtPct(v){return v==null?"—":(Math.round(v*10)/10).toLocaleString("es-ES",{minimumFractionDigits:1,maximumFractionDigits:1})+"%";}
 function cell(row,k){
   const m = METRICS.find(x=>x.k===k);
   const raw = row[k];
   if(raw==null) return null;
   if(m.kind==="rating") return fmt1(raw);         // a 0-10 note: never summed
+  if(m.kind==="pct")    return fmtPct(raw);       // shooting %: always as-is
   if(k==="games_played") return fmtInt(raw);
   if(k==="minutes") return perGame && row.games_played ? fmt1(raw/row.games_played) : fmt1(raw);
   // counting stats (incl. VAL): integer total, one-decimal per game
@@ -470,7 +479,8 @@ function cell(row,k){
 function sortVal(row,k){
   const m = METRICS.find(x=>x.k===k); if(!m) return -Infinity;
   const raw = row[k]; if(raw==null) return -Infinity;
-  if(m.kind==="rating" || k==="games_played") return raw;
+  // Rates (FEB, T2/T3/TL%) and counts (PJ) never divide by games played.
+  if(m.kind==="rating" || m.kind==="pct" || k==="games_played") return raw;
   return perGame && row.games_played ? raw/row.games_played : raw;
 }
 
@@ -592,13 +602,14 @@ function renderTable(rows){
 }
 
 // ---- leaders view: a ranking per metric, a discovery tool -------------------
-const LEADER_METRICS=["points","rebounds","assists","steals","blocks","val","feb"];
+const LEADER_METRICS=["points","rebounds","assists","steals","blocks","t2_pct","t3_pct","tl_pct","val","feb"];
 function maxGames(){ return ALL.reduce((m,r)=>Math.max(m,r.games_played||0),0); }
 function floorFor(k){
-  // rate-based metrics (FEB, and anything in per-game mode) need a sample floor,
-  // so a 4-game cameo does not top the ranking; totals reward volume on their own.
+  // rate-based metrics (FEB, T2/T3/TL% and anything in per-game mode) need a
+  // sample floor, so a 1-of-1 100% or a 4-game cameo does not top the ranking;
+  // totals reward volume on their own.
   const m=METRICS.find(x=>x.k===k);
-  const needsFloor = m.kind==="rating" || perGame;
+  const needsFloor = m.kind==="rating" || m.kind==="pct" || perGame;
   return needsFloor ? Math.max(3, Math.round(maxGames()*0.35)) : 0;
 }
 function leadersFor(k, rows){
@@ -791,7 +802,10 @@ async function doCreate(force){
     hero_style:style, hero_kind:heroKind, force:!!force,
     scope_label:el("mScope").value.trim()||null, show_rank:el("mRank").checked,
     player_ids:[...sel],
-    metric:["games_played","val","feb"].includes(metricRaw)?"points":metricRaw,
+    // Rates and derived metrics rank client-side only; the backend has no
+    // "sort players by T3%" mode, so pass points as the neutral rank when the
+    // operator is creating a card while sorted by one of those columns.
+    metric:["games_played","val","feb","t2_pct","t3_pct","tl_pct"].includes(metricRaw)?"points":metricRaw,
     per_game:pg,
     team:ignoreFilters?null:(f.team||null),
     nationality:ignoreFilters?null:(f.nat||null),
@@ -843,17 +857,20 @@ function dot(st){
   return "";
 }
 function rowById(pid){ return ALL.find(r=>r.player_external_id===pid); }
-const DRAWER_STATS=["games_played","points","rebounds","assists","steals","blocks","turnovers","minutes"];
+const DRAWER_STATS=["games_played","points","rebounds","assists","steals","blocks","turnovers","minutes","t2_pct","t3_pct","tl_pct"];
 function dTotal(row,k){
   const m=METRICS.find(x=>x.k===k); const raw=row[k]; if(raw==null) return "—";
   if(m.kind==="rating") return fmt1(raw);
+  if(m.kind==="pct")    return fmtPct(raw);
   if(k==="games_played") return fmtInt(raw);
   if(k==="minutes") return fmt1(raw);
   return fmtInt(raw);
 }
 function dPg(row,k){
   const m=METRICS.find(x=>x.k===k); const raw=row[k];
-  if(raw==null||!row.games_played||m.kind==="rating"||k==="games_played") return "—";
+  // Rates (FEB, T2/T3/TL%) live in the "Total" column only — a "per game"
+  // percentage would be nonsense, so leave the per-game cell empty.
+  if(raw==null||!row.games_played||m.kind==="rating"||m.kind==="pct"||k==="games_played") return "—";
   return fmt1(raw/row.games_played);
 }
 function openDrawer(pid){
@@ -890,7 +907,7 @@ function openDrawer(pid){
 function closeDrawer(){ el("drawer").classList.remove("open"); el("drawer").setAttribute("aria-hidden","true"); }
 
 // ---- compare ----------------------------------------------------------------
-const CMP_ROWS=["points","rebounds","assists","steals","blocks","turnovers","minutes","val","feb"];
+const CMP_ROWS=["points","rebounds","assists","steals","blocks","turnovers","minutes","t2_pct","t3_pct","tl_pct","val","feb"];
 function openCompare(){
   const players=[...sel].map(rowById).filter(Boolean).slice(0,5);
   if(players.length<2) return;

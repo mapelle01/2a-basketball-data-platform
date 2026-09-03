@@ -575,6 +575,75 @@ class TestFebAndVal:
         assert star["val"] == one * 2
 
 
+class TestShootingPercentages:
+    """T2%, T3% and TL% are aggregated from the per-game blobs on the fly, using
+    the Spanish convention (T2 = FG minus threes). A game without three-point
+    attempts is skipped for T2/T3 rather than treated as 0-of-0 — otherwise a
+    single 100% FT night on 1 attempt would top the rankings."""
+
+    def _seed_with_full_shooting(self, client):
+        from feb_score.domain.statistics.model import PlayerStats
+        from feb_score.domain.value_objects import SeasonCode
+        from feb_score.infrastructure.persistence.repositories import (
+            SqliteMatchStatsRepository, SqlitePlayerRepository, SqliteTeamRepository)
+        import uuid as _uuid
+        from feb_score.domain.player.model import Player
+        from feb_score.domain.team.model import Team
+        from feb_score.domain.value_objects import ExternalId, PlayerId, TeamId
+        db = client.app.state.gateway.db
+        SqliteTeamRepository(db).save(Team(external_id=ExternalId("tA"),
+            team_id=TeamId(str(_uuid.uuid4())), name="Team A"))
+        SqlitePlayerRepository(db).save(Player(external_id=ExternalId("p1"),
+            player_id=PlayerId(str(_uuid.uuid4())), name="COMPLETE, ONE"))
+        SqlitePlayerRepository(db).save(Player(external_id=ExternalId("p2"),
+            player_id=PlayerId(str(_uuid.uuid4())), name="MISSING, TWO"))
+        stats = SqliteMatchStatsRepository(db)
+        # p1: two identical games with full shooting. Over both: 10 T2 of 20
+        # (50%), 2 T3 of 6 (33.3%), 4 FT of 6 (66.7%). FGM=7 per game (5×2 + 1×3
+        # = 13 points from the field), so 7 fgm - 1 tpm = 6 t2 made? Actually
+        # let me keep it clean: fgm=8 (5 T2 + 3 T3? no — pick simple).
+        # Two games each: fgm=7, fga=15, 3pm=2, 3pa=6, ftm=4, fta=6.
+        # → t2m = 2×(7-2)=10, t2a = 2×(15-6)=18, t3m=4, t3a=12, ftm=8, fta=12.
+        # → T2% = 55.6, T3% = 33.3, TL% = 66.7
+        for m in ("M1", "M2"):
+            stats.save_player_stats(m, SeasonCode(SEASON), [
+                PlayerStats(player_external_id="p1", team_external_id="tA",
+                    points=20, rebounds=5, assists=3, steals=1, blocks=0,
+                    turnovers=2, minutes=28.0,
+                    field_goals_made=7, field_goals_attempted=15,
+                    three_points_made=2, three_points_attempted=6,
+                    free_throws_made=4, free_throws_attempted=6,
+                    fouls=2),
+                # p2: same games but without three_points_attempted -> T2/T3
+                # skipped, only TL is aggregated.
+                PlayerStats(player_external_id="p2", team_external_id="tA",
+                    points=18, rebounds=5, assists=3, steals=1, blocks=0,
+                    turnovers=2, minutes=28.0,
+                    field_goals_made=7, field_goals_attempted=15,
+                    three_points_made=2,  # no attempts recorded
+                    free_throws_made=3, free_throws_attempted=4,
+                    fouls=2),
+            ])
+
+    def test_t2_t3_tl_percentages_are_aggregated_from_the_per_game_blobs(self, client):
+        self._seed_with_full_shooting(client)
+        rows = {r["player_external_id"]: r for r in _q(client).json()["rows"]}
+        p1 = rows["p1"]
+        # Rounded to one decimal by the endpoint.
+        assert p1["t2_pct"] == round(100 * 10 / 18, 1)   # 55.6
+        assert p1["t3_pct"] == round(100 * 4 / 12, 1)    # 33.3
+        assert p1["tl_pct"] == round(100 * 8 / 12, 1)    # 66.7
+
+    def test_percentages_are_none_when_the_source_never_carried_attempts(self, client):
+        self._seed_with_full_shooting(client)
+        p2 = {r["player_external_id"]: r for r in _q(client).json()["rows"]}["p2"]
+        # p2 has games but no three_points_attempted → T2 and T3 stay None.
+        assert p2["t2_pct"] is None
+        assert p2["t3_pct"] is None
+        # Free throws WERE recorded, so TL% still comes through.
+        assert p2["tl_pct"] == round(100 * 6 / 8, 1)     # 75.0
+
+
 class TestSeasonInsights:
     """Discovery: single-game records, double-double leaders, form — all from
     the real per-game lines, never invented."""

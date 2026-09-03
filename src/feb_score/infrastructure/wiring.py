@@ -971,6 +971,17 @@ class _GatewayBase(CommandGateway):
         feb_n: Dict[str, int] = defaultdict(int)
         val_sum: Dict[str, int] = defaultdict(int)
         val_n: Dict[str, int] = defaultdict(int)
+        # Shooting totals for T2%/T3%/TL%. Games without shooting data are
+        # skipped rather than counted as 0-of-0, so a player who has never had
+        # a shot attempt recorded gets None on every %; a player with a mix of
+        # complete and missing games gets a rate computed over the complete
+        # ones. Never invented — a rate over one attempt is not a season stat.
+        t2m: Dict[str, int] = defaultdict(int)
+        t2a: Dict[str, int] = defaultdict(int)
+        t3m: Dict[str, int] = defaultdict(int)
+        t3a: Dict[str, int] = defaultdict(int)
+        ftm: Dict[str, int] = defaultdict(int)
+        fta: Dict[str, int] = defaultdict(int)
         for line in self._stats_repo.list_season_player_lines(season):
             lpid = line.player_external_id
             v = valoracion(line)
@@ -987,6 +998,20 @@ class _GatewayBase(CommandGateway):
                 fouls=line.fouls or 0, fouls_received=line.fouls_received or 0)
             if r is not None:
                 feb_sum[lpid] += r; feb_n[lpid] += 1
+            fgm, fga = line.field_goals_made, line.field_goals_attempted
+            tpm, tpa = line.three_points_made, line.three_points_attempted
+            if fgm is not None and fga is not None and tpm is not None and tpa is not None:
+                # T2 = FGM - 3PM in the Spanish convention: field goals count
+                # everything, so 2-pointers are the leftover after subtracting
+                # threes. Guarded against negative outliers (source glitch).
+                t2m[lpid] += max(fgm - tpm, 0)
+                t2a[lpid] += max(fga - tpa, 0)
+                t3m[lpid] += tpm
+                t3a[lpid] += tpa
+            fm, fa = line.free_throws_made, line.free_throws_attempted
+            if fm is not None and fa is not None:
+                ftm[lpid] += fm
+                fta[lpid] += fa
 
         rows: List[Dict[str, Any]] = []
         for a in aggregates:
@@ -1010,6 +1035,12 @@ class _GatewayBase(CommandGateway):
                 # (average of the game notes); None when unavailable, never 0.
                 "val": val_sum.get(pid) if val_n.get(pid) else None,
                 "feb": round(feb_sum[pid] / feb_n[pid], 1) if feb_n.get(pid) else None,
+                # Shooting percentages: None when the source never carried
+                # attempts for the category, never fabricated as 0. Stored as a
+                # percentage (0..100) so the UI can print "45,3%" verbatim.
+                "t2_pct": round(100 * t2m[pid] / t2a[pid], 1) if t2a.get(pid) else None,
+                "t3_pct": round(100 * t3m[pid] / t3a[pid], 1) if t3a.get(pid) else None,
+                "tl_pct": round(100 * ftm[pid] / fta[pid], 1) if fta.get(pid) else None,
                 "photo_status": photo_status(pid),
                 "image_url": (f"/v1/images/player/{pid}"
                               if ("player", pid) in overrides
