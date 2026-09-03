@@ -257,6 +257,86 @@ def test_season_fold_leaves_shooting_none_when_any_game_lacks_it():
     assert p.rating is None                     # no shooting → no rating
 
 
+def test_season_best_five_ranks_by_rating_and_self_skips_without_feb_map():
+    """Top 5 of the season by FEB Rating. Needs feb_by_player populated (the
+    adapter fills it from per-game blobs); without it the detector must
+    self-skip rather than crown five zeros."""
+    from feb_score.domain.content.season_aggregate import (
+        PlayerSeasonLine, SeasonAggregate, detect_season_best_five,
+    )
+    from feb_score.domain.content.story import StoryType
+
+    def _line(pid, pts, games=10):
+        return PlayerSeasonLine(
+            player_external_id=pid, games=games, points=pts, rebounds=5*games,
+            assists=3*games, player_name=pid.upper(), team_external_id="t1",
+            team_name="Team A",
+        )
+    players = tuple(_line(f"p{i}", 20+i) for i in range(1, 7))
+    # No feb_by_player → self-skip.
+    assert detect_season_best_five("2024-2025", 20, SeasonAggregate(
+        "2024-2025", players)) == []
+
+    # With a feb map, the ranking picks the top 5.
+    feb = {"p1": 6.5, "p2": 7.0, "p3": 7.8, "p4": 6.0, "p5": 8.5, "p6": 8.1}
+    agg = SeasonAggregate("2024-2025", players, feb_by_player=feb)
+    stories = detect_season_best_five("2024-2025", 20, agg)
+    assert len(stories) == 1
+    st = stories[0]
+    assert st.story_type is StoryType.BEST_FIVE_SEASON
+    picked = [row["player_external_id"] for row in st.facts["lineup"]]
+    assert picked == ["p5", "p6", "p3", "p2", "p1"]  # by FEB desc
+    assert st.facts["lineup"][0]["rating"] == 8.5
+
+
+def test_season_best_five_requires_minimum_games_for_a_real_note():
+    from feb_score.domain.content.season_aggregate import (
+        PlayerSeasonLine, SeasonAggregate, detect_season_best_five,
+        SEASON_QUINTET_MIN_GAMES,
+    )
+
+    # 5 players over the floor, 1 cameo with a 10.0 note.
+    real = tuple(PlayerSeasonLine(
+        player_external_id=f"p{i}", games=SEASON_QUINTET_MIN_GAMES, points=100,
+        rebounds=50, assists=30, player_name=f"P{i}", team_external_id="t",
+        team_name="Team") for i in range(1, 6))
+    cameo = PlayerSeasonLine(
+        player_external_id="cameo", games=2, points=40, rebounds=10, assists=5,
+        player_name="CAMEO", team_external_id="t", team_name="Team")
+    feb = {**{f"p{i}": 7.0 + i * 0.1 for i in range(1, 6)}, "cameo": 10.0}
+    agg = SeasonAggregate("2024-2025", real + (cameo,), feb_by_player=feb)
+    story = detect_season_best_five("2024-2025", 20, agg)[0]
+    picked = [row["player_external_id"] for row in story.facts["lineup"]]
+    assert "cameo" not in picked  # min-games floor kept the cameo out
+
+
+def test_season_best_five_ideal_picks_one_per_position_and_needs_all_five():
+    from feb_score.domain.content.season_aggregate import (
+        PlayerSeasonLine, SeasonAggregate, detect_season_best_five_ideal,
+        SEASON_QUINTET_MIN_GAMES,
+    )
+    from feb_score.domain.content.bio import POSITIONS
+
+    class _Bio:
+        def __init__(self, m): self._m = m
+        def position(self, pid): return self._m.get(pid)
+
+    players = tuple(PlayerSeasonLine(
+        player_external_id=f"p{i}", games=SEASON_QUINTET_MIN_GAMES, points=100,
+        rebounds=50, assists=30, player_name=f"P{i}", team_external_id="t",
+        team_name="Team") for i in range(1, 6))
+    feb = {f"p{i}": 7.5 + i * 0.1 for i in range(1, 6)}
+    # One player per position → a full ideal five.
+    positions = dict(zip((f"p{i}" for i in range(1, 6)), POSITIONS))
+    agg = SeasonAggregate("2024-2025", players, feb_by_player=feb)
+    story = detect_season_best_five_ideal("2024-2025", 20, agg, _Bio(positions))[0]
+    assert [row["position"] for row in story.facts["lineup"]] == list(POSITIONS)
+
+    # Drop the pivot's position → hole at a position → no card.
+    del positions[next(k for k, v in positions.items() if v == POSITIONS[0])]
+    assert detect_season_best_five_ideal("2024-2025", 20, agg, _Bio(positions)) == []
+
+
 def test_game_line_rating_computes_when_the_data_is_complete_and_none_otherwise():
     from feb_score.domain.content.season_insights import GameLine
 

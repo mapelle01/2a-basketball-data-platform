@@ -156,7 +156,40 @@ class LiveContentAdapter:
             )
             for a in aggregates
         )
-        return SeasonAggregate(season_code=season_code, players=players)
+        # Per-player season FEB Rating: read from the per-game blobs (which DO
+        # carry shooting) and average the notes. This is what the season quintet
+        # detectors read to rank; without it the aggregate has no rating and
+        # they self-skip. Same rule as the Explorer column — a player with zero
+        # rateable games gets no entry (never a fallback zero).
+        feb_by_player = self._season_feb_by_player(season)
+        return SeasonAggregate(
+            season_code=season_code, players=players, feb_by_player=feb_by_player,
+        )
+
+    def _season_feb_by_player(self, season: SeasonCode) -> Dict[str, float]:
+        from collections import defaultdict
+        from ...domain.content.rating import feb_rating as _feb_rating
+
+        sums: Dict[str, float] = defaultdict(float)
+        counts: Dict[str, int] = defaultdict(int)
+        for line in self._stats.list_season_player_lines(season):
+            r = _feb_rating(
+                line.points, line.rebounds, line.assists, line.steals,
+                line.blocks, line.turnovers, minutes=line.minutes,
+                field_goals_made=line.field_goals_made,
+                field_goals_attempted=line.field_goals_attempted,
+                free_throws_made=line.free_throws_made or 0,
+                free_throws_attempted=line.free_throws_attempted or 0,
+                three_points_made=line.three_points_made or 0,
+                fouls=line.fouls or 0,
+                fouls_received=line.fouls_received or 0,
+            )
+            if r is None:
+                continue
+            pid = line.player_external_id
+            sums[pid] += r
+            counts[pid] += 1
+        return {pid: round(sums[pid] / counts[pid], 1) for pid in counts}
 
     # ------------------------------------------------------------------
     # Roster attributes (for the BIO detectors)

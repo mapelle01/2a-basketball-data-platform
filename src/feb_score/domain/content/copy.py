@@ -814,6 +814,8 @@ _GENERATORS = {
     "playmaker": generate_copy_playmaker,                        # round director
     "best_five": generate_copy_best_five,                        # quinteto de la jornada
     "best_five_ideal": generate_copy_best_five,                  # quinteto ideal por posición
+    "best_five_season": generate_copy_best_five,                 # quinteto de la temporada
+    "best_five_ideal_season": generate_copy_best_five,           # quinteto ideal de la temporada
     "custom_five": generate_copy_custom_five,                    # quinteto hecho a mano
     "custom_hero": generate_copy_custom_hero,                    # carta individual
     "defensive_anchor": generate_copy_defensive_anchor,          # steals + blocks

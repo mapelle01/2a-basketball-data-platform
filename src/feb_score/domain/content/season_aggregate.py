@@ -10,7 +10,7 @@ it a plain fold means a test can build one directly and the domain stays pure.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .insights import PlayerLineInput
 from .names import display_name
@@ -85,6 +85,17 @@ class PlayerSeasonLine:
 class SeasonAggregate:
     season_code: str
     players: Tuple[PlayerSeasonLine, ...] = ()
+    # Season FEB Rating per player, averaged from the per-game notes. Kept as a
+    # separate side map rather than on PlayerSeasonLine because it requires per-
+    # game shooting data (which lives in the boxscore blobs, not in the
+    # SeasonPlayerStats view the aggregate is folded from). The adapter fills
+    # it; a domain-only fold defaults to an empty map so the season quintet
+    # detectors self-skip cleanly instead of crowning someone with nothing.
+    feb_by_player: Dict[str, float] = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.feb_by_player is None:  # frozen dataclass: bypass to set default
+            object.__setattr__(self, "feb_by_player", {})
 
 
 def build_season_aggregate(
@@ -238,3 +249,125 @@ def detect_season_assist_leader(
         story_type=StoryType.TOP_ASSIST_PROVIDER, hero_label="AST TOTALES", per_game_label="APP",
         section_label="Máximo asistente de la temporada", badge_label="MÁX. ASISTENCIAS",
     )
+
+
+# ---------------------------------------------------------------------------
+# Season quintets — top 5 by FEB Rating and the ideal 5 by position
+# ---------------------------------------------------------------------------
+
+# A player needs at least this many games before the season note is a claim,
+# not a sample-size illusion. Same floor the endpoint uses on the FEB column.
+SEASON_QUINTET_MIN_GAMES = 6
+
+
+def _season_lineup_row(
+    line: PlayerSeasonLine, rating: float, *, extra: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    row = {
+        "player_external_id": line.player_external_id,
+        "player_name": display_name(line.player_name),
+        "team_external_id": line.team_external_id,
+        "team_name": line.team_name,
+        "points": line.points,        # totals — the "24 pts / 8 reb" line is
+        "rebounds": line.rebounds,    # framed as "por partido" by the render
+        "assists": line.assists,
+        "rating": round(rating, 1),
+        # The context line under the name reads as PPP/RPP/APP because a season
+        # quintet ranks per-game averages, not totals — a 300-rebound big does
+        # not sit above a 12-per-game one just because they played more.
+        "points_per_game": round(line.points / line.games, 1) if line.games else 0.0,
+        "rebounds_per_game": round(line.rebounds / line.games, 1) if line.games else 0.0,
+        "assists_per_game": round(line.assists / line.games, 1) if line.games else 0.0,
+        "games_played": line.games,
+    }
+    if extra:
+        row.update(extra)
+    return row
+
+
+def detect_season_best_five(
+    season_code: str, round_number: int, season: Optional[SeasonAggregate],
+) -> List[StoryObject]:
+    """The five players with the highest SEASON FEB Rating. Self-skips without
+    an aggregate, without a per-player FEB map, or with fewer than five players
+    who cleared the games floor — a quintet padded with unrated names would be
+    a claim the data does not support."""
+    if season is None or not season.feb_by_player:
+        return []
+    by_id = {p.player_external_id: p for p in season.players}
+    rated = [
+        (by_id[pid], feb)
+        for pid, feb in season.feb_by_player.items()
+        if pid in by_id and by_id[pid].games >= SEASON_QUINTET_MIN_GAMES
+    ]
+    if len(rated) < 5:
+        return []
+    rated.sort(key=lambda pr: (-pr[1], -pr[0].points, pr[0].player_external_id))
+    top = rated[:5]
+    lineup = [
+        {"rank": i, **_season_lineup_row(p, r)}
+        for i, (p, r) in enumerate(top, start=1)
+    ]
+    from .rating import FEB_RATING_VERSION
+    return [StoryObject(
+        story_type=StoryType.BEST_FIVE_SEASON,
+        season_code=season.season_code,
+        round_number=round_number,
+        entities=StoryEntities(),
+        facts={
+            "lineup": lineup, "count": 5,
+            "rating_version": FEB_RATING_VERSION,
+            "section_label": "El quinteto de la temporada",
+            "metric_label": "FEB RATING /10",
+            "count_label": "Top 5",
+        },
+        source_refs={
+            "season_player_stats": f"2afeb_score://season_player_stats/{season.season_code}",
+        },
+    )]
+
+
+def detect_season_best_five_ideal(
+    season_code: str, round_number: int, season: Optional[SeasonAggregate],
+    bio: Optional[Any] = None,
+) -> List[StoryObject]:
+    """The ideal season five by position: the highest-rated player at each of
+    the five court positions. Needs a rated player at EVERY position — a hole
+    at one position yields no card rather than a four-player quintet."""
+    if season is None or not season.feb_by_player or bio is None:
+        return []
+    from .bio import POSITIONS
+
+    by_id = {p.player_external_id: p for p in season.players}
+    best: Dict[str, tuple] = {}
+    for pid, feb in season.feb_by_player.items():
+        line = by_id.get(pid)
+        if line is None or line.games < SEASON_QUINTET_MIN_GAMES:
+            continue
+        pos = bio.position(pid)
+        if pos is None:
+            continue
+        cur = best.get(pos)
+        if cur is None or feb > cur[1] or (feb == cur[1] and line.points > cur[0].points):
+            best[pos] = (line, feb)
+    if any(pos not in best for pos in POSITIONS):
+        return []
+    lineup = []
+    for pos in POSITIONS:
+        line, feb = best[pos]
+        lineup.append(_season_lineup_row(line, feb, extra={"position": pos}))
+    from .rating import FEB_RATING_VERSION
+    return [StoryObject(
+        story_type=StoryType.BEST_FIVE_IDEAL_SEASON,
+        season_code=season.season_code,
+        round_number=round_number,
+        entities=StoryEntities(),
+        facts={
+            "lineup": lineup, "count": 5,
+            "rating_version": FEB_RATING_VERSION,
+            "section_label": "El quinteto ideal de la temporada",
+        },
+        source_refs={
+            "season_player_stats": f"2afeb_score://season_player_stats/{season.season_code}",
+        },
+    )]
