@@ -1670,6 +1670,20 @@ class _GatewayBase(CommandGateway):
             return None
         return self._lifecycle().publish(content_id).to_dict()
 
+    def mark_content_published(
+        self,
+        content_id: str,
+        external_url: Optional[str] = None,
+        note: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        if self._content_queue_repo.get(content_id) is None:
+            return None
+        return (
+            self._lifecycle()
+            .mark_published_manually(content_id, external_url=external_url, note=note)
+            .to_dict()
+        )
+
     # ------------------------------------------------------------ system status
     def system_status(self) -> Dict[str, Any]:
         try:

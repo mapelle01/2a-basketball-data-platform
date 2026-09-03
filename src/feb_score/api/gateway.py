@@ -418,3 +418,12 @@ class CommandGateway(ABC):
     @abstractmethod
     def publish_content(self, content_id: str) -> Optional[Dict[str, Any]]:
         raise NotImplementedError
+
+    @abstractmethod
+    def mark_content_published(
+        self,
+        content_id: str,
+        external_url: Optional[str] = None,
+        note: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        raise NotImplementedError

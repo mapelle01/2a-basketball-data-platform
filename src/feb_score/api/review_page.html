@@ -181,6 +181,7 @@ a.btn:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 <div class="selbar" id="selbar" role="toolbar" aria-label="Acciones múltiples">
   <span class="n"><b id="selN">0</b> seleccionadas</span>
   <button id="selApprove" title="Aprobar todas las pendientes de la selección">Aprobar</button>
+  <button id="selMarkPub" title="Marcar las aprobadas de la selección como publicadas (las subiste a IG)">Marcar publicadas</button>
   <button id="selDownload">Descargar PNG</button>
   <button class="ok" id="selDiscard">Descartar</button>
   <button class="ghost" id="selClear" title="Vaciar la selección — no borra ni modifica ninguna carta">Limpiar selección</button>
@@ -466,7 +467,7 @@ function card(i){
       <h3>${esc(name)}</h3>
       <p class="hl">${esc(copy.headline || '')}</p>
       <p class="cap">${esc(copy.caption || '')}</p>
-      <p class="idline">jornada ${i.story.round_number ?? '—'} · ${i.content_id.slice(0,8)}</p>
+      <p class="idline">jornada ${i.story.round_number ?? '—'} · ${i.content_id.slice(0,8)}${pubTrace(i)}</p>
       <p class="msg"></p>
       <div class="actions"></div>
       <div class="editor">
@@ -491,6 +492,9 @@ function card(i){
   // one-person editorial. Descartar covers "no publish", so Rechazar is gone.
   if (i.status === 'pending_review') {
     actions.append(action('Aprobar', 'approve', i, msg, true));
+  }
+  if (i.status === 'approved') {
+    actions.append(markPublishedButton(i, msg));
   }
   actions.append(download(i), copyCaption(i, msg));
   if (i.status === 'pending_review' || i.status === 'approved') {
@@ -578,6 +582,38 @@ function discardButton(item, msg){
   return b;
 }
 
+// "Marqué como publicada" — the operator uploaded to Instagram by hand and
+// wants the queue to reflect it. Skips SCHEDULED and posts a plain mark.
+// Optional external_url is prompted for, but empty is fine.
+function markPublishedButton(item, msg){
+  const b = document.createElement('button');
+  b.textContent = 'Marqué como publicada';
+  b.className = 'ok';
+  b.title = 'La subí a Instagram: cerrar el registro en la cola';
+  b.onclick = async () => {
+    if (!apiKey()) { msg.textContent = 'hace falta la clave de API'; return; }
+    const url = prompt(
+      'Enlace de Instagram (opcional — deja en blanco si no lo tienes):', ''
+    );
+    if (url === null) return; // cancelled
+    b.disabled = true; msg.textContent = 'marcando…';
+    try{
+      const r = await fetch(`/v1/content/items/${item.content_id}/mark-published`, {
+        method: 'POST',
+        headers: {'Authorization': 'Bearer ' + apiKey(), 'Content-Type': 'application/json'},
+        body: JSON.stringify(url.trim() ? {external_url: url.trim()} : {}),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        msg.textContent = `error ${r.status}: ${d?.error?.message || ''}`;
+        b.disabled = false; return;
+      }
+      await load();
+    }catch(e){ msg.textContent = String(e); b.disabled = false; }
+  };
+  return b;
+}
+
 function editButton(item, el, msg){
   const b = document.createElement('button');
   b.textContent = 'Editar';
@@ -648,6 +684,20 @@ function render(){
 
 function esc(s){ const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
 
+// Trace shown on published cards: the date it went out and, if provided, a
+// link to the actual Instagram post. Empty string otherwise so nothing shifts.
+function pubTrace(item){
+  if (item.status !== 'published') return '';
+  const parts = [];
+  if (item.published_at) {
+    const d = new Date(item.published_at);
+    if (!isNaN(d)) parts.push(' · publicada ' + d.toISOString().slice(0,10));
+  }
+  const url = item.publish_result && item.publish_result.external_url;
+  if (url) parts.push(` · <a href="${esc(url)}" target="_blank" rel="noopener">enlace</a>`);
+  return parts.join('');
+}
+
 /* ============================================================= multi-select */
 // The checkbox on each card toggles SEL; the floating bar shows the count and
 // batches actions across the picked rows. Actions loop the endpoints the
@@ -658,7 +708,10 @@ function syncSelbar(){
   bar.classList.toggle('show', SEL.size > 0);
   const anyPending = [...SEL].some(cid =>
     ITEMS.find(i => i.content_id === cid)?.status === 'pending_review');
+  const anyApproved = [...SEL].some(cid =>
+    ITEMS.find(i => i.content_id === cid)?.status === 'approved');
   document.getElementById('selApprove').disabled = !anyPending;
+  document.getElementById('selMarkPub').disabled = !anyApproved;
 }
 function toggleSel(cid, on){
   if (on) SEL.add(cid); else SEL.delete(cid);
@@ -698,6 +751,19 @@ document.getElementById('selApprove').onclick = async () => {
   const {ok, fail} = await runBulk(targets,
     cid => `/v1/content/items/${cid}/review/approve`, 'POST');
   alert(`${ok} aprobadas · ${fail} error(es).`);
+  SEL.clear(); await load();
+};
+document.getElementById('selMarkPub').onclick = async () => {
+  // Bulk-mark only the APROBADAS in the selection — pending/published rows
+  // are left alone so a mixed selection does not accidentally publish drafts.
+  const targets = [...SEL].filter(cid =>
+    ITEMS.find(i => i.content_id === cid)?.status === 'approved');
+  if (!targets.length ||
+      !confirm(`¿Marcar ${targets.length} carta(s) como publicadas?\n` +
+               `Se moverán a PUBLICADAS. No se sube nada a Instagram — es solo el registro.`)) return;
+  const {ok, fail} = await runBulk(targets,
+    cid => `/v1/content/items/${cid}/mark-published`, 'POST');
+  alert(`${ok} marcadas como publicadas · ${fail} error(es).`);
   SEL.clear(); await load();
 };
 document.getElementById('selDiscard').onclick = async () => {

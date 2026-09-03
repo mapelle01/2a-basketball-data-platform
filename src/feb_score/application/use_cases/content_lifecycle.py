@@ -57,6 +57,19 @@ class ContentLifecycleService:
         self._queue.update(item)
         return item
 
+    def mark_published_manually(
+        self,
+        content_id: str,
+        external_url: Optional[str] = None,
+        note: Optional[str] = None,
+    ) -> ContentItem:
+        """Operator subió la carta a mano y quiere cerrar el registro. No hay
+        Publisher: se salta SCHEDULED y va directo a PUBLISHED."""
+        item = self._require(content_id)
+        item.mark_published_manually(external_url=external_url, note=note)
+        self._queue.update(item)
+        return item
+
     def _require(self, content_id: str) -> ContentItem:
         item = self._queue.get(content_id)
         if item is None:

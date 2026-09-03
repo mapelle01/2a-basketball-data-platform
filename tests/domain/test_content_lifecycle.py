@@ -154,3 +154,33 @@ class TestLifecycleService:
         queue.add(_item(status=ContentStatus.PENDING_REVIEW))
         service.reject_review("c1", "off-brand")
         assert queue.get("c1").status is ContentStatus.REJECTED
+
+    def test_mark_published_manually_skips_scheduled_and_the_publisher(self):
+        # Operator subió a Instagram a mano y cierra el registro. Va directo
+        # APPROVED → PUBLISHED sin llamar al Publisher.
+        service, queue, publisher = self._service()
+        queue.add(_item(status=ContentStatus.APPROVED))
+        service.mark_published_manually(
+            "c1", external_url="https://instagram.com/p/xyz", note="jornada 12"
+        )
+        item = queue.get("c1")
+        assert item.status is ContentStatus.PUBLISHED
+        assert item.published_at is not None
+        assert item.publish_result["channel"] == "manual"
+        assert item.publish_result["external_url"] == "https://instagram.com/p/xyz"
+        assert item.publish_result["note"] == "jornada 12"
+        assert publisher.calls == 0  # manual mark never delivers
+
+    def test_mark_published_manually_requires_approved(self):
+        service, queue, _ = self._service()
+        queue.add(_item(status=ContentStatus.PENDING_REVIEW))
+        with pytest.raises(InvalidContentTransition):
+            service.mark_published_manually("c1")
+
+    def test_mark_published_manually_normalises_blank_fields(self):
+        service, queue, _ = self._service()
+        queue.add(_item(status=ContentStatus.APPROVED))
+        service.mark_published_manually("c1", external_url="   ", note="")
+        item = queue.get("c1")
+        assert item.publish_result["external_url"] is None
+        assert item.publish_result["note"] is None

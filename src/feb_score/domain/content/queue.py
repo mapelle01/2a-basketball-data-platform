@@ -8,16 +8,19 @@ State machine:
    DETECTED → GENERATING → GENERATED → VALIDATING ─┬→ APPROVED ──────┐
                                                    ├→ PENDING_REVIEW ┤ (human)
                                                    └→ REJECTED       │
-                                        APPROVED → SCHEDULED → PUBLISHED
+                                        APPROVED → SCHEDULED → PUBLISHED         (auto-publish path, via Publisher)
+   APPROVED ─────────────▶ PUBLISHED        (manual mark: operator subió a IG)
    (any) → FAILED
 
 The pipeline drives DETECTED..VALIDATING and then hands off to one of:
   * APPROVED        — passed validation AND cleared for auto-publish
   * PENDING_REVIEW  — passed validation but a human must decide (high impact)
   * REJECTED        — failed fact/visual validation
-Human/ops actions move PENDING_REVIEW → APPROVED/REJECTED and
-APPROVED → SCHEDULED → PUBLISHED. Transitions are validated: an illegal move
-raises InvalidContentTransition rather than silently corrupting state.
+Human/ops actions move PENDING_REVIEW → APPROVED/REJECTED and either
+APPROVED → SCHEDULED → PUBLISHED (auto path) or APPROVED → PUBLISHED (manual
+mark, used when the operator uploads to Instagram by hand and just needs the
+record). Transitions are validated: an illegal move raises
+InvalidContentTransition rather than silently corrupting state.
 
 Identity comes from the underlying Story's identity_key: publishing the
 same story twice is prevented.
@@ -65,7 +68,7 @@ _ALLOWED: Dict[ContentStatus, set] = {
         ContentStatus.REJECTED,
     },
     ContentStatus.PENDING_REVIEW: {ContentStatus.APPROVED, ContentStatus.REJECTED},
-    ContentStatus.APPROVED: {ContentStatus.SCHEDULED},
+    ContentStatus.APPROVED: {ContentStatus.SCHEDULED, ContentStatus.PUBLISHED},
     ContentStatus.SCHEDULED: {ContentStatus.PUBLISHED, ContentStatus.APPROVED},
     ContentStatus.REJECTED: set(),
     ContentStatus.PUBLISHED: set(),
@@ -147,6 +150,28 @@ class ContentItem:
         self.publish_result = result
         self.published_at = datetime.utcnow()
         self.transition(ContentStatus.PUBLISHED)
+
+    def mark_published_manually(
+        self, external_url: Optional[str] = None, note: Optional[str] = None
+    ) -> None:
+        """Operator uploaded the card to Instagram (or wherever) by hand and is
+        telling the system to close the loop. Skips SCHEDULED because no
+        Publisher was involved — this is a bookkeeping transition, not a
+        delivery."""
+        if self.status is not ContentStatus.APPROVED:
+            raise InvalidContentTransition(
+                f"content {self.content_id} must be approved to mark as published, "
+                f"not {self.status.value}"
+            )
+        self.publish_result = {
+            "channel": "manual",
+            "external_url": (external_url or "").strip() or None,
+            "note": (note or "").strip() or None,
+            "at": datetime.utcnow().isoformat(),
+        }
+        self.published_at = datetime.utcnow()
+        self.status = ContentStatus.PUBLISHED
+        self.updated_at = datetime.utcnow()
 
     def fail(self, error: str) -> None:
         """FAILED is reachable from any non-terminal state."""

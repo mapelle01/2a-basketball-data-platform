@@ -372,3 +372,27 @@ def register_content_routes(app: FastAPI) -> None:
         return _lifecycle_action(
             request, content_id, request.app.state.gateway.publish_content
         )
+
+    @app.post(
+        "/v1/content/items/{content_id}/mark-published",
+        tags=["content"],
+        summary="Mark an approved item as published (manual upload)",
+        description="Moves an APPROVED item straight to PUBLISHED — for when "
+        "the operator has uploaded the card to Instagram by hand and just "
+        "needs the queue to reflect it. Skips SCHEDULED; no delivery is "
+        "attempted. Authenticated. Optional body "
+        "{\"external_url\": \"...\", \"note\": \"...\"}. 409 if not approved.",
+    )
+    def mark_content_published(
+        content_id: str, request: Request, body: Optional[dict] = Body(default=None)
+    ):
+        payload = body if isinstance(body, dict) else {}
+        external_url = payload.get("external_url")
+        note = payload.get("note")
+        return _lifecycle_action(
+            request,
+            content_id,
+            request.app.state.gateway.mark_content_published,
+            external_url,
+            note,
+        )

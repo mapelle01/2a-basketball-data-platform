@@ -384,6 +384,38 @@ class TestLifecycleEndpoints:
         )
         assert r.status_code == 404
 
+    def test_mark_published_flow_from_approved(self, client):
+        run = self._run(client)
+        approved = [i for i in run["items"] if i["status"] == "approved"]
+        assert approved, "expected an auto-approved item to mark as published"
+        cid = approved[0]["content_id"]
+
+        r = client.post(
+            f"/v1/content/items/{cid}/mark-published",
+            json={"external_url": "https://instagram.com/p/xyz", "note": "j7"},
+            headers=auth_header("system"),
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body["status"] == "published"
+        assert body["publish_result"]["channel"] == "manual"
+        assert body["publish_result"]["external_url"] == "https://instagram.com/p/xyz"
+
+    def test_mark_published_rejects_non_approved(self, client):
+        run = self._run(client)
+        pending = [i for i in run["items"] if i["status"] == "pending_review"]
+        cid = pending[0]["content_id"]
+        r = client.post(
+            f"/v1/content/items/{cid}/mark-published", headers=auth_header("system")
+        )
+        assert r.status_code == 409
+
+    def test_mark_published_requires_auth(self, client):
+        run = self._run(client)
+        cid = run["items"][0]["content_id"]
+        r = client.anon().post(f"/v1/content/items/{cid}/mark-published")
+        assert r.status_code == 401
+
     def test_published_survives_restart(self, client, client_factory, db_path):
         run = self._run(client)
         approved = [i for i in run["items"] if i["status"] == "approved"]
