@@ -39,6 +39,13 @@ class PlayerSeasonLine:
     minutes: float = 0.0
     field_goals_made: Optional[int] = None
     field_goals_attempted: Optional[int] = None
+    # True iff THIS season is the player's first appearance in the league
+    # according to every season we have on record. The adapter fills it by
+    # cross-checking prior-season player rosters — until historical seasons are
+    # ingested, every player looks like a debutant, so the best-debut detector
+    # must self-skip when there is no prior-season baseline. Kept False by
+    # default so a fold over a single season never wrongly flags anyone.
+    is_league_debut: bool = False
 
     @property
     def ppg(self) -> float:
