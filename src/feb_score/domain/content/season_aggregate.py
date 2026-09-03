@@ -31,6 +31,14 @@ class PlayerSeasonLine:
     steals: int = 0
     blocks: int = 0
     turnovers: int = 0
+    # Extended fields for the season-wide FEB Rating. Minutes are 0 when the
+    # source can't supply them (older fixtures, or matches from a scraper that
+    # dropped the column). Shooting totals stay None to keep "unknown" distinct
+    # from "0 attempts": one game with a null field_goals_attempted makes the
+    # whole season total None, because we cannot honestly report a rate.
+    minutes: float = 0.0
+    field_goals_made: Optional[int] = None
+    field_goals_attempted: Optional[int] = None
 
     @property
     def ppg(self) -> float:
@@ -38,17 +46,15 @@ class PlayerSeasonLine:
 
     @property
     def rating(self) -> Optional[float]:
-        """The FEB Rating of this player's AVERAGE game — or None.
+        """The FEB Rating of this player's AVERAGE game — or None when the
+        minutes or shooting data isn't there to compute it honestly.
 
-        Returns None today, deliberately: since v2 the mark needs minutes and
-        shooting efficiency, and the season aggregate carries neither (only
-        points/rebounds/assists/steals/blocks/turnovers). Rating the average
-        game without the efficiency terms would produce a systematically HIGHER
-        note that is not comparable with a match rating, so no note is shown at
-        all. Unlocking it is a data task: aggregate minutes and shooting totals
-        per player-season, then feed them here.
-        """
-        if not self.games:
+        Ratings the average game (not the totals), so the value stays on the
+        same 0..10 scale as a boxscore rating and a season card can sit next to
+        a match card without misleading anyone."""
+        if not self.games or self.minutes_per_game is None or self.minutes_per_game <= 0:
+            return None
+        if self.field_goals_made is None or self.field_goals_attempted is None:
             return None
         from .rating import feb_rating
 
@@ -57,12 +63,15 @@ class PlayerSeasonLine:
             round(self.points / g), round(self.rebounds / g), round(self.assists / g),
             round(self.steals / g), round(self.blocks / g), round(self.turnovers / g),
             minutes=self.minutes_per_game,
-            field_goals_made=None, field_goals_attempted=None,  # not aggregated yet
+            field_goals_made=round(self.field_goals_made / g),
+            field_goals_attempted=round(self.field_goals_attempted / g),
         )
 
     @property
     def minutes_per_game(self) -> Optional[float]:
-        return None  # minutes are not folded into the season aggregate yet
+        if not self.games or self.minutes <= 0:
+            return None
+        return round(self.minutes / self.games, 1)
 
 
 @dataclass(frozen=True)
@@ -75,7 +84,9 @@ def build_season_aggregate(
     season_code: str, rounds: Sequence[Sequence[PlayerLineInput]],
 ) -> SeasonAggregate:
     """Fold every round's player lines into per-player season totals. The latest
-    non-empty name/team seen wins (catalogs fill in over the season)."""
+    non-empty name/team seen wins (catalogs fill in over the season). Minutes
+    are summed straight; shooting totals stay None if ANY game contributed a
+    null attempt/make, because a rate over an incomplete sample would lie."""
     acc: Dict[str, Dict[str, object]] = {}
     for rnd in rounds:
         for p in rnd:
@@ -83,6 +94,7 @@ def build_season_aggregate(
                 "player_name": None, "team_external_id": p.team_external_id,
                 "team_name": None, "games": 0, "points": 0, "rebounds": 0, "assists": 0,
                 "steals": 0, "blocks": 0, "turnovers": 0,
+                "minutes": 0.0, "fgm": 0, "fga": 0, "shooting_complete": True,
             })
             a["games"] = int(a["games"]) + 1
             a["points"] = int(a["points"]) + p.points
@@ -91,6 +103,14 @@ def build_season_aggregate(
             a["steals"] = int(a["steals"]) + p.steals
             a["blocks"] = int(a["blocks"]) + p.blocks
             a["turnovers"] = int(a["turnovers"]) + p.turnovers
+            a["minutes"] = float(a["minutes"]) + float(getattr(p, "minutes", 0.0) or 0.0)
+            fgm = getattr(p, "field_goals_made", None)
+            fga = getattr(p, "field_goals_attempted", None)
+            if fgm is None or fga is None:
+                a["shooting_complete"] = False
+            elif a["shooting_complete"]:
+                a["fgm"] = int(a["fgm"]) + int(fgm)
+                a["fga"] = int(a["fga"]) + int(fga)
             if p.player_name:
                 a["player_name"] = p.player_name
             if p.team_name:
@@ -104,6 +124,9 @@ def build_season_aggregate(
             rebounds=int(a["rebounds"]), assists=int(a["assists"]),
             steals=int(a["steals"]), blocks=int(a["blocks"]),
             turnovers=int(a["turnovers"]),
+            minutes=float(a["minutes"]),
+            field_goals_made=int(a["fgm"]) if a["shooting_complete"] else None,
+            field_goals_attempted=int(a["fga"]) if a["shooting_complete"] else None,
         )
         for pid, a in acc.items()
     )

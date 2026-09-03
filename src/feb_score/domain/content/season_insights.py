@@ -36,14 +36,41 @@ PLAYER_STREAK_DD_MIN_LENGTH = 3
 
 @dataclass(frozen=True)
 class GameLine:
-    """A single-game line from a player's season log — only the fields the
-    detectors need for consecutive-game rachas. Ordered by played_at when the
-    adapter fills it."""
+    """A single-game line from a player's season log. The base fields (pts, reb,
+    ast, stl, blk) drive the rachas detectors. The extended fields (minutes,
+    shooting, round_number) unlock per-game FEB Rating and "récord de valoración
+    de la temporada" — they are OPTIONAL because older callers and fixtures
+    build GameLine with just the base counters, so absent shooting is signalled
+    as None (not zero) to keep "unknown" distinct from "0 attempts"."""
     points: int = 0
     rebounds: int = 0
     assists: int = 0
     steals: int = 0
     blocks: int = 0
+    turnovers: int = 0
+    minutes: Optional[float] = None
+    field_goals_made: Optional[int] = None
+    field_goals_attempted: Optional[int] = None
+    round_number: Optional[int] = None
+
+    @property
+    def rating(self) -> Optional[float]:
+        """The FEB Rating of this single game — or None when the shooting or
+        minutes data isn't there to compute it honestly. Uses the same formula
+        as a boxscore rating so per-game and season records stay comparable."""
+        if self.minutes is None or self.minutes <= 0:
+            return None
+        if self.field_goals_made is None or self.field_goals_attempted is None:
+            return None
+        from .rating import feb_rating
+
+        return feb_rating(
+            self.points, self.rebounds, self.assists,
+            self.steals, self.blocks, self.turnovers,
+            minutes=self.minutes,
+            field_goals_made=self.field_goals_made,
+            field_goals_attempted=self.field_goals_attempted,
+        )
 
 
 @dataclass(frozen=True)

@@ -136,32 +136,58 @@ class TestEndToEnd:
 
 # --- FEB Rating on season cards (regression) --------------------------------
 
-def test_season_line_is_not_rated_until_minutes_and_shooting_are_aggregated():
-    """Since v2 the mark needs minutes + shooting efficiency, which the season
-    aggregate does not carry. Rather than grade the average game on a reduced
-    input set — which would yield a systematically higher, non-comparable note —
-    no note is produced at all."""
+def test_season_line_rating_stays_none_when_minutes_or_shooting_are_missing():
+    """The mark needs minutes AND shooting efficiency to stay comparable with a
+    boxscore rating. When either is absent the line refuses to grade itself —
+    "unknown" is not the same as "average". This is the safety property; the
+    happy path is covered by the next test."""
     from feb_score.domain.content.season_aggregate import PlayerSeasonLine
 
-    line = PlayerSeasonLine(
+    # No minutes, no shooting → None
+    assert PlayerSeasonLine(
         player_external_id="p1", games=26, points=450, rebounds=112,
         assists=72, steals=23, blocks=1, turnovers=77,
-    )
-    assert line.rating is None
+    ).rating is None
+
+    # Minutes but no shooting → still None (efficiency term missing)
+    assert PlayerSeasonLine(
+        player_external_id="p1", games=26, points=450, rebounds=112,
+        assists=72, minutes=650.0,
+    ).rating is None
+
+    # Zero games → None
     assert PlayerSeasonLine("p2", games=0, points=0, rebounds=0, assists=0).rating is None
 
 
-def test_season_leader_story_still_builds_without_a_rating():
+def test_season_line_rating_computes_over_the_average_game_when_data_is_there():
+    """Once minutes and shooting are aggregated, the rating grades the AVERAGE
+    game (not the totals) so a season card sits on the same 0..10 scale as a
+    boxscore card."""
+    from feb_score.domain.content.season_aggregate import PlayerSeasonLine
+
+    line = PlayerSeasonLine(
+        player_external_id="p1", games=20, points=400, rebounds=100,
+        assists=60, steals=20, blocks=10, turnovers=40,
+        minutes=600.0, field_goals_made=140, field_goals_attempted=280,
+    )
+    assert line.minutes_per_game == 30.0
+    assert line.rating is not None
+    assert 0.0 <= line.rating <= 10.0
+
+
+def test_season_leader_story_carries_a_rating_once_the_aggregate_is_complete():
     from feb_score.domain.content.season_aggregate import (
         PlayerSeasonLine, SeasonAggregate, detect_season_scoring_leader,
     )
 
     agg = SeasonAggregate("2024-2025", (PlayerSeasonLine(
         player_external_id="p1", games=26, points=450, rebounds=112,
-        assists=72, steals=23, blocks=1, turnovers=77, player_name="X"),))
+        assists=72, steals=23, blocks=1, turnovers=77, player_name="X",
+        minutes=780.0, field_goals_made=170, field_goals_attempted=330),))
     story = detect_season_scoring_leader("2024-2025", 26, agg)[0]
-    assert story.facts["season_total"] == 450     # the card still has its subject
-    assert story.facts["rating"] is None          # and simply shows no mark
+    assert story.facts["season_total"] == 450
+    assert story.facts["rating"] is not None
+    assert 0.0 <= story.facts["rating"] <= 10.0
 
 
 def test_season_fold_accumulates_defensive_stats():
@@ -179,6 +205,71 @@ def test_season_fold_accumulates_defensive_stats():
     agg = build_season_aggregate("2024-2025", [[line()], [line(steals=3, blocks=0, turnovers=1)]])
     p = agg.players[0]
     assert (p.steals, p.blocks, p.turnovers) == (4, 1, 3)
+
+
+def test_season_fold_sums_minutes_and_shooting_when_every_game_carries_them():
+    from feb_score.domain.content.insights import PlayerLineInput
+    from feb_score.domain.content.season_aggregate import build_season_aggregate
+
+    def line(**kw):
+        base = dict(player_external_id="p1", team_external_id="t1", points=20,
+                    rebounds=5, assists=3, steals=1, blocks=0, turnovers=2,
+                    minutes=28.0, match_external_id="m",
+                    field_goals_made=7, field_goals_attempted=15,
+                    player_name="X", team_name="T")
+        base.update(kw)
+        return PlayerLineInput(**base)
+
+    agg = build_season_aggregate("2024-2025", [[line()], [line(minutes=32.0,
+        field_goals_made=8, field_goals_attempted=14)]])
+    p = agg.players[0]
+    assert p.minutes == 60.0
+    assert p.field_goals_made == 15
+    assert p.field_goals_attempted == 29
+    assert p.minutes_per_game == 30.0
+    assert p.rating is not None  # complete data → rating computable
+
+
+def test_season_fold_leaves_shooting_none_when_any_game_lacks_it():
+    """If one game came in without shooting data, we cannot honestly report a
+    season shooting rate — so the aggregate stays None rather than lie by
+    treating the gap as zero attempts."""
+    from feb_score.domain.content.insights import PlayerLineInput
+    from feb_score.domain.content.season_aggregate import build_season_aggregate
+
+    complete = PlayerLineInput(
+        player_external_id="p1", team_external_id="t1", points=20, rebounds=5,
+        assists=3, steals=1, blocks=0, turnovers=2, minutes=28.0,
+        match_external_id="m", player_name="X", team_name="T",
+        field_goals_made=7, field_goals_attempted=15,
+    )
+    incomplete = PlayerLineInput(
+        player_external_id="p1", team_external_id="t1", points=18, rebounds=6,
+        assists=2, steals=0, blocks=1, turnovers=1, minutes=30.0,
+        match_external_id="m2", player_name="X", team_name="T",
+        # shooting deliberately absent
+    )
+    agg = build_season_aggregate("2024-2025", [[complete], [incomplete]])
+    p = agg.players[0]
+    assert p.minutes == 58.0                    # minutes still sum
+    assert p.field_goals_made is None
+    assert p.field_goals_attempted is None
+    assert p.rating is None                     # no shooting → no rating
+
+
+def test_game_line_rating_computes_when_the_data_is_complete_and_none_otherwise():
+    from feb_score.domain.content.season_insights import GameLine
+
+    # The base fields alone (rachas detectors) don't earn a rating.
+    assert GameLine(points=20, rebounds=5, assists=3).rating is None
+    # Minutes without shooting still not enough.
+    assert GameLine(points=20, minutes=28.0).rating is None
+    # Full data → rating on the 0..10 scale.
+    line = GameLine(points=22, rebounds=6, assists=4, steals=1, blocks=1,
+                    turnovers=2, minutes=30.0,
+                    field_goals_made=8, field_goals_attempted=15)
+    assert line.rating is not None
+    assert 0.0 <= line.rating <= 10.0
 
 
 def test_every_player_card_story_carries_the_rating():
