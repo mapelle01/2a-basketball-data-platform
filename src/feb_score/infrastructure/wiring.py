@@ -830,12 +830,22 @@ class _GatewayBase(CommandGateway):
             return sum(1 for x in (l.points, l.rebounds, l.assists, l.steals, l.blocks) if x >= 10)
         dd_count = defaultdict(int)
         td_total = 0
+        triple_doubles: List[Dict[str, Any]] = []
         for l in lines:
             c = dd(l)
             if c >= 2:
                 dd_count[l.player_external_id] += 1
             if c >= 3:
                 td_total += 1
+                triple_doubles.append({
+                    "player": nm(l.player_external_id),
+                    "player_external_id": l.player_external_id,
+                    "team": tm(l.player_external_id),
+                    "points": l.points, "rebounds": l.rebounds,
+                    "assists": l.assists, "steals": l.steals, "blocks": l.blocks,
+                    "played_at": l.played_at.isoformat() if l.played_at else None,
+                })
+        triple_doubles.sort(key=lambda x: (x["played_at"] or ""))
         double_doubles = [
             {"player": nm(p), "player_external_id": p, "team": tm(p), "count": c}
             for p, c in sorted(dd_count.items(), key=lambda kv: (-kv[1], kv[0]))[:8]
@@ -884,6 +894,7 @@ class _GatewayBase(CommandGateway):
 
         return {"season_code": season_code, "records": records,
                 "double_doubles": double_doubles, "triple_doubles_total": td_total,
+                "triple_doubles": triple_doubles,
                 "form_up": form[:6],
                 "streaks_dd": streaks_dd, "streaks_scoring": streaks_scoring}
 
