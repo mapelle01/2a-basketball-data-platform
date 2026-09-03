@@ -144,6 +144,12 @@ class LiveContentAdapter:
                 steals=a.steals,
                 blocks=a.blocks,
                 turnovers=a.turnovers,
+                # Minutes come from the SeasonPlayerStats aggregate; shooting
+                # totals are NOT aggregated by the season stats view (per-game
+                # nullability blocks a straight fold), so we leave them None and
+                # the season rating skips. Filling shooting is a follow-up in
+                # the persistence layer, not the adapter.
+                minutes=getattr(a, "minutes", 0.0) or 0.0,
                 player_name=names.get(a.player_external_id),
                 team_external_id=player_team.get(a.player_external_id),
                 team_name=team_names.get(player_team.get(a.player_external_id)),
@@ -251,9 +257,19 @@ class LiveContentAdapter:
             )
             if ordered:
                 log[pid] = tuple(
-                    GameLine(points=s.points, rebounds=s.rebounds, assists=s.assists,
-                             steals=getattr(s, "steals", 0),
-                             blocks=getattr(s, "blocks", 0))
+                    GameLine(
+                        points=s.points, rebounds=s.rebounds, assists=s.assists,
+                        steals=getattr(s, "steals", 0),
+                        blocks=getattr(s, "blocks", 0),
+                        turnovers=getattr(s, "turnovers", 0),
+                        # Minutes and shooting unlock per-game FEB Rating (and the
+                        # "récord de valoración de la temporada" that reads it).
+                        # Fall through to None when the source lacks the column,
+                        # so GameLine.rating self-skips instead of guessing.
+                        minutes=getattr(s, "minutes", None) or None,
+                        field_goals_made=getattr(s, "field_goals_made", None),
+                        field_goals_attempted=getattr(s, "field_goals_attempted", None),
+                    )
                     for s in ordered
                 )
         return log

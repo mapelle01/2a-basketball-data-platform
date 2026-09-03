@@ -304,6 +304,80 @@ class TestSeasonAggregate:
         assert p2.team_external_id == "tB"           # team id resolved
         assert p2.team_name is None                  # team not in catalog → None, not invented
 
+    def test_minutes_propagate_from_the_stats_view_to_the_season_line(self):
+        """The season aggregate view already carried minutes; the adapter now
+        forwards them so PlayerSeasonLine.minutes_per_game stops returning
+        None. That is the one piece that unlocks the FEB Rating de temporada."""
+        adapter, _matches, stats, players, teams = _build_adapter()
+        players.save(_player("p1", "C. Sáez"))
+        teams.save(_team("tA", "Alicante Basket"))
+        stats.save_player_stats("m1", SeasonCode(SEASON), [
+            PlayerStats("p1", "tA", points=28, rebounds=10, assists=5, minutes=32.0),
+        ])
+        stats.save_player_stats("m2", SeasonCode(SEASON), [
+            PlayerStats("p1", "tA", points=22, rebounds=12, assists=4, minutes=30.0),
+        ])
+        agg = adapter.build_season_aggregate(SEASON)
+        p1 = next(p for p in agg.players if p.player_external_id == "p1")
+        assert p1.minutes == 62.0
+        assert p1.minutes_per_game == 31.0
+
+
+class TestGameLogEnrichment:
+    """The per-game log now carries minutes and shooting alongside the base
+    counters, so GameLine.rating can grade each game and the "récord de
+    valoración de la temporada" detector has real data to rank."""
+
+    def test_game_lines_carry_minutes_and_shooting_when_the_source_has_them(self):
+        from datetime import datetime as _dt
+
+        adapter, matches, stats, players, teams = _build_adapter()
+        season = SeasonCode(SEASON)
+        # Build the two matches with matching scheduled_at / played_at so the
+        # causal cut in build_season_context (max scheduled_at of the round's
+        # matches) keeps both rounds inside the log.
+        def _match(eid, rnd, day):
+            m = Match.create(
+                external_id=ExternalId(eid), match_id=MatchId(str(uuid.uuid4())),
+                competition_id=CompetitionId("2FEB"), season_code=season,
+                round_number=rnd, home_team_id=ExternalId("tA"),
+                away_team_id=ExternalId("tB"),
+                scheduled_at=_dt.fromisoformat(day + "T18:00:00"),
+                source={"origin": "t"},
+            )
+            m.finalize(score_summary=ScoreSummary(home_score=90, away_score=70,
+                       periods=(PeriodScore(1, 45, 35), PeriodScore(2, 45, 35))),
+                       home_team_stats=_team_stats("tA", 90, 70),
+                       away_team_stats=_team_stats("tB", 70, 90))
+            return m
+        matches.save(_match("R1", 1, "2026-01-04"))
+        matches.save(_match("R2", 2, "2026-01-11"))
+        stats.save_team_stats("R1", season, [_team_stats("tA", 90, 70),
+                              _team_stats("tB", 70, 90)], round_number=1)
+        stats.save_team_stats("R2", season, [_team_stats("tA", 90, 70),
+                              _team_stats("tB", 70, 90)], round_number=2)
+        stats.save_player_stats("R1", season, [PlayerStats(
+            "p1", "tA", points=22, rebounds=6, assists=4, steals=1, blocks=1,
+            turnovers=2, minutes=28.0, field_goals_made=8, field_goals_attempted=15,
+            played_at=_dt.fromisoformat("2026-01-04T18:00:00"))])
+        stats.save_player_stats("R2", season, [PlayerStats(
+            "p1", "tA", points=30, rebounds=8, assists=3, steals=2, blocks=0,
+            turnovers=1, minutes=32.0, field_goals_made=11, field_goals_attempted=18,
+            played_at=_dt.fromisoformat("2026-01-11T18:00:00"))])
+
+        inputs = adapter.build_round_inputs(SEASON, 2)
+        ctx = adapter.build_season_context(SEASON, 2, inputs)
+        log = ctx.player_game_log["p1"]
+        assert len(log) == 2
+        # Latest game is the ROUND 2 line (log is ordered by played_at asc).
+        latest = log[-1]
+        assert latest.minutes == 32.0
+        assert latest.field_goals_made == 11
+        assert latest.field_goals_attempted == 18
+        # And the enrichment lets the game rate itself.
+        assert latest.rating is not None
+        assert 0.0 <= latest.rating <= 10.0
+
 
 class TestShootingFlowsThrough:
     """Per-player shooting reaches the content lane end to end: PlayerStats →
