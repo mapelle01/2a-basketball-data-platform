@@ -1,7 +1,7 @@
 [tool.pytest.ini_options]
 minversion = "6.0"
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "tests/api", "scripts/validation"]
 
 [build-system]
 requires = ["setuptools>=61.0"]
