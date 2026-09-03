@@ -516,13 +516,17 @@ class TestReviewPage:
         assert "'approve'" in html
         assert "/render.svg" in html
         assert "/render.png" in html          # the publishable image is reachable
-        # the page can generate a round itself, not only via terminal curl
-        assert "/v1/content/pipeline/rounds/" in html
         assert "clipboard" in html            # copy-caption for one-shot publishing
         assert "PATCH" in html                # hand-edit title + caption in place
         assert "section_label" in html and "caption" in html
-        assert "/candidates" in html          # detect-then-choose preview
-        assert "story_keys" in html           # generate only the picked ones
+        assert "/mark-published" in html      # cerrar el registro tras subir a IG
+        # Cola is operational (review / approve / publish / discard). Creating
+        # new cards moved to Ideas / Explorer — the page links there instead of
+        # embedding its own generate flow.
+        assert "/v1/content/pipeline/rounds/" not in html
+        assert "/candidates" not in html
+        assert "story_keys" not in html
+        assert "/v1/content/ideas" in html and "/v1/explore" in html
         # /v1/content/queue/purge dejó de estar en la UI — Descartar por fila
         # cubre la limpieza; el endpoint sigue existiendo por si acaso.
 
