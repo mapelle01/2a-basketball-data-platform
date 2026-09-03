@@ -9,6 +9,7 @@ it a plain fold means a test can build one directly and the domain stays pure.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -255,9 +256,23 @@ def detect_season_assist_leader(
 # Season quintets — top 5 by FEB Rating and the ideal 5 by position
 # ---------------------------------------------------------------------------
 
-# A player needs at least this many games before the season note is a claim,
-# not a sample-size illusion. Same floor the endpoint uses on the FEB column.
-SEASON_QUINTET_MIN_GAMES = 6
+# The season quintet floor scales with the round so a card at jornada 8 does
+# not accept the same "6 games" that a card at jornada 30 does. A player who
+# missed 40%+ of the year cannot be in a season ideal five — the claim would
+# not survive a reader who follows the league. Below jornada 10 nothing is
+# really "de temporada" yet, so 6 is the absolute minimum floor.
+SEASON_QUINTET_MIN_ABSOLUTE = 6
+SEASON_QUINTET_MIN_RATIO = 0.6  # of the current round
+
+
+def season_quintet_min_games(round_number: int) -> int:
+    """Games-played floor for a season quintet published at ``round_number``.
+    max(6, 60% of rounds played)."""
+    return max(SEASON_QUINTET_MIN_ABSOLUTE, math.ceil(round_number * SEASON_QUINTET_MIN_RATIO))
+
+
+# Kept as a backwards-compatible alias so tests that referenced it still read.
+SEASON_QUINTET_MIN_GAMES = SEASON_QUINTET_MIN_ABSOLUTE
 
 
 def _season_lineup_row(
@@ -294,11 +309,12 @@ def detect_season_best_five(
     a claim the data does not support."""
     if season is None or not season.feb_by_player:
         return []
+    floor = season_quintet_min_games(round_number)
     by_id = {p.player_external_id: p for p in season.players}
     rated = [
         (by_id[pid], feb)
         for pid, feb in season.feb_by_player.items()
-        if pid in by_id and by_id[pid].games >= SEASON_QUINTET_MIN_GAMES
+        if pid in by_id and by_id[pid].games >= floor
     ]
     if len(rated) < 5:
         return []
@@ -338,11 +354,12 @@ def detect_season_best_five_ideal(
         return []
     from .bio import POSITIONS
 
+    floor = season_quintet_min_games(round_number)
     by_id = {p.player_external_id: p for p in season.players}
     best: Dict[str, tuple] = {}
     for pid, feb in season.feb_by_player.items():
         line = by_id.get(pid)
-        if line is None or line.games < SEASON_QUINTET_MIN_GAMES:
+        if line is None or line.games < floor:
             continue
         pos = bio.position(pid)
         if pos is None:

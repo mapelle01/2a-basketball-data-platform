@@ -266,7 +266,7 @@ def test_season_best_five_ranks_by_rating_and_self_skips_without_feb_map():
     )
     from feb_score.domain.content.story import StoryType
 
-    def _line(pid, pts, games=10):
+    def _line(pid, pts, games=8):
         return PlayerSeasonLine(
             player_external_id=pid, games=games, points=pts, rebounds=5*games,
             assists=3*games, player_name=pid.upper(), team_external_id="t1",
@@ -280,7 +280,7 @@ def test_season_best_five_ranks_by_rating_and_self_skips_without_feb_map():
     # With a feb map, the ranking picks the top 5.
     feb = {"p1": 6.5, "p2": 7.0, "p3": 7.8, "p4": 6.0, "p5": 8.5, "p6": 8.1}
     agg = SeasonAggregate("2024-2025", players, feb_by_player=feb)
-    stories = detect_season_best_five("2024-2025", 20, agg)
+    stories = detect_season_best_five("2024-2025", 8, agg)
     assert len(stories) == 1
     st = stories[0]
     assert st.story_type is StoryType.BEST_FIVE_SEASON
@@ -305,7 +305,10 @@ def test_season_best_five_requires_minimum_games_for_a_real_note():
         player_name="CAMEO", team_external_id="t", team_name="Team")
     feb = {**{f"p{i}": 7.0 + i * 0.1 for i in range(1, 6)}, "cameo": 10.0}
     agg = SeasonAggregate("2024-2025", real + (cameo,), feb_by_player=feb)
-    story = detect_season_best_five("2024-2025", 20, agg)[0]
+    # Round 8 keeps the floor at the absolute minimum (6), so the test is
+    # about the floor itself, not the scaling. The dynamic-floor behaviour is
+    # covered separately in test_season_quintet_floor_scales_with_the_round.
+    story = detect_season_best_five("2024-2025", 8, agg)[0]
     picked = [row["player_external_id"] for row in story.facts["lineup"]]
     assert "cameo" not in picked  # min-games floor kept the cameo out
 
@@ -329,12 +332,46 @@ def test_season_best_five_ideal_picks_one_per_position_and_needs_all_five():
     # One player per position → a full ideal five.
     positions = dict(zip((f"p{i}" for i in range(1, 6)), POSITIONS))
     agg = SeasonAggregate("2024-2025", players, feb_by_player=feb)
-    story = detect_season_best_five_ideal("2024-2025", 20, agg, _Bio(positions))[0]
+    story = detect_season_best_five_ideal("2024-2025", 8, agg, _Bio(positions))[0]
     assert [row["position"] for row in story.facts["lineup"]] == list(POSITIONS)
 
     # Drop the pivot's position → hole at a position → no card.
     del positions[next(k for k, v in positions.items() if v == POSITIONS[0])]
-    assert detect_season_best_five_ideal("2024-2025", 20, agg, _Bio(positions)) == []
+    assert detect_season_best_five_ideal("2024-2025", 8, agg, _Bio(positions)) == []
+
+
+def test_season_quintet_floor_scales_with_the_round():
+    """A player who only played 6 games cannot be in the ideal five of a
+    30-round season. The floor stays at 6 through early season and then
+    tracks 60% of rounds played, so a card at jornada 30 asks for 18 games."""
+    from feb_score.domain.content.season_aggregate import season_quintet_min_games
+
+    assert season_quintet_min_games(5) == 6      # too early to demand more
+    assert season_quintet_min_games(10) == 6     # 60% of 10 = 6
+    assert season_quintet_min_games(20) == 12    # 60% of 20
+    assert season_quintet_min_games(30) == 18    # 60% of 30
+
+
+def test_season_best_five_scales_floor_and_excludes_a_short_stayer():
+    """A player with 6 games leads the season note when the card is created at
+    jornada 30 — the detector must exclude him from the quintet (18-game floor)
+    rather than crown a partial year."""
+    from feb_score.domain.content.season_aggregate import (
+        PlayerSeasonLine, SeasonAggregate, detect_season_best_five,
+    )
+
+    veterans = tuple(PlayerSeasonLine(
+        player_external_id=f"v{i}", games=28, points=300, rebounds=150,
+        assists=90, player_name=f"V{i}", team_external_id="t", team_name="Team")
+        for i in range(1, 6))
+    cameo = PlayerSeasonLine(
+        player_external_id="cameo", games=6, points=200, rebounds=60, assists=40,
+        player_name="CAMEO", team_external_id="t", team_name="Team")
+    feb = {**{f"v{i}": 7.5 + i * 0.05 for i in range(1, 6)}, "cameo": 9.8}
+    agg = SeasonAggregate("2024-2025", veterans + (cameo,), feb_by_player=feb)
+    story = detect_season_best_five("2024-2025", 30, agg)[0]
+    picked = [row["player_external_id"] for row in story.facts["lineup"]]
+    assert "cameo" not in picked
 
 
 def test_game_line_rating_computes_when_the_data_is_complete_and_none_otherwise():
