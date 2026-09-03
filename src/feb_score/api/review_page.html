@@ -183,7 +183,7 @@ a.btn:focus-visible{outline:2px solid var(--red);outline-offset:2px}
   <button id="selApprove" title="Aprobar todas las pendientes de la selección">Aprobar</button>
   <button id="selDownload">Descargar PNG</button>
   <button class="ok" id="selDiscard">Descartar</button>
-  <button class="ghost" id="selClear">Limpiar</button>
+  <button class="ghost" id="selClear" title="Vaciar la selección — no borra ni modifica ninguna carta">Limpiar selección</button>
 </div>
 
 <script>
@@ -381,6 +381,28 @@ function renderFilters(){
     b.onclick = () => { FILTER = k; render(); };
     box.appendChild(b);
   });
+  // "Seleccionar todo" acts on whatever the current tab is showing — the
+  // natural mental model when the operator lands on APROBADAS and wants to
+  // wipe every row that has already gone out. Toggles: click again with
+  // everything already picked to release the selection.
+  const visible = FILTER === 'all' ? ITEMS : ITEMS.filter(i => i.status === FILTER);
+  if (visible.length) {
+    const all = document.createElement('button');
+    const allPicked = visible.every(i => SEL.has(i.content_id));
+    all.textContent = allPicked ? 'Deseleccionar todo' : 'Seleccionar todo';
+    all.title = allPicked
+      ? 'Quitar de la selección todas las tarjetas del filtro actual'
+      : 'Añadir a la selección todas las tarjetas del filtro actual';
+    all.style.marginLeft = 'auto';
+    all.onclick = () => {
+      for (const i of visible) {
+        if (allPicked) SEL.delete(i.content_id);
+        else SEL.add(i.content_id);
+      }
+      render();
+    };
+    box.appendChild(all);
+  }
   document.getElementById('counts').textContent =
     `${ITEMS.length} tarjetas · ` + Object.entries(c).map(([k,v]) => `${(LABELS[k]||k).toLowerCase()} ${v}`).join(' · ');
 }
@@ -619,6 +641,9 @@ function render(){
   const grid = document.createElement('div'); grid.className = 'grid';
   list.forEach(i => grid.appendChild(card(i)));
   OUT.appendChild(grid);
+  // Keep the floating action bar in sync with the current SEL — matters when
+  // Seleccionar todo mutates SEL and calls back into render().
+  if (typeof syncSelbar === 'function') syncSelbar();
 }
 
 function esc(s){ const d = document.createElement('div'); d.textContent = s ?? ''; return d.innerHTML; }
